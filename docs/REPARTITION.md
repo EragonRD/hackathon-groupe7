@@ -89,7 +89,7 @@
 ### Squad NLP — Sujet A · *Indexation & analyse sémantique*
 | Membre | Rôle | Tâches |
 |---|---|---|
-| **Rabah** (WMD, lead) | API Engine | Service Python (API de préf.), contrat **JSON** ([`docs/P3A-metadata-schema.md`](docs/P3A-metadata-schema.md)), branchement au Core |
+| **Rabah** (WMD, lead) | API Engine | Service Python (API de préf.), contrat **JSON** ([`docs/P3A-metadata-schema.md`](P3A-metadata-schema.md)), branchement au Core |
 | **Duval** (BDAI) | Transcription | ffmpeg (extraction audio) → **Whisper** local, segments **horodatés**, détection de langue |
 | **Antoine** (BDAI) | Résumé/chapitres | Résumé + chapitres via LLM local (Ollama) ou NLP classique, **mots-clés** (KeyBERT/TextRank) |
 | **Izlene** (BDAI) | Recherche sémantique | Embeddings + recherche « le passage où on parle de X », multilingue/traduction |
@@ -97,7 +97,7 @@
 ### Squad Data — Sujet B · *Analyse d'audience & rétention*
 | Membre | Rôle | Tâches |
 |---|---|---|
-| **Otman** (BDAI) | Analyse & détection | À partir de [`data/`](data/) : **courbe de rétention**, **zones d'ennui**, mesure précision/rappel vs corrigé |
+| **Otman** (BDAI) | Analyse & détection | À partir de [`data/`](../data/) : **courbe de rétention**, **zones d'ennui**, mesure précision/rappel vs corrigé |
 | **Amina** (BDAI) | Modèle prédictif | Modèle scikit-learn (forêts/boosting), features **sans fuite de cible**, métriques MAE/R² |
 | **Faycal** (SAP) | Dashboard | Tableau de bord (Streamlit/BI), comparaison entre vidéos, visualisations |
 | **Hassane** (SAP) | Business & doc | **Lecture business** (quoi conseiller pour améliorer une vidéo), doc reproductible |
