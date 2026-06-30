@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>P2 Security Dashboard</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background: #f6f7f9;
+        color: #17202a;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+      }
+
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 28px 18px 40px;
+      }
+
+      header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 22px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 750;
+      }
+
+      .status {
+        font-size: 13px;
+        color: #52606d;
+      }
+
+      .login {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .login input {
+        padding: 6px 8px;
+        border: 1px solid #d9dee5;
+        border-radius: 6px;
+        font-size: 13px;
+        width: 120px;
+      }
+
+      .login button {
+        padding: 6px 12px;
+        border: 0;
+        border-radius: 6px;
+        background: #155fa0;
+        color: #fff;
+        font-weight: 650;
+        cursor: pointer;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .metric,
+      section {
+        background: #ffffff;
+        border: 1px solid #d9dee5;
+        border-radius: 8px;
+      }
+
+      .metric {
+        padding: 14px;
+      }
+
+      .metric span {
+        display: block;
+        color: #66707c;
+        font-size: 12px;
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 6px;
+        font-size: 22px;
+      }
+
+      section {
+        overflow: hidden;
+      }
+
+      h2 {
+        margin: 0;
+        padding: 14px 16px;
+        font-size: 15px;
+        border-bottom: 1px solid #d9dee5;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid #edf0f3;
+        font-size: 13px;
+        text-align: left;
+        vertical-align: top;
+        overflow-wrap: anywhere;
+      }
+
+      th {
+        background: #f9fafb;
+        color: #52606d;
+        font-weight: 650;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .tag {
+        display: inline-block;
+        padding: 3px 7px;
+        border-radius: 999px;
+        background: #edf5ff;
+        color: #155fa0;
+        font-weight: 650;
+      }
+
+      .block {
+        background: #fff0f0;
+        color: #b42318;
+      }
+
+      @media (max-width: 760px) {
+        header {
+          display: block;
+        }
+
+        .metrics {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Security Dashboard</h1>
+        <div class="login" id="login">
+          <input id="username" value="alice" autocomplete="username" />
+          <input
+            id="password"
+            type="password"
+            value="password"
+            autocomplete="current-password"
+          />
+          <button id="connect" type="button">Se connecter</button>
+          <span class="status" id="status">Non connecte</span>
+        </div>
+      </header>
+
+      <div class="metrics">
+        <div class="metric">
+          <span>Requetes recentes</span>
+          <strong id="recentRequests">0</strong>
+        </div>
+        <div class="metric">
+          <span>Alertes actives</span>
+          <strong id="activeAlerts">0</strong>
+        </div>
+        <div class="metric">
+          <span>IP uniques</span>
+          <strong id="uniqueIps">0</strong>
+        </div>
+        <div class="metric">
+          <span>Segments .ts</span>
+          <strong id="segmentRequests">0</strong>
+        </div>
+      </div>
+
+      <section>
+        <h2>Alertes</h2>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 160px">Heure</th>
+              <th style="width: 140px">Type</th>
+              <th style="width: 120px">Compte</th>
+              <th style="width: 130px">IP</th>
+              <th>Detail</th>
+              <th style="width: 90px">Action</th>
+            </tr>
+          </thead>
+          <tbody id="alerts">
+            <tr>
+              <td colspan="6">Aucune alerte active.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <script>
+      const cells = {
+        status: document.querySelector("#status"),
+        recentRequests: document.querySelector("#recentRequests"),
+        activeAlerts: document.querySelector("#activeAlerts"),
+        uniqueIps: document.querySelector("#uniqueIps"),
+        segmentRequests: document.querySelector("#segmentRequests"),
+        alerts: document.querySelector("#alerts"),
+      }
+
+      // Le dashboard est protégé : il faut un JWT d'administrateur.
+      let token = sessionStorage.getItem("p2-dashboard-token") || ""
+
+      async function login() {
+        const username = document.querySelector("#username").value
+        const password = document.querySelector("#password").value
+        cells.status.textContent = "Connexion..."
+        try {
+          const response = await fetch("/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          })
+          if (!response.ok) {
+            cells.status.textContent = "Identifiants invalides"
+            return
+          }
+          const data = await response.json()
+          token = data.accessToken
+          sessionStorage.setItem("p2-dashboard-token", token)
+          cells.status.textContent = "Connecte"
+          refresh()
+        } catch (error) {
+          cells.status.textContent = "Login indisponible"
+        }
+      }
+
+      document.querySelector("#connect").addEventListener("click", login)
+
+      function text(value) {
+        return value === undefined || value === null || value === ""
+          ? "-"
+          : String(value)
+      }
+
+      function renderAlerts(alerts) {
+        if (!alerts.length) {
+          cells.alerts.innerHTML =
+            '<tr><td colspan="6">Aucune alerte active.</td></tr>'
+          return
+        }
+
+        cells.alerts.innerHTML = alerts
+          .map(
+            (alert) => `
+              <tr>
+                <td>${text(alert.ts)}</td>
+                <td><span class="tag">${text(alert.type)}</span></td>
+                <td>${text(alert.username || alert.account)}</td>
+                <td>${text(alert.ip)}</td>
+                <td>${text(alert.detail)}</td>
+                <td><span class="tag ${alert.action === "block" ? "block" : ""}">${text(alert.action)}</span></td>
+              </tr>
+            `,
+          )
+          .join("")
+      }
+
+      async function refresh() {
+        if (!token) {
+          cells.status.textContent = "Connecte-toi avec un compte admin (alice)"
+          return
+        }
+        try {
+          const response = await fetch("/security/dashboard", {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          if (response.status === 401) {
+            token = ""
+            sessionStorage.removeItem("p2-dashboard-token")
+            cells.status.textContent = "Session expiree, reconnecte-toi"
+            return
+          }
+          if (response.status === 403) {
+            cells.status.textContent = "Acces refuse : compte non administrateur"
+            return
+          }
+          const data = await response.json()
+          cells.status.textContent = `Derniere mise a jour ${data.generatedAt}`
+          cells.recentRequests.textContent = data.counters.recentRequests
+          cells.activeAlerts.textContent = data.counters.activeAlerts
+          cells.uniqueIps.textContent = data.counters.uniqueIps
+          cells.segmentRequests.textContent = data.counters.segmentRequests
+          renderAlerts(data.alerts || [])
+        } catch (error) {
+          cells.status.textContent = "Dashboard indisponible"
+        }
+      }
+
+      refresh()
+      setInterval(refresh, 2000)
+    </script>
+  </body>
+</html>
