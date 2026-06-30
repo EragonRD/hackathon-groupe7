@@ -6,6 +6,7 @@ import { AppService } from './app.service'
 import { AuthModule } from './auth/auth.module'
 import { KeysModule } from './keys/keys.module'
 import { SecurityModule } from './security/security.module'
+import { ReviewModule } from './review/review.module'
 import { AdminModule } from './admin/admin.module'
 
 @Module({
@@ -19,6 +20,7 @@ import { AdminModule } from './admin/admin.module'
     AuthModule,
     KeysModule,
     SecurityModule,
+    ReviewModule,
     AdminModule,
   ],
   controllers: [AppController],
