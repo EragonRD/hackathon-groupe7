@@ -26,6 +26,7 @@ export default function App() {
   // view : { name: 'catalogue' } | { name: 'review', video } | { name: 'docs' }
   //      | { name: 'secure', contentId } | { name: 'dashboard' }
   const [view, setView] = useState({ name: 'catalogue' })
+  const [reviewPeers, setReviewPeers] = useState([])
 
   // Réhydrate la session si un token est déjà présent (rechargement de page).
   useEffect(() => {
@@ -73,13 +74,17 @@ export default function App() {
     return <Login onAuthed={setUser} />
   }
 
-  const toCatalogue = () => setView({ name: 'catalogue' })
+  function goToCatalogue() {
+    setReviewPeers([])
+    setView({ name: 'catalogue' })
+  }
   const titles = {
     review: view.video?.title,
     secure: 'Lecture protégée',
     dashboard: 'Surveillance',
   }
   const showBack = ['review', 'secure', 'dashboard'].includes(view.name)
+  const inReview = view.name === 'review'
 
   // Accès admin discret (les utilisateurs non-admin ne le voient jamais).
   const adminButton =
@@ -94,11 +99,12 @@ export default function App() {
     <AppShell
       user={user}
       onLogout={handleLogout}
-      onBack={showBack ? toCatalogue : undefined}
-      onHome={toCatalogue}
+      onBack={showBack ? goToCatalogue : undefined}
+      onHome={goToCatalogue}
       onOpenDocs={() => setView({ name: 'docs' })}
       title={titles[view.name]}
       right={adminButton}
+      peers={reviewPeers}
     >
       {view.name === 'review' && (
         <VideoReview
@@ -106,6 +112,7 @@ export default function App() {
           source={view.video.src}
           session={view.video.session ?? view.video.id}
           user={user}
+          onPeersUpdate={setReviewPeers}
         />
       )}
       {view.name === 'secure' && (
@@ -118,7 +125,7 @@ export default function App() {
           <SecurityDashboard />
         </Suspense>
       )}
-      {view.name === 'docs' && <Documentation onBack={toCatalogue} />}
+      {view.name === 'docs' && <Documentation onBack={goToCatalogue} />}
       {view.name === 'catalogue' && (
         <Catalogue
           onOpen={(video) => setView({ name: 'review', video })}

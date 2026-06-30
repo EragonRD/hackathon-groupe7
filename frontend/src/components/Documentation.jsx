@@ -1,5 +1,8 @@
 import {
   Play,
+  Pause,
+  PencilSimple,
+  ChatCircle,
   Users,
   Export,
   FileCode,

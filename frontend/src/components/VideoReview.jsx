@@ -4,6 +4,7 @@ import {
   Pause,
   Cursor,
   PencilSimple,
+  Eraser,
   ArrowUpRight,
   Rectangle,
   Circle,
@@ -12,6 +13,9 @@ import {
   UploadSimple,
   Broadcast,
   Eye,
+  TrashSimple,
+  ArrowsOutSimple,
+  ArrowsInSimple,
 } from '@phosphor-icons/react'
 import DrawingCanvas from './DrawingCanvas'
 import CommentPanel from './CommentPanel'
@@ -35,6 +39,7 @@ import { formatTime } from '../lib/format'
 const TOOLS = [
   { id: 'cursor', label: 'Curseur', Icon: Cursor },
   { id: 'pen', label: 'Trait libre', Icon: PencilSimple },
+  { id: 'eraser', label: 'Gomme libre', Icon: Eraser },
   { id: 'arrow', label: 'Flèche', Icon: ArrowUpRight },
   { id: 'rect', label: 'Cadre', Icon: Rectangle },
   { id: 'ellipse', label: 'Ellipse', Icon: Circle },
@@ -54,9 +59,10 @@ const SWATCHES = [
 const DRIFT_THRESHOLD = 0.4
 const HEARTBEAT_MS = 2000
 
-export default function VideoReview({ source, session, user }) {
+export default function VideoReview({ source, session, user, onPeersUpdate }) {
   const videoRef = useRef(null)
   const fileRef = useRef(null)
+  const stageRef = useRef(null)
 
   const {
     self,
@@ -67,6 +73,7 @@ export default function VideoReview({ source, session, user }) {
     replyToNote,
     resolveNote,
     removeNote,
+    updateNoteShapes,
     replaceNotes,
     sendCursor,
     toggleLike,
@@ -95,6 +102,7 @@ export default function VideoReview({ source, session, user }) {
   const [text, setText] = useState('')
   const [activeId, setActiveId] = useState(null)
   const [editingId, setEditingId] = useState(null)
+  const [pendingText, setPendingText] = useState(null) // { x, y } position du texte en attente
 
   // Suit-on un présentateur ? (présentateur défini, et ce n'est pas moi)
   const following = Boolean(presenterId) && !isPresenter
@@ -166,6 +174,67 @@ export default function VideoReview({ source, session, user }) {
       pause()
     }
     setActiveId(null)
+  }
+
+  const ERASE_THRESHOLD = 0.04
+  function shapeHitByPath(shape, points) {
+    if (shape.tool === 'pen') {
+      const pts = shape.points || []
+      return pts.some((sp) =>
+        points.some((ep) => Math.hypot(sp.x - ep.x, sp.y - ep.y) < ERASE_THRESHOLD),
+      )
+    }
+    if (shape.tool === 'rect' || shape.tool === 'arrow') {
+      const minX = Math.min(shape.from.x, shape.to.x) - ERASE_THRESHOLD
+      const maxX = Math.max(shape.from.x, shape.to.x) + ERASE_THRESHOLD
+      const minY = Math.min(shape.from.y, shape.to.y) - ERASE_THRESHOLD
+      const maxY = Math.max(shape.from.y, shape.to.y) + ERASE_THRESHOLD
+      return points.some(
+        (ep) => ep.x >= minX && ep.x <= maxX && ep.y >= minY && ep.y <= maxY,
+      )
+    }
+    return false
+  }
+
+  function handleErase(points) {
+    if (activeId) {
+      const note = notes.find((n) => n.id === activeId)
+      if (note) {
+        const remaining = (note.shapes || []).filter((s) => !shapeHitByPath(s, points))
+        if (remaining.length !== (note.shapes || []).length) {
+          updateNoteShapes(note.id, remaining)
+        }
+      }
+    } else {
+      setDraftShapes((prev) => prev.filter((s) => !shapeHitByPath(s, points)))
+    }
+    setTool('eraser') // keep eraser active for consecutive strokes
+  }
+
+  function handleTextPlace(pos) {
+    setPendingText(pos)
+    setActiveId(null)
+  }
+
+  function handleTextSubmit(textVal) {
+    if (!textVal.trim()) {
+      setPendingText(null)
+      return
+    }
+    const shape = {
+      tool: 'text',
+      color,
+      x: pendingText.x,
+      y: pendingText.y,
+      text: textVal,
+      fontSize: 18,
+    }
+    setDraftShapes((prev) => [...prev, shape])
+    if (pinnedTime == null) {
+      setPinnedTime(videoRef.current?.currentTime ?? currentTime)
+      if (!followingRef.current) pause()
+    }
+    setPendingText(null)
   }
 
   function handleTextChange(value) {
@@ -332,6 +401,11 @@ export default function VideoReview({ source, session, user }) {
     return () => clearInterval(id)
   }, [isPresenter, sendHeartbeat])
 
+  // --- Remonte les pairs vers AppShell pour les pastilles de présence -----
+  useEffect(() => {
+    onPeersUpdate?.(peers)
+  }, [peers, onPeersUpdate])
+
   // --- Invité : applique les commandes distantes -------------------------
   useEffect(() => {
     const off = subscribePlayback((evt) => {
@@ -452,6 +526,28 @@ export default function VideoReview({ source, session, user }) {
 
   const progress = duration ? (currentTime / duration) * 100 : 0
 
+  // --- Plein écran --------------------------------------------------------
+  const [fullscreen, setFullscreen] = useState(false)
+  function toggleFullscreen() {
+    const el = stageRef.current
+    if (!el) return
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.()
+        .then(() => setFullscreen(true))
+        .catch(() => {})
+    } else {
+      document
+        .exitFullscreen?.()
+        .then(() => setFullscreen(false))
+        .catch(() => {})
+    }
+  }
+  useEffect(() => {
+    const onFs = () => setFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+
   // Nom du présentateur courant (pour le badge).
   const presenterName = isPresenter
     ? self.name
@@ -460,7 +556,7 @@ export default function VideoReview({ source, session, user }) {
   return (
     <div className="review">
       <div className="review-main">
-        <div className="stage">
+        <div className="stage" ref={stageRef}>
           <div className="stage-inner">
             <video
               ref={videoRef}
@@ -485,6 +581,8 @@ export default function VideoReview({ source, session, user }) {
               shapes={shapesToShow}
               onAddShape={handleAddShape}
               onBeginAnnotation={handleBeginAnnotation}
+              onErase={handleErase}
+              onTextPlace={handleTextPlace}
               onCursor={sendCursor}
               onBackgroundClick={togglePlay}
             />
@@ -507,6 +605,89 @@ export default function VideoReview({ source, session, user }) {
                 </div>
               ))}
           </div>
+
+          {/* Input texte flottant */}
+          {pendingText && (
+            <div
+              className="text-input-overlay"
+              style={{
+                left: `${pendingText.x * 100}%`,
+                top: `${pendingText.y * 100}%`,
+              }}
+            >
+              <textarea
+                className="text-input-field"
+                placeholder="Écrire…"
+                autoFocus
+                rows={2}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleTextSubmit(e.target.value)
+                  }
+                  if (e.key === 'Escape') setPendingText(null)
+                }}
+                onBlur={(e) => handleTextSubmit(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Barre d'outils flottante (plein écran) */}
+          {fullscreen && (
+            <div className="fs-toolbar">
+              <div className="fs-toolbar-tools">
+                {TOOLS.map(({ id, label, Icon }) => (
+                  <button
+                    key={id}
+                    className={`tool-btn${tool === id ? ' active' : ''}`}
+                    onClick={() => setTool(id)}
+                    title={label}
+                    aria-label={label}
+                    aria-pressed={tool === id}
+                  >
+                    <Icon size={16} weight={tool === id ? 'fill' : 'regular'} />
+                  </button>
+                ))}
+                <span className="toolbar-sep" />
+                <div className="swatches">
+                  {SWATCHES.map((s) => (
+                    <button
+                      key={s.value}
+                      className={`swatch${color === s.value ? ' active' : ''}`}
+                      style={{ background: s.value }}
+                      onClick={() => setColor(s.value)}
+                      title={s.name}
+                      aria-label={`Couleur ${s.name}`}
+                    />
+                  ))}
+                </div>
+                <span className="toolbar-sep" />
+                <button
+                  className="tool-btn"
+                  onClick={() => {
+                    if (activeId) {
+                      const note = notes.find((n) => n.id === activeId)
+                      if (note && note.shapes?.length) updateNoteShapes(note.id, [])
+                    } else {
+                      clearDraft()
+                    }
+                  }}
+                  title="Effacer tout"
+                  aria-label="Effacer tout"
+                >
+                  <TrashSimple size={16} />
+                </button>
+                <button
+                  className="tool-btn"
+                  onClick={toggleFullscreen}
+                  title="Quitter le plein écran"
+                  aria-label="Quitter le plein écran"
+                >
+                  <ArrowsInSimple size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="controls">
@@ -651,6 +832,30 @@ export default function VideoReview({ source, session, user }) {
               hidden
               onChange={(e) => importJSON(e.target.files?.[0])}
             />
+            <span className="toolbar-sep" />
+            <button
+              className="btn-icon"
+              onClick={() => {
+                if (activeId) {
+                  const note = notes.find((n) => n.id === activeId)
+                  if (note && note.shapes?.length) updateNoteShapes(note.id, [])
+                } else {
+                  clearDraft()
+                }
+              }}
+              title="Effacer tous les dessins"
+              aria-label="Effacer les dessins"
+            >
+              <TrashSimple size={18} />
+            </button>
+            <button
+              className="btn-icon"
+              onClick={toggleFullscreen}
+              title={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+              aria-label={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+            >
+              {fullscreen ? <ArrowsInSimple size={18} /> : <ArrowsOutSimple size={18} />}
+            </button>
           </div>
         </div>
       </div>
