@@ -169,7 +169,7 @@ Le token porte `role` ∈ `superadmin | admin | user` **et** `companyId`. L'UI s
 |---|---|---|
 | `GET` | `/admin/companies` | liste des entreprises |
 | `POST` | `/admin/companies` `{ name }` | créer une entreprise |
-| `POST` | `/admin/companies/:id/admins` `{ username, password }` | créer un **admin** d'entreprise |
+| `POST` | `/admin/companies/:id/invite-admin` `{ email }` | **inviter** l'admin (mdp temporaire 24 h envoyé par mail ; la réponse renvoie aussi `link` + `tempPassword`) |
 
 ### Niveau 2 — ADMIN d'entreprise (scoppé à SA `companyId`)
 | Méthode | Endpoint | Effet |
@@ -185,18 +185,32 @@ Le token porte `role` ∈ `superadmin | admin | user` **et** `companyId`. L'UI s
 ### Niveau 3 — USER
 Pas d'accès `/admin/*` (→ `403`). Lit uniquement les contenus que son entreprise/admin autorise.
 
+### Onboarding d'un admin invité (1ʳᵉ connexion)
+Le token d'un admin invité porte `mustChangePassword: true` et le panel est **bloqué**
+(`403`) tant qu'il n'a pas changé son mot de passe temporaire :
+```js
+// après login avec le mot de passe temporaire reçu par mail
+const res = await authFetch('/auth/change-password', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ currentPassword: tempPassword, newPassword: 'NouveauMdp2026' }),
+})
+const { accessToken } = await res.json()   // nouveau token, mustChangePassword = false
+localStorage.setItem('hackathon_token', accessToken)
+```
+
 > **Isolation** : un admin/user ne voit/agit que dans sa `companyId`. Toute tentative
 > cross-entreprise renvoie `404` (contenu masqué) ou `403`. La révocation/le retrait
 > d'accès fait passer `GET /keys/:id` à `403`/`404` immédiatement.
 
 ```js
-// SUPER-ADMIN : créer une entreprise puis son admin
+// SUPER-ADMIN : créer une entreprise puis inviter son admin (par email)
 const c = await (await authFetch('/admin/companies', {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ name: 'Acme' }) })).json()
-await authFetch(`/admin/companies/${c.id}/admins`, {
+const invite = await (await authFetch(`/admin/companies/${c.id}/invite-admin`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ username: 'boss', password: 'secret123' }) })
+  body: JSON.stringify({ email: 'rep@acme.com' }) })).json()
+// invite.invitation = { email, link, tempPassword, expiresAt }
 
 // ADMIN : créer un user dans son entreprise + gérer les droits
 await authFetch('/admin/users', { method: 'POST',

@@ -5,6 +5,7 @@ export interface JwtUser {
   username: string
   role?: 'superadmin' | 'admin' | 'user'
   companyId?: string | null
+  mustChangePassword?: boolean
   iat?: number
   exp?: number
 }

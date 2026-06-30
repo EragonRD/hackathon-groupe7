@@ -12,25 +12,33 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common'
+import { randomBytes } from 'crypto'
 import { AuthGuard } from '../auth/auth.guard'
 import { AdminGuard } from '../auth/admin.guard'
 import { SuperAdminGuard } from '../auth/superadmin.guard'
+import { PasswordChangedGuard } from '../auth/password-changed.guard'
 import { UsersService } from '../auth/users.service'
 import { CompaniesService } from '../companies/companies.service'
 import { ContentsService } from '../contents/contents.service'
 import type { Content } from '../contents/contents.service'
+import { EmailService } from '../email/email.service'
 import type { JwtUser, RequestWithUser } from '../common/request-context'
 
-// 🛡️ Back-office multi-tenant. Toutes les routes exigent un JWT (AuthGuard).
+const INVITE_TTL_MS = 24 * 60 * 60 * 1000 // 24 h
+const APP_URL = process.env.APP_URL ?? 'http://localhost:5173'
+
+// 🛡️ Back-office multi-tenant. Toutes les routes exigent un JWT (AuthGuard) ET
+//    que l'utilisateur ait changé son mot de passe temporaire (PasswordChangedGuard).
 //    • /admin/companies*  → SUPER-ADMIN (gestion des entreprises + de leurs admins)
 //    • le reste           → ADMIN de l'entreprise (ou superadmin), strictement scoppé
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PasswordChangedGuard)
 @Controller('admin')
 export class AdminController {
   constructor(
     private readonly users: UsersService,
     private readonly companies: CompaniesService,
     private readonly contents: ContentsService,
+    private readonly email: EmailService,
   ) {}
 
   // ───────────────────────── SUPER-ADMIN ─────────────────────────
@@ -48,24 +56,47 @@ export class AdminController {
     return this.companies.create(body.name)
   }
 
-  // Créer un ADMIN pour une entreprise donnée.
+  // Inviter l'ADMIN d'une entreprise : crée le compte avec un mot de passe
+  // TEMPORAIRE (24 h), changement forcé, et "envoie" le lien d'invitation au mail
+  // du représentant. Renvoie aussi l'invitation (lien + mot de passe temporaire).
   @UseGuards(SuperAdminGuard)
-  @Post('companies/:id/admins')
-  async createCompanyAdmin(
+  @Post('companies/:id/invite-admin')
+  async inviteCompanyAdmin(
     @Param('id') companyId: string,
-    @Body() body: { username?: string; password?: string },
+    @Body() body: { email?: string },
   ) {
-    if (!this.companies.find(companyId))
-      throw new NotFoundException('Entreprise inconnue')
-    this.assertCredentials(body)
-    if (this.users.exists(body.username!))
-      throw new ConflictException('Utilisateur déjà existant')
-    return this.users.createUser({
-      username: body.username!,
-      password: body.password!,
-      role: 'admin',
+    const company = this.companies.find(companyId)
+    if (!company) throw new NotFoundException('Entreprise inconnue')
+    const email = body?.email?.trim().toLowerCase()
+    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      throw new BadRequestException('Email valide requis')
+    }
+    if (this.users.exists(email))
+      throw new ConflictException('Un compte avec cet email existe déjà')
+
+    const tempPassword = randomBytes(9).toString('base64url') // ~12 caractères
+    const expiresAt = Date.now() + INVITE_TTL_MS
+    const admin = await this.users.createInvitedAdmin({
+      email,
       companyId,
+      tempPassword,
+      expiresAt,
     })
+
+    const link = `${APP_URL}/login?email=${encodeURIComponent(email)}`
+    await this.email.sendAdminInvite({
+      to: email,
+      companyName: company.name,
+      link,
+      tempPassword,
+      expiresAt,
+    })
+
+    return {
+      invited: admin,
+      invitation: { email, companyId, link, tempPassword, expiresAt },
+      message: 'Invitation envoyée (mot de passe temporaire valable 24 h)',
+    }
   }
 
   // ───────────────────────── ADMIN D'ENTREPRISE ─────────────────────────

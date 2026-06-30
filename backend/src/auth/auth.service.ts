@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -51,17 +52,53 @@ export class AuthService {
       throw new UnauthorizedException('Identifiants invalides')
     }
 
+    // Mot de passe temporaire d'invitation expiré (> 24 h) : on refuse l'accès.
+    if (user.passwordExpiresAt !== null && now > user.passwordExpiresAt) {
+      throw new UnauthorizedException(
+        'Mot de passe temporaire expiré, demandez une nouvelle invitation',
+      )
+    }
+
     // Succès : on remet le compteur à zéro.
     this.attempts.delete(username)
+    return this.issueSession(user)
+  }
 
+  // Change le mot de passe (depuis un compte connecté), efface le caractère
+  // temporaire, et renvoie un nouveau token (sans le flag mustChangePassword).
+  async changePassword(username: string, currentPassword: string, newPassword: string) {
+    const user = await this.users.findByUsername(username)
+    if (!user || !(await argon2.verify(user.passwordHash, currentPassword))) {
+      throw new UnauthorizedException('Mot de passe actuel invalide')
+    }
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException(
+        'Le nouveau mot de passe doit faire au moins 8 caractères',
+      )
+    }
+    if (newPassword === currentPassword) {
+      throw new BadRequestException('Le nouveau mot de passe doit être différent')
+    }
+    await this.users.changePassword(username, newPassword)
+    const updated = await this.users.findByUsername(username)
+    return this.issueSession(updated!)
+  }
+
+  private async issueSession(user: {
+    id: number
+    username: string
+    role: 'superadmin' | 'admin' | 'user'
+    companyId: string | null
+    mustChangePassword: boolean
+  }) {
     const payload = {
       sub: user.id,
       username: user.username,
       role: user.role,
       companyId: user.companyId,
+      mustChangePassword: user.mustChangePassword,
     }
     const accessToken = await this.jwt.signAsync(payload)
-
     return {
       accessToken,
       user: {
@@ -69,6 +106,7 @@ export class AuthService {
         username: user.username,
         role: user.role,
         companyId: user.companyId,
+        mustChangePassword: user.mustChangePassword,
       },
     }
   }

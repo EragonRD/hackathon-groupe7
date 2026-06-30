@@ -35,4 +35,24 @@ export class AuthController {
   me(@Req() req: Request) {
     return (req as Request & { user?: unknown }).user
   }
+
+  // POST /auth/change-password  { currentPassword, newPassword }
+  // Première connexion d'un admin invité : il pose son vrai mot de passe.
+  // Renvoie un NOUVEAU token (sans le flag mustChangePassword).
+  @UseGuards(AuthGuard)
+  @Post('change-password')
+  changePassword(
+    @Req() req: Request,
+    @Body() body: { currentPassword?: string; newPassword?: string },
+  ) {
+    const user = (req as Request & { user?: { username: string } }).user
+    if (!body?.currentPassword || !body?.newPassword) {
+      throw new UnauthorizedException('currentPassword et newPassword requis')
+    }
+    return this.auth.changePassword(
+      user!.username,
+      body.currentPassword,
+      body.newPassword,
+    )
+  }
 }

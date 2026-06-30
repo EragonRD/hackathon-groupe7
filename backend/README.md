@@ -1,157 +1,205 @@
-# Backend — API NestJS (Core)
+# Backend — API NestJS (Core) · Pôle 2
 
-> Brique **Core** de la plateforme : API, authentification, règles métier.
-> Voir le [README racine](../README.md) pour le contexte du hackathon.
+> Brique **Core** de la plateforme vidéo : authentification, délivrance de clé HLS
+> Zero-Trust, détection anti-scraping et back-office multi-tenant.
+> Contexte général : [README racine](../README.md).
 
-## ✅ Prérequis
+---
 
-| Outil | Version | Vérifier |
-|---|---|---|
-| **Node.js** | **20.x ou +** (LTS conseillée) | `node -v` |
-| **npm** | 9+ (livré avec Node) | `npm -v` |
-| **git** | récent | `git --version` |
-
-> 🔧 La dépendance **`argon2`** (hachage des mots de passe) se compile à l'installation.
-> Sur la plupart des machines un binaire pré-compilé est utilisé ; si `npm install`
-> échoue dessus, installez les outils de build (macOS : `xcode-select --install` ·
-> Windows : « Desktop development with C++ » · Linux : `build-essential` + `python3`).
-
-Aucun Docker requis pour lancer le Core.
-
-## 🚀 Installer & lancer
+## 🚀 Démarrage rapide
 
 ```bash
 npm install
-npm run start:dev        # API en mode watch → http://localhost:3000
+npm run start:dev          # API en watch → http://localhost:3000
 ```
 
-Vérifier que tout répond :
+Démo complète (chiffrement HLS + nginx + attaques) en une commande :
 
 ```bash
-curl http://localhost:3000                           # "Hello World!"
-curl -X POST http://localhost:3000/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"alice","password":"password"}'    # → { accessToken, user }
+../scripts/demo-local.sh   # nécessite ffmpeg + nginx
 ```
 
-## ⚙️ Variables d'environnement (optionnelles)
-
-| Variable | Défaut | Rôle |
-|---|---|---|
-| `PORT` | `3000` | port d'écoute de l'API |
-| `JWT_SECRET` | `dev-secret-change-me` | secret de signature des JWT |
-| `JWT_TTL` | `15m` | durée de vie des tokens |
-
-## 🧰 Scripts utiles
+Déploiement conteneurisé (depuis la racine) :
 
 ```bash
-npm run start:dev    # dev (watch)
-npm run build        # build de production
-npm run start:prod   # lancer le build
-npm run lint         # ESLint (corrige avec --fix)
-npm run format       # Prettier (écrit)
-npm run test         # tests unitaires (Jest)
+export JWT_SECRET=$(openssl rand -hex 32)   # OBLIGATOIRE (refus de démarrer sinon en prod)
+docker compose up --build
 ```
 
 ---
 
-<sub>Documentation NestJS d'origine ci-dessous.</sub>
+## 🏛️ Architecture (modules)
 
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+| Module | Rôle |
+|---|---|
+| `auth/` | login, JWT, guards (Auth/Admin/SuperAdmin/PasswordChanged), changement de mot de passe |
+| `keys/` | serveur de **clé AES éphémère** (Zero-Trust, P2-A) |
+| `security/` | rate-limit, détection d'abus temps réel, dashboard, watermark (P2-B) |
+| `companies/` | entreprises (tenants) |
+| `contents/` | catalogue + droits d'accès par contenu (multi-tenant) |
+| `admin/` | back-office (super-admin & admin d'entreprise) |
+| `email/` | envoi d'invitation (simulé en dev) |
+| `common/` | helpers (IP cliente, pair de confiance, types JWT) |
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+---
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 👥 Modèle de rôles (multi-tenant, 3 niveaux)
 
-## Description
+| Rôle | Périmètre | Peut |
+|---|---|---|
+| **superadmin** | global | créer des **entreprises**, **inviter** leurs admins, tout voir |
+| **admin** | 1 entreprise | créer des **users** de son entreprise, gérer contenus & droits, révoquer une clé |
+| **user** | 1 entreprise | accéder aux contenus que son entreprise lui autorise |
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Le JWT porte : `{ sub, username, role, companyId, mustChangePassword }`.
 
-## Project setup
+### Comptes de démo (mot de passe `password`)
+| Compte | Rôle | Entreprise |
+|---|---|---|
+| `root` | superadmin | — |
+| `alice` | admin | `demo` (Demo Corp) |
+| `bob`, `carol` | user | `demo` |
+
+Contenu de démo : `poc` (entreprise `demo`).
+
+---
+
+## 🔑 Workflow d'onboarding d'une entreprise
+
+1. Le **super-admin** crée l'entreprise puis **invite** son admin par email :
+   `POST /admin/companies/:id/invite-admin { email }` → génère un **mot de passe
+   temporaire valable 24 h** et « envoie » le lien au représentant (email simulé en
+   dev : voir les logs ; la réponse contient aussi `link` + `tempPassword`).
+2. L'**admin** se connecte avec le mot de passe temporaire. Tant qu'il ne l'a pas
+   changé, le panel est **bloqué** (`403`).
+3. Il appelle `POST /auth/change-password { currentPassword, newPassword }` →
+   reçoit un **nouveau token** et accède à son panel.
+4. Au-delà de 24 h sans activation, le mot de passe temporaire est **refusé** au login.
+
+---
+
+## 🌐 Référence des routes
+
+Authentification : `Authorization: Bearer <jwt>`. Codes : `401` non/mauvais token,
+`403` droits insuffisants, `404` introuvable / hors-tenant, `409` conflit, `429` rate-limit/verrou.
+
+### Auth
+| Méthode | Route | Accès | Description |
+|---|---|---|---|
+| `POST` | `/auth/login` | public (10/min/IP + verrou) | `{username,password}` → `{accessToken,user}` |
+| `GET` | `/auth/me` | Bearer | utilisateur courant |
+| `POST` | `/auth/change-password` | Bearer | `{currentPassword,newPassword}` → nouveau token |
+
+### Zero-Trust (P2-A)
+| Méthode | Route | Accès | Description |
+|---|---|---|---|
+| `GET` | `/keys/:contentId` | Bearer + droits + même entreprise + non révoqué | renvoie la **clé AES (16 octets)** |
+
+### Sécurité (P2-B)
+| Méthode | Route | Accès | Description |
+|---|---|---|---|
+| `GET` | `/security/dashboard` | Bearer **admin** | trafic, alertes, compteurs |
+| `GET` | `/security/watermark` | Bearer | label de session (incrustation) |
+| `ALL` | `/security/ingest` | **interne** (nginx/loopback) | comptage segments + blocage scraping |
+
+### Back-office — Super-admin
+| Méthode | Route | Description |
+|---|---|---|
+| `GET` | `/admin/companies` | liste des entreprises |
+| `POST` | `/admin/companies` | `{name}` → crée une entreprise |
+| `POST` | `/admin/companies/:id/invite-admin` | `{email}` → invite l'admin (mdp temporaire 24 h) |
+
+### Back-office — Admin d'entreprise (scoppé, superadmin = global)
+| Méthode | Route | Description |
+|---|---|---|
+| `GET` | `/admin/users` | users de son entreprise |
+| `POST` | `/admin/users` | `{username,password}` → crée un user |
+| `GET` | `/admin/contents` | contenus de son entreprise |
+| `POST` | `/admin/contents` | `{title}` → crée un contenu |
+| `POST` | `/admin/contents/:id/access` | `{username}` → donne l'accès (même entreprise) |
+| `DELETE` | `/admin/contents/:id/access/:username` | retire l'accès |
+| `POST` | `/admin/contents/:id/revoke` | 🔒 révoque la clé (lecture bloquée) |
+| `POST` | `/admin/contents/:id/restore` | rétablit la clé |
+
+> Les routes `/admin/*` exigent aussi que le mot de passe temporaire ait été changé
+> (`PasswordChangedGuard`), sinon `403`.
+
+---
+
+## 🛡️ Sécurités en place
+
+### Authentification & identité
+- **Mots de passe** hachés en **Argon2id** (jamais en clair).
+- **JWT court** (TTL `15m` par défaut), **secret fort obligatoire en prod** : le Core
+  **refuse de démarrer** si `JWT_SECRET` est absent/faible/`<16` car. (`NODE_ENV=production`).
+- **Algorithme épinglé `HS256`** (signature + vérification) → bloque la confusion
+  d'algorithme (ex. `alg=none`).
+- **Verrouillage de compte** après 5 échecs (`429`) + **rate-limit login** 10/min/IP.
+- **Anti-énumération d'utilisateurs** : vérification Argon2 à **temps constant** (hash leurre).
+- **Mots de passe temporaires** d'invitation à expiration **24 h** + **changement forcé**.
+
+### Autorisation
+- Guards : `AuthGuard` (JWT), `AdminGuard` (admin|superadmin), `SuperAdminGuard`,
+  `PasswordChangedGuard`.
+- **Isolation multi-tenant** : un admin/user ne voit/agit que dans sa `companyId` ;
+  toute tentative cross-entreprise renvoie `404` (existence masquée).
+
+### Zero-Trust (contenu)
+- Diffusion **HLS chiffrée AES-128** ; la **clé n'est délivrée que sur token valide**,
+  avec **droits par contenu** dynamiques et **refus par défaut**.
+- **Anti path-traversal** sur `contentId` (regex + contrôle d'accès **avant** lecture).
+- **Révocation de clé en direct** : couper l'accès à un contenu immédiatement.
+- **Journalisation** des accès clé (`logs/key-access.log`).
+
+### Anti-scraping & abus (temps réel)
+- **Rate-limit global** 100 req/60s/IP (`@nestjs/throttler`).
+- Détections : **sessions simultanées** anormales, **IP proxy/VPN** (liste hors-ligne),
+  **scraping de segments** (avec **blocage réel** via `auth_request` nginx → `403`).
+- **Watermark de session** dissuasif/traçable.
+- **Anti-usurpation d'IP** : `X-Forwarded-For` honoré uniquement derrière un proxy de
+  confiance (`TRUST_PROXY`).
+- **Endpoint interne** `/security/ingest` réservé au reverse-proxy / loopback.
+- **Dashboard** réservé aux admins (n'expose pas comptes/IP en public).
+
+### Limites assumées (documentées)
+Pas de TLS en local · JWT non révocable avant expiration · clé unique par contenu ·
+scraping distribué · capture d'écran. Voir [`docs/P2-threat-model.md`](../docs/P2-threat-model.md).
+
+---
+
+## ⚙️ Variables d'environnement
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `PORT` | `3000` | port d'écoute |
+| `JWT_SECRET` | `dev-secret-change-me` (dev) | **secret JWT** — obligatoire et fort en prod |
+| `JWT_TTL` | `15m` | durée de vie du token |
+| `TRUST_PROXY` | `loopback, uniquelocal` | proxies de confiance pour `X-Forwarded-For` |
+| `APP_URL` | `http://localhost:5173` | base du lien d'invitation (front) |
+| `NODE_ENV` | — | `production` active le fail-fast du secret |
+
+---
+
+## 🧪 Vérifier la sécurité
 
 ```bash
-$ npm install
+../scripts/prove-zero-trust.sh        # clé : 200 avec token, 401 sans / expiré
+../scripts/attacks/proxy-ip.sh        # détection IP proxy
+../scripts/attacks/multi-session.sh   # sessions simultanées
+../scripts/attacks/flood.sh           # rate-limit 429
+../scripts/attacks/scrape-segments.sh # scraping détecté + bloqué
 ```
 
-## Compile and run the project
+Build & lint :
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm run build && npm run lint
 ```
 
-## Run tests
+---
 
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## 📚 Documents liés
+- [`docs/P2-threat-model.md`](../docs/P2-threat-model.md) — modèle de menace
+- [`docs/P2-anti-scraping.md`](../docs/P2-anti-scraping.md) — règles de détection
+- [`docs/FRONTEND-INTEGRATION.md`](../docs/FRONTEND-INTEGRATION.md) — intégration front
+- [`SECURITY.md`](SECURITY.md) — commandes de démo sécurité
