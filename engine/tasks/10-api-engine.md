@@ -13,20 +13,23 @@ Exposer l'Engine via une API FastAPI appelable par le Core (NestJS), orchestrant
 - Consomme : 20 (transcript), 21 (résumé/mots-clés), 22 (recherche/traduction).
 
 ## Étapes (checklist)
-- [ ] ❌ `GET /health` → statut + modèles chargés
-- [ ] ❌ `POST /analyze` (vidéo) → lance le pipeline, renvoie le JSON contrat
-- [ ] ❌ `POST /search` (query + video_id) → résultats recherche sémantique (tâche 22)
-- [ ] ❌ Schémas Pydantic alignés **1:1** sur `docs/P3A-metadata-schema.md`
-- [ ] ❌ Orchestration : transcription → résumé/chapitres/mots-clés → embeddings
-- [ ] ❌ Vérif token : valider le JWT du Core (clé/algo partagés) — refus sinon (401)
-- [ ] ❌ Gestion erreurs + statut de traitement (sync simple, async si le temps)
-- [ ] ❌ Doc d'interface Engine↔Core (endpoint, payload, auth) figée avec Enzo
+- [x] ✅ `GET /health`
+- [x] ✅ `POST /analyze` (upload) + `POST /analyze-path` (local) → job async → JSON contrat
+- [x] ✅ `POST /search` (query + job_id) → recherche sémantique (timecodes + scores)
+- [x] ✅ Schémas Pydantic alignés **1:1** sur `docs/P3A-metadata-schema.md` (`app/schemas.py`)
+- [x] ✅ Orchestration : transcription → résumé/chapitres/mots-clés/traduction → embeddings (`app/pipeline.py`)
+- [x] ✅ Vérif token JWT du Core (HS256, `JWT_SECRET`, `verify_sub=False`) — refus 401 (`app/auth.py`)
+- [x] ✅ Gestion erreurs + statut de traitement **async** (jobs + polling)
+- [x] ✅ Doc d'interface Engine↔Core (`engine/docs/api-contract.md`)
 
 ## Critères « fait »
-- `POST /analyze` renvoie un JSON **validé** contre le contrat.
-- Appel réussi depuis le Core de bout en bout (1 vidéo de `media/`).
-- Token invalide → 401.
+- [x] ✅ `result` **validé** contre le contrat (`tests/test_contract.py`, `test_e2e.py`)
+- [x] ✅ Flux complet HTTP de bout en bout sur vidéo `media/` (`scripts/demo_api.py`)
+- [x] ✅ Token invalide / absent → 401 (`tests/test_api.py`)
+
+## ✅ Tâche 10 TERMINÉE — validée par 11 tests (API + contrat + E2E)
+> `app/nlp/{transcribe,summarize,search}.py` = **baselines fonctionnelles** ; affinage qualité = tâches **20 (Duval) / 21 (Antoine) / 22 (Izlene)**.
 
 ## Notes / pièges
-- Figer le contrat d'interface avec Enzo **J1** (forme JWT, URL Engine).
-- Garder les modèles chargés en mémoire (singleton) pour éviter rechargement par requête.
+- Contrat d'interface figé avec Enzo : `engine/docs/api-contract.md` (forme JWT, URL Engine).
+- Modèles en **singleton paresseux** (`app/models.py`) pour éviter le rechargement par requête.

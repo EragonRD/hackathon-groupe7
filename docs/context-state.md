@@ -1,55 +1,47 @@
 # État de session & Récap — Engine Pôle 3
 
-> Branche : `feat/intelligence-artificielle-data` · Date : 2026-06-30
-> **Scope strict : Pôle 3 (Engine).** On ne touche pas au code des autres pôles.
+> Branche : `feat/intelligence-artificielle-data` · MàJ : 2026-06-30
+> **Scope strict : Pôle 3 (Engine).** ⚠️ **Aucun commit / push cette session** (demandé).
 
-## 🎯 Où on en est (en une phrase)
-Le **socle de l'Engine est opérationnel** : environnement Python CPU-only installé, API FastAPI qui répond, et le **LLM local (llama.cpp + Qwen2.5-1.5B) fonctionne** (testé). Reste à coder les pipelines (tâches 10→33).
+## 🎯 Où on en est
+**Microservice Engine opérationnel.** Tâches de Rabah (lead) `00` + `10` ✅ terminées et testées. Le pipeline transforme une vidéo en **JSON contrat P3-A + sous-titres multilingues** (fr/en/es/ar), avec API REST sécurisée par le JWT du Core.
 
-## ✅ Fait cette session
+## ✅ Fait
 | Sujet | Détail |
 |---|---|
-| Cadrage | `CLAUDE.md`, `PROJECT_MAP.md`, `SUJETS-CHOIX.md`, plan maître, 9 fiches de tâches |
-| Branche | `feat/intelligence-artificielle-data` créée |
-| **Setup 00** | venv (via virtualenv), deps **CPU-only**, structure `app/` + `dashboard/`, `/health` OK |
-| Stack actée | FastAPI · faster-whisper · **llama.cpp** (vs Ollama) · sentence-transformers · scikit-learn · Streamlit |
-| **Nettoyage disque** | ~60 Go libérés (4,4 → 63 Go) : Docker (cache+images), Unreal Engine .zip 30 Go, caches |
-| Modèles | Choix consigné (`engine/docs/model-selection.md`). **GGUF Qwen2.5-1.5B Q4_K_M téléchargé** (1,1 Go) |
-| Preuve | llama.cpp charge le modèle et génère ✅ ; torch 2.12.1+**cpu** (CUDA off) |
+| Setup 00 | venv CPU-only, nettoyage disque ~60 Go |
+| API T10 | FastAPI `/health /analyze /analyze-path /jobs/{id} /search`, auth JWT, jobs async |
+| Orchestration | ffmpeg → Whisper → llama.cpp (résumé/chapitres) → KeyBERT → MiniLM |
+| **Multilingue** | NLLB-200 : traduction + **sous-titres horodatés**, **15 langues par défaut** (extensible `TARGET_LANGS`) |
+| Sortie | 1 **dossier par vidéo** (`outputs/<video>/` : vidéo + `<video>_trad_<lang>.json` + `_meta.json`) |
+| **Cache** | dossier existant → pas de régénération ; ajout de langue → **incrémental** ; `FORCE=1` régénère |
+| Conteneurisation | `Dockerfile` + `.dockerignore` (microservice attachable au Core) |
+| Nettoyage | parasites supprimés, vidéos → `tests/examples/` (corpus versionné) |
+| ⚠️ HF token | `HF_TOKEN` possiblement requis si rate-limit au DL des modèles |
+| Qualité | résumé langue source, chapitres JSON robustes, mots-clés MMR |
+| Tests | **11/11 verts** (API + contrat + E2E) |
+| Perf | 9,6 min vidéo / 4 langues = ~230 s (mesuré) |
+| Schéma | `engine/docs/architecture.png` (HD, depuis Mermaid) |
+| CLI | `scripts/analyze_file.py` → **JSON toujours produit** (`<video>.json`) |
 
-## 🧠 Décisions clés
-| # | Décision | Pourquoi |
+## 🔌 Intégration Core (Enzo)
+Même `JWT_SECRET` ; relayer le `Bearer <JWT>` ; `POST /analyze` → poll `/jobs/{id}` → renvoyer à la View. Détail : `engine/docs/api-contract.md`.
+⚠️ PyJWT rejette le `sub` numérique du Core → `verify_sub=False` côté Engine.
+
+## ⏳ À faire (autres membres)
+| Tâche | Resp. | Objet |
 |---|---|---|
-| D-LLM | **llama.cpp** (llama-cpp-python, wheel CPU) + GGUF | In-process, sans daemon, contrôle total ; demandé |
-| D-Torch | torch **CPU-only** (index PyTorch CPU) | Évite ~2,5 Go CUDA inutiles (cause du disque plein) |
-| D-Modèle | Qwen2.5-1.5B-Instruct Q4_K_M (repli 0.5B) | Meilleur rapport qualité/poids FR sur i5 CPU, ~4 Go RAM libre |
-| D-Whisper | faster-whisper `base` int8 | Léger, horodatage natif |
+| 20/21/22 | Duval/Antoine/Izlene | affiner transcription / résumé-chapitres / recherche |
+| 30-33 | Otman/Amina/Faycal/Hassane | Data 3B (rétention, modèle, dashboard) |
+| Engine | — | persistance jobs (file de tâches), Dockerfile, RTL arabe côté View |
 
-## 📦 Specs machine
-i5-1145G7 (8 threads) · 15 Go RAM (~4 Go libres) · **pas de GPU** · 63 Go disque libres.
-
-## ⏳ À faire (prochaines tâches)
-| Ordre | Tâche | Resp. | Fiche |
-|---|---|---|---|
-| 1 | API Engine (endpoints, contrat JSON) | Rabah | `engine/tasks/10-api-engine.md` |
-| 2 | Transcription Whisper horodatée | Duval | `engine/tasks/20-...md` |
-| 3 | Résumé/chapitres/mots-clés (llama.cpp) | Antoine | `engine/tasks/21-...md` |
-| 4 | Recherche sémantique + traduction | Izlene | `engine/tasks/22-...md` |
-| 5 | Rétention + zones d'ennui | Otman | `engine/tasks/30-...md` |
-| 6 | Modèle prédictif (anti-fuite) | Amina | `engine/tasks/31-...md` |
-| 7 | Dashboard Streamlit | Faycal | `engine/tasks/32-...md` |
-| 8 | Business + doc | Hassane | `engine/tasks/33-...md` |
-
-> ⚠️ Whisper `base` se téléchargera (~140 Mo) au 1er run de la tâche 20.
-
-## ▶️ Reprendre le travail
+## ▶️ Reprendre / démontrer
 ```bash
 cd engine && source .venv/bin/activate
-uvicorn app.main:app --reload      # API → http://localhost:8000/health
+.venv/bin/python scripts/analyze_file.py "../data/speech1.mp4"   # JSON multilingue
+uvicorn app.main:app --reload                                    # API
+.venv/bin/python -m pytest tests/ -q                              # tests
 ```
-Doc d'entrée : `engine/README.md` · Plan : `docs/feature-plans/engine-p3-ia-data.md`
 
-## 🧹 Nettoyage disque — restant (optionnel, sur demande)
-- `~/.cache/huggingface` 14 Go (modèles HF) — confirmer avant suppression.
-- Volumes Docker inutilisés 2,3 Go.
-- `~/.steam` 13 Go — **ne pas toucher**.
+## 📌 Git
+Tout le travail (tâche 10 + améliorations + multilingue + schéma + docs) **non commité** (consigne). Dernier commit poussé : setup 00 (`362c650`).

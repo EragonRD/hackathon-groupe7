@@ -3,6 +3,8 @@
 ## Objectif
 À partir du transcript, produire un **résumé**, des **chapitres** (titrés + horodatés) et des **mots-clés**, via llama.cpp avec repli NLP classique.
 
+> 🟡 **Baseline améliorée déjà en place** (`app/nlp/summarize.py`) : résumé en **langue source**, chapitres par **échantillonnage + parsing JSON robuste** (repli seulement si échec), mots-clés **MMR** (diversité). Validé sur vidéo EN réelle. **Reste à affiner** : prompts par langue, qualité des titres de chapitres, filtrage stopwords multilingue des mots-clés.
+
 ## Entrées / Sorties
 | Entrées | Sorties (champs du JSON contrat) |
 |---|---|

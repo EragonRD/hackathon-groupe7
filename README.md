@@ -314,12 +314,13 @@ starter-hackathon-estiam/
 └── README.md
 ```
 
-> 🤖 **Groupe 7 — branche `feat/intelligence-artificielle-data` (Pôle 3).** La brique
-> **Engine** (`engine/`, Python/FastAPI, 100 % local CPU) est en cours de construction :
-> transcription Whisper, résumé/chapitres/mots-clés via **llama.cpp** (Qwen2.5-1.5B GGUF),
-> recherche sémantique, et analyse d'audience/rétention. Documentation : [`engine/README.md`](engine/README.md),
-> plan d'exécution [`docs/feature-plans/engine-p3-ia-data.md`](docs/feature-plans/engine-p3-ia-data.md),
-> choix des modèles [`engine/docs/model-selection.md`](engine/docs/model-selection.md).
+> 🤖 **Groupe 7 — branche `feat/intelligence-artificielle-data` (Pôle 3).** Le **microservice
+> Engine** (`engine/`, Python/FastAPI, 100 % local CPU) est **opérationnel** : transcription
+> Whisper, résumé/chapitres via **llama.cpp** (Qwen2.5-1.5B), mots-clés KeyBERT, recherche
+> sémantique, et **sous-titres multilingues** (fr/en/es/ar, extensible) via **NLLB-200**.
+> Sortie = JSON contrat P3-A + `translations[]`. API REST sécurisée par le JWT du Core.
+> 📖 [`engine/README.md`](engine/README.md) · 📐 [`engine/docs/architecture.png`](engine/docs/architecture.png)
+> · 🔌 [`engine/docs/api-contract.md`](engine/docs/api-contract.md) · 🗺️ [`docs/PROJECT_MAP.md`](docs/PROJECT_MAP.md)
 > **Scope de cette branche : strictement le Pôle 3 (Engine).**
 
 > Le **barème détaillé** est fourni séparément par l'organisation. Ce README décrit le

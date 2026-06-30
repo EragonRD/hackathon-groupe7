@@ -75,8 +75,18 @@ Plateforme vidéo unique. Architecture **View / Core / Engine**. 3 pôles imbriq
 | NLP (3A) | Rabah (API), Duval (Whisper/ffmpeg), Antoine (résumé/chapitres/mots-clés), Izlene (recherche sémantique) | JSON `docs/P3A-metadata-schema.md` |
 | Data (3B) | Otman (détection rétention), Amina (modèle scikit-learn), Faycal (dashboard Streamlit/BI), Hassane (business/doc) | Dashboard + modèle documenté |
 
+## Engine — état (microservice P3, opérationnel)
+| Brique | État |
+|---|---|
+| API FastAPI (`/health /analyze /jobs /search`) + auth JWT + jobs async | ✅ testé E2E (11 tests) |
+| Pipeline : ffmpeg → Whisper → llama.cpp (résumé/chapitres) → KeyBERT → MiniLM | ✅ |
+| **Traduction multilingue + sous-titres** (NLLB-200, fr/en/es/ar extensible) | ✅ |
+| Sortie | JSON contrat P3-A + `translations[]` |
+| Docs | `engine/README.md`, `engine/docs/{architecture,api-contract,model-selection,api-vs-microservice}.md` |
+
 ## Décisions structurantes
 - Architecture View/Core/Engine ; auth JWT partagée P1/P2 (figée J1).
-- Engine = nouveau service Python, appelé par le Core (orchestration).
+- Engine = microservice Python/FastAPI, appelé par le Core (orchestration), JWT HS256 partagé.
+- Modèles locaux CPU : Whisper base · Qwen2.5-1.5B (llama.cpp) · MiniLM · **NLLB-200** (traduction).
 - Bloc B piloté par Amos (PM). Contrats d'interface (JWT, JSON Engine, endpoints Core) figés J1.
 - ⚠️ P3-B : corrigés `data/` = évaluation seule, jamais en feature (fuite de cible).

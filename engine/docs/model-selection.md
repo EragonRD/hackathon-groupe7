@@ -15,6 +15,7 @@
 | **LLM résumé/chapitres** (T21) | **Qwen2.5-1.5B-Instruct** GGUF **Q4_K_M** | ~1 Go | ~2-2,5 Go | Meilleur rapport qualité/poids en FR sur CPU ; tient dans la RAM libre |
 | ↳ repli ultra-léger | **Qwen2.5-0.5B-Instruct** Q4_K_M | ~400 Mo | ~1 Go | Si RAM trop juste ; qualité moindre |
 | **Embeddings / recherche** (T22) | `paraphrase-multilingual-MiniLM-L12-v2` | ~470 Mo | ~0,5 Go | Multilingue, léger, rapide CPU |
+| **Traduction / sous-titres** (T22) | **NLLB-200-distilled-600M** | ~2,5 Go | ~2,5 Go | 200 langues, 1 seul modèle ; bien meilleur que le LLM en traduction. LLM déchargé avant (RAM) |
 | **Mots-clés** (T21) | **KeyBERT** (réutilise les embeddings) ou **TextRank** | 0 (réutilise) | ~0 | Pas de modèle dédié ; TextRank = 0 dépendance lourde |
 
 > Empreinte totale visée : **~1,7 Go disque / ~3 Go RAM** en pic. Tient sur la machine.

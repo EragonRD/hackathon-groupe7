@@ -3,6 +3,9 @@
 ## Objectif
 Rendre la vidéo *trouvable* : indexer les segments en embeddings, permettre « le passage où on parle de X », et fournir une **traduction**.
 
+> ✅ **Traduction multilingue en place** (`app/nlp/translate.py`) : **NLLB-200** traduit **chaque segment** → sous-titres horodatés, pour `fr/en/es/ar` (extensible via `TARGET_LANGS`). Sortie = `translations[]` (cf. `docs/api-contract.md`). Langue source incluse telle quelle. Recherche embeddings (`app/nlp/search.py`) OK.
+> **Reste à affiner** : ajouter d'autres langues, gérer le RTL arabe côté View, vitesse (172 seg × 4 langues ≈ 160 s — batché ; possible quantification/ONNX), nettoyage des segments non traduits.
+
 ## Entrées / Sorties
 | Entrées | Sorties |
 |---|---|

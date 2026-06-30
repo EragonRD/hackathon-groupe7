@@ -66,8 +66,8 @@ Deux sujets sont menés en parallèle :
 - [x] ✅ Générer les fichiers de tâches `engine/tasks/*.md`
 
 ### Phase 1 — Squad NLP (3A)
-- [ ] ❌ API Engine + contrat JSON (Rabah)
-- [ ] ❌ Extraction audio + transcription Whisper horodatée (Duval)
+- [x] ✅ API Engine + contrat JSON + orchestration + auth + jobs async (Rabah) — **testé E2E**
+- [ ] ❌ Extraction audio + transcription Whisper horodatée (Duval) — *baseline posée, à affiner*
 - [ ] ❌ Résumé + chapitres + mots-clés (Antoine)
 - [ ] ❌ Recherche sémantique + traduction multilingue (Izlene)
 - [ ] ❌ Démo bout-en-bout sur 1 vidéo (`media/`)
@@ -107,8 +107,10 @@ Deux sujets sont menés en parallèle :
 | 2026-06-30 | Génération des 9 fiches de tâches `engine/tasks/` | ✅ |
 | 2026-06-30 | **Tâche 00 setup** : venv + deps CPU-only + `/health` OK | ✅ |
 | 2026-06-30 | Nettoyage disque (~60 Go) + choix modèles légers (`docs/model-selection.md`) | ✅ |
-| 2026-06-30 | Téléchargement GGUF Qwen2.5-1.5B Q4_K_M → `engine/models/` | 🟡 en cours |
-| — | Tâches 10→33 (implémentation) | ❌ à venir |
+| 2026-06-30 | Téléchargement GGUF Qwen2.5-1.5B Q4_K_M → `engine/models/` | ✅ |
+| 2026-06-30 | Plan de tests + benchmark perf chiffré (`tests/`) | ✅ |
+| 2026-06-30 | **Tâche 10 — API Engine** (endpoints, auth JWT, jobs async, orchestration) | ✅ testé E2E |
+| — | Tâches 20→33 (NLP fin + Data) | ❌ à venir (autres membres) |
 
 ## 9. Résumé Non-Technique
 

@@ -1,15 +1,109 @@
-"""Engine — Pôle 3 (IA & Data). Point d'entrée FastAPI.
+"""Engine — Pôle 3 (IA & Data). API FastAPI (T10 — Rabah).
 
-Détail des endpoints d'analyse : voir engine/tasks/10-api-engine.md.
-Pour l'instant, seul /health est exposé (socle tâche 00).
+Endpoints :
+  GET  /health              → sonde de vie
+  POST /analyze             → upload vidéo (multipart) → job async (contrat P3-A)
+  POST /analyze-path        → analyse un fichier local (test/démo) → job async
+  GET  /jobs/{job_id}       → statut + résultat (métadonnées)
+  POST /search              → recherche sémantique dans une vidéo analysée
+
+Auth : JWT du Core (HS256). Refus par défaut (cf. app/auth.py).
+Traitement asynchrone : l'analyse (transcription + LLM) prend du temps → job + polling.
 """
 
-from fastapi import FastAPI
+import os
+import shutil
+import tempfile
+import threading
+import uuid
 
-app = FastAPI(title="Engine — Pôle 3 (IA & Data)", version="0.1.0")
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+
+from . import pipeline
+from .auth import verify_token
+from .nlp import search as search_mod
+from .output import save_outputs
+from .schemas import (
+    AnalyzePathRequest,
+    JobCreated,
+    JobStatus,
+    SearchRequest,
+    SearchResponse,
+)
+
+app = FastAPI(title="Engine — Pôle 3 (IA & Data)", version="0.2.0")
+
+# Store de jobs en mémoire : job_id -> {status, result, error, segments, index}
+JOBS: dict[str, dict] = {}
 
 
 @app.get("/health")
 def health() -> dict:
-    """Sonde de vie du service Engine."""
     return {"status": "ok", "service": "engine", "pole": 3}
+
+
+def _run_job(job_id: str, video_path: str, video_name: str, cleanup: bool) -> None:
+    try:
+        metadata, segments, index = pipeline.analyze(video_path, video_name)
+        out_dir = save_outputs(metadata, video_path)
+        JOBS[job_id].update(
+            status="done", result=metadata, segments=segments, index=index, output_dir=out_dir
+        )
+    except Exception as exc:  # noqa: BLE001 — on remonte l'erreur dans le job
+        JOBS[job_id].update(status="error", error=str(exc))
+    finally:
+        if cleanup:
+            try:
+                os.remove(video_path)
+            except OSError:
+                pass
+
+
+def _start_job(video_path: str, video_name: str, cleanup: bool) -> str:
+    job_id = uuid.uuid4().hex
+    JOBS[job_id] = {"status": "processing", "result": None, "error": None}
+    threading.Thread(
+        target=_run_job, args=(job_id, video_path, video_name, cleanup), daemon=True
+    ).start()
+    return job_id
+
+
+@app.post("/analyze", response_model=JobCreated)
+async def analyze(file: UploadFile = File(...), user: dict = Depends(verify_token)) -> JobCreated:
+    suffix = os.path.splitext(file.filename or "video.mp4")[1] or ".mp4"
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    with os.fdopen(fd, "wb") as out:
+        shutil.copyfileobj(file.file, out)
+    job_id = _start_job(path, file.filename or "video", cleanup=True)
+    return JobCreated(job_id=job_id, status="processing")
+
+
+@app.post("/analyze-path", response_model=JobCreated)
+def analyze_path(req: AnalyzePathRequest, user: dict = Depends(verify_token)) -> JobCreated:
+    if not os.path.isfile(req.path):
+        raise HTTPException(400, "Fichier introuvable")
+    job_id = _start_job(req.path, os.path.basename(req.path), cleanup=False)
+    return JobCreated(job_id=job_id, status="processing")
+
+
+@app.get("/jobs/{job_id}", response_model=JobStatus)
+def job_status(job_id: str, user: dict = Depends(verify_token)) -> JobStatus:
+    job = JOBS.get(job_id)
+    if not job:
+        raise HTTPException(404, "Job inconnu")
+    return JobStatus(
+        job_id=job_id,
+        status=job["status"],
+        result=job["result"],
+        error=job["error"],
+        output_dir=job.get("output_dir"),
+    )
+
+
+@app.post("/search", response_model=SearchResponse)
+def search(req: SearchRequest, user: dict = Depends(verify_token)) -> SearchResponse:
+    job = JOBS.get(req.job_id)
+    if not job or job["status"] != "done":
+        raise HTTPException(404, "Job inconnu ou non terminé")
+    hits = search_mod.search(req.query, job["segments"], job["index"], req.k)
+    return SearchResponse(query=req.query, hits=hits)
