@@ -56,6 +56,16 @@ export default tseslint.config(
     },
   },
 
+  {
+    files: ['src/**/*.test.{js,jsx,ts,tsx}', 'src/test/**/*.{js,jsx,ts,tsx}'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.vitest,
+      },
+    },
+  },
+
   // Prettier configuration. This must be the LAST entry in the array
   // to ensure it overrides any conflicting style rules from other configs.
   eslintPluginPrettier,

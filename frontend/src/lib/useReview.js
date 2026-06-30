@@ -168,13 +168,6 @@ export function useReview({ session, user, mode }) {
             ),
           )
           break
-        case 'note:reply':
-          setNotes((prev) =>
-            prev.map((n) =>
-              n.id === msg.payload.id ? { ...n, replies: msg.payload.replies } : n,
-            ),
-          )
-          break
         case 'note:update':
           setNotes((prev) =>
             prev.map((n) =>

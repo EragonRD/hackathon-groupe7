@@ -84,7 +84,6 @@ export default function App() {
     dashboard: 'Surveillance',
   }
   const showBack = ['review', 'secure', 'dashboard'].includes(view.name)
-  const inReview = view.name === 'review'
 
   // Accès admin discret (les utilisateurs non-admin ne le voient jamais).
   const adminButton =

@@ -38,7 +38,7 @@ export default function CommentPanel({
   const [authorFilter, setAuthorFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [mineOnly, setMineOnly] = useState(false)
-  
+
   const [replyTo, setReplyTo] = useState(null)
   const [replyText, setReplyText] = useState('')
 
@@ -267,7 +267,11 @@ export default function CommentPanel({
                       </div>
                     )}
                     {replyTo === n.id && (
-                      <div className="reply-composer" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      <div
+                        className="reply-composer"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
                         <textarea
                           placeholder="Écrire une réponse…"
                           value={replyText}
