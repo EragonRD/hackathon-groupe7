@@ -1,3 +1,4 @@
+import './load-env' // DOIT rester en premier : charge les .env avant tout le reste
 import { existsSync } from 'fs'
 import { NestFactory } from '@nestjs/core'
 import type { NestExpressApplication } from '@nestjs/platform-express'

@@ -47,12 +47,14 @@ VITE_HLS_URL=http://localhost:8080
 
 ```js
 // auth.js — petit ajout suggéré
-export function getRole() {
+export function getClaims() {
   const t = getToken()
   if (!t) return null
-  try { return JSON.parse(atob(t.split('.')[1])).role } catch { return null }
+  try { return JSON.parse(atob(t.split('.')[1])) } catch { return null }   // { role, companyId, ... }
 }
-export function isAdmin() { return getRole() === 'admin' }
+export function getRole() { return getClaims()?.role ?? null }
+export function isAdmin() { return ['admin', 'superadmin'].includes(getRole()) }
+export function isSuperAdmin() { return getRole() === 'superadmin' }
 ```
 
 ---
@@ -158,12 +160,67 @@ const { label } = await res.json()
 
 ---
 
-## 5. (Optionnel) Back-office admin
+## 5. Back-office multi-tenant (3 niveaux) ✅
 
-Si vous voulez une vraie page admin (Bloc B), structure suggérée :
-- **Garde de route** : n'afficher que si `isAdmin()`.
-- Onglets : **Sécurité** (dashboard §4) · **Droits/contenus** · **Métadonnées IA** (P3).
-- Les endpoints « droits / révocation de clé » côté P2 ne sont **pas encore** créés → à demander à l'équipe P2 avant de coder l'UI correspondante.
+Le token porte `role` ∈ `superadmin | admin | user` **et** `companyId`. L'UI s'adapte au rôle.
+
+### Niveau 1 — SUPER-ADMIN (gère les entreprises et leurs admins)
+| Méthode | Endpoint | Effet |
+|---|---|---|
+| `GET` | `/admin/companies` | liste des entreprises |
+| `POST` | `/admin/companies` `{ name }` | créer une entreprise |
+| `POST` | `/admin/companies/:id/invite-admin` `{ email }` | **inviter** l'admin (mdp temporaire 24 h envoyé par mail ; la réponse renvoie aussi `link` + `tempPassword`) |
+
+### Niveau 2 — ADMIN d'entreprise (scoppé à SA `companyId`)
+| Méthode | Endpoint | Effet |
+|---|---|---|
+| `GET` | `/admin/users` | utilisateurs de **son** entreprise |
+| `POST` | `/admin/users` `{ username, password }` | créer un **user** dans son entreprise |
+| `GET` | `/admin/contents` | contenus de son entreprise `{ id, title, companyId, allowedUsernames[], revoked }` |
+| `POST` | `/admin/contents` `{ title }` | créer un contenu |
+| `POST` | `/admin/contents/:id/access` `{ username }` | donner l'accès (même entreprise) |
+| `DELETE` | `/admin/contents/:id/access/:username` | retirer l'accès |
+| `POST` | `/admin/contents/:id/revoke` \| `/restore` | 🔒 révoquer / rétablir la clé |
+
+### Niveau 3 — USER
+Pas d'accès `/admin/*` (→ `403`). Lit uniquement les contenus que son entreprise/admin autorise.
+
+### Onboarding d'un admin invité (1ʳᵉ connexion)
+Le token d'un admin invité porte `mustChangePassword: true` et le panel est **bloqué**
+(`403`) tant qu'il n'a pas changé son mot de passe temporaire :
+```js
+// après login avec le mot de passe temporaire reçu par mail
+const res = await authFetch('/auth/change-password', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ currentPassword: tempPassword, newPassword: 'NouveauMdp2026' }),
+})
+const { accessToken } = await res.json()   // nouveau token, mustChangePassword = false
+localStorage.setItem('hackathon_token', accessToken)
+```
+
+> **Isolation** : un admin/user ne voit/agit que dans sa `companyId`. Toute tentative
+> cross-entreprise renvoie `404` (contenu masqué) ou `403`. La révocation/le retrait
+> d'accès fait passer `GET /keys/:id` à `403`/`404` immédiatement.
+
+```js
+// SUPER-ADMIN : créer une entreprise puis inviter son admin (par email)
+const c = await (await authFetch('/admin/companies', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Acme' }) })).json()
+const invite = await (await authFetch(`/admin/companies/${c.id}/invite-admin`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'rep@acme.com' }) })).json()
+// invite.invitation = { email, link, tempPassword, expiresAt }
+
+// ADMIN : créer un user dans son entreprise + gérer les droits
+await authFetch('/admin/users', { method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'dave', password: 'davepass' }) })
+await authFetch('/admin/contents/poc/access', { method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'dave' }) })
+await authFetch('/admin/contents/poc/revoke', { method: 'POST' }) // couper la clé en direct
+```
 
 ---
 
@@ -176,6 +233,11 @@ Si vous voulez une vraie page admin (Bloc B), structure suggérée :
 | `GET` | `/keys/:contentId` | Bearer (+droits) | 16 octets (clé AES) |
 | `GET` | `/security/watermark` | Bearer | `{ label, username, sub, ts }` |
 | `GET` | `/security/dashboard` | Bearer **admin** | état sécurité (JSON) |
+| `GET`/`POST` | `/admin/companies[...]` | Bearer **superadmin** | entreprises + leurs admins |
+| `GET`/`POST` | `/admin/users` | Bearer **admin** | users de son entreprise |
+| `GET`/`POST` | `/admin/contents` | Bearer **admin** | contenus de son entreprise |
+| `POST`/`DELETE` | `/admin/contents/:id/access[...]` | Bearer **admin** | gérer les droits |
+| `POST` | `/admin/contents/:id/revoke` \| `/restore` | Bearer **admin** | révoquer / rétablir la clé |
 | `GET` | `:8080/hls/:id/index.m3u8` | non* | playlist HLS |
 
 \* la playlist/segments sont servis sans token (chiffrés) ; **seule la clé exige le token**.
@@ -206,7 +268,90 @@ Si vous voulez une vraie page admin (Bloc B), structure suggérée :
 ## 8. Prérequis côté backend (à demander à P2)
 - Le Core doit tourner (`./scripts/demo-local.sh` lance tout : Core + nginx + HLS chiffré).
 - **CORS** est déjà ouvert pour le dev (le front Vite peut appeler `:3000` et `:8080`).
-- Comptes de démo : `alice` (admin), `bob`, `carol` — mot de passe `password`.
-- Le contenu de démo est `contentId = "poc"`.
+- Comptes de démo (mot de passe `password`) :
+  - `root` → **superadmin** (global)
+  - `alice` → **admin** de l'entreprise « Demo Corp » (`companyId = "demo"`)
+  - `bob`, `carol` → **users** de Demo Corp
+- Le contenu de démo est `contentId = "poc"` (appartient à `demo`).
 
 > En cas de souci CORS/clé/HLS, pinguer **Enzo / l'équipe P2** : c'est leur périmètre.
+
+---
+
+## 9. 🆕 Récap des ajouts récents (multi-tenant, invitations, sécurité)
+
+Cette section résume tout ce qui a été ajouté côté backend depuis la 1ʳᵉ version de ce guide.
+
+### 9.1 Modèle d'identité enrichi
+Le JWT porte désormais **`role`** (`superadmin | admin | user`), **`companyId`** et
+**`mustChangePassword`**. Helpers conseillés dans `auth.js` :
+```js
+export function getClaims() {
+  const t = getToken(); if (!t) return null
+  try { return JSON.parse(atob(t.split('.')[1])) } catch { return null }
+}
+export const getRole       = () => getClaims()?.role ?? null
+export const getCompanyId  = () => getClaims()?.companyId ?? null
+export const isAdmin       = () => ['admin','superadmin'].includes(getRole())
+export const isSuperAdmin  = () => getRole() === 'superadmin'
+export const mustChangePwd = () => Boolean(getClaims()?.mustChangePassword)
+```
+La réponse de `/auth/login` renvoie aussi `user.{role,companyId,mustChangePassword}`.
+
+### 9.2 Onboarding d'un admin invité (mot de passe temporaire 24 h)
+Workflow imposé par le produit :
+1. **Super-admin** invite : `POST /admin/companies/:id/invite-admin { email }`
+   → réponse `{ invited, invitation:{ email, link, tempPassword, expiresAt }, delivery, message }`.
+   L'email part via **Mailjet** s'il est configuré, sinon `delivery.provider === "simulated"`
+   (le `link` + `tempPassword` sont quand même dans la réponse).
+2. L'admin se connecte avec le **mot de passe temporaire** → `mustChangePassword: true`,
+   et **tout `/admin/*` est bloqué (403)** tant qu'il n'a pas changé son mot de passe.
+3. `POST /auth/change-password { currentPassword, newPassword }` (≥ 8 car., différent)
+   → **nouveau token** sans le flag ; stocker ce token et continuer.
+4. Au-delà de 24 h, le mot de passe temporaire est **refusé** au login (`401`).
+
+Côté UX : si `mustChangePwd()` est vrai après login, **rediriger vers un écran
+« changer mon mot de passe »** avant d'afficher le panel.
+
+### 9.3 Back-office multi-tenant (3 niveaux) — endpoints
+**Super-admin** (`role = superadmin`)
+| Méthode | Endpoint | Corps |
+|---|---|---|
+| `GET` | `/admin/companies` | — |
+| `POST` | `/admin/companies` | `{ name }` |
+| `POST` | `/admin/companies/:id/invite-admin` | `{ email }` |
+
+**Admin d'entreprise** (scoppé à sa `companyId` ; superadmin = global)
+| Méthode | Endpoint | Corps |
+|---|---|---|
+| `GET` | `/admin/users` | — |
+| `POST` | `/admin/users` | `{ username, password }` |
+| `GET` | `/admin/contents` | — |
+| `POST` | `/admin/contents` | `{ title }` |
+| `POST` | `/admin/contents/:id/access` | `{ username }` |
+| `DELETE` | `/admin/contents/:id/access/:username` | — |
+| `POST` | `/admin/contents/:id/revoke` \| `/restore` | — |
+
+> **Isolation** : un admin/user ne voit/agit que dans sa `companyId`. Tout accès
+> cross-entreprise renvoie **404** (existence masquée) ou **403**. On ne peut donner
+> l'accès qu'à un user **de la même entreprise** que le contenu.
+
+### 9.4 Codes d'erreur supplémentaires
+| Code | Cas |
+|---|---|
+| `403` | rôle insuffisant **ou** `mustChangePassword` non résolu (panel verrouillé) |
+| `404` | contenu/entreprise hors de SA `companyId` (masqué) |
+| `409` | email déjà admin / username déjà pris |
+| `400` | email invalide, mot de passe trop court, `companyId` manquant (superadmin) |
+
+### 9.5 Écrans suggérés selon le rôle
+- **Super-admin** : liste des entreprises · créer une entreprise · inviter un admin (formulaire email) · afficher l'invitation renvoyée.
+- **Admin** : (1ʳᵉ connexion → changer le mot de passe) · liste/création d'users · liste/création de contenus · gestion des droits + révocation de clé · dashboard sécurité.
+- **User** : lecteur vidéo (`<SecureVideo>`) limité aux contenus autorisés.
+
+### 9.6 Checklist complémentaire
+- [ ] Helpers `getRole/getCompanyId/isSuperAdmin/mustChangePwd`
+- [ ] Écran **changement de mot de passe** (redirection si `mustChangePassword`)
+- [ ] Vues **super-admin** (entreprises + invitations) et **admin** (users + contenus)
+- [ ] Adapter le menu/navigation au `role`
+- [ ] Gérer `409`/`400` dans les formulaires (messages clairs)
