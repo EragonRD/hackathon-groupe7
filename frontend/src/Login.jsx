@@ -1,16 +1,19 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
-  FilmSlate,
   PencilSimpleLine,
   ChatCircleDots,
   UsersThree,
   ArrowRight,
   Warning,
 } from '@phosphor-icons/react'
+import PoulpiumMark from './components/PoulpiumMark'
 import { login } from './auth'
 
-// Écran d'authentification — câblé sur le Core NestJS (POST /auth/login).
+// Écran d'authentification Poulpium — câblé sur le Core NestJS (POST /auth/login).
 // `onAuthed(user)` est appelé une fois connecté.
+// Interactivité : spotlight + parallaxe pilotés par le curseur (variables CSS,
+// aucun re-render), yeux du poulpe qui suivent, bouton « marée » aquatique,
+// tooltips bulle sur les features. Tout en transform/opacity.
 const DEMO_ACCOUNTS = ['alice', 'bob', 'carol']
 
 export default function Login({ onAuthed }) {
@@ -18,6 +21,17 @@ export default function Login({ onAuthed }) {
   const [password, setPassword] = useState('password')
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
+
+  const asideRef = useRef(null)
+
+  // Le curseur pilote la position du spotlight (--mx/--my) et la parallaxe.
+  function handleAsideMove(e) {
+    const el = asideRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    el.style.setProperty('--mx', (e.clientX - r.left) / r.width)
+    el.style.setProperty('--my', (e.clientY - r.top) / r.height)
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -35,45 +49,87 @@ export default function Login({ onAuthed }) {
 
   return (
     <div className="login-screen">
-      <aside className="login-aside">
-        <div className="brand">
-          <span className="brand-mark">
-            <FilmSlate size={18} weight="fill" />
-          </span>
-          <span>
-            Revue
-            <small>Lecteur de revue augmenté</small>
-          </span>
+      <aside className="login-aside" ref={asideRef} onPointerMove={handleAsideMove}>
+        <span className="login-spotlight" aria-hidden="true" />
+        <div className="login-bubbles" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
+          <span />
         </div>
 
-        <div>
-          <span className="kicker">Pôle 1 · Application & Collaboration</span>
-          <h2>Commentez la vidéo à l'image près, ensemble et en direct.</h2>
-          <p>
-            Dessinez sur la frame, épinglez un commentaire au timecode exact, et voyez les
-            retours de votre équipe apparaître en temps réel.
+        <div className="login-hero">
+          <div className="poulpium-lockup">
+            <PoulpiumMark size={64} animated interactive />
+            <h1 className="poulpium-word">Poulpium</h1>
+          </div>
+          <p className="poulpium-tag">Revue vidéo collaborative</p>
+          <p className="login-pitch">
+            Annotez chaque image, commentez à la seconde près, et suivez les retours de
+            votre équipe en temps réel. Plusieurs bras sur une même vidéo.
           </p>
         </div>
 
-        <div>
-          <div className="login-feature">
-            <PencilSimpleLine size={18} weight="bold" />
-            Annotation au timecode (flèche, cadre, trait libre)
-          </div>
-          <div className="login-feature">
-            <ChatCircleDots size={18} weight="bold" />
-            Commentaires triés par instant, saut en un clic
-          </div>
-          <div className="login-feature">
-            <UsersThree size={18} weight="bold" />
-            Multi-fenêtres en direct, export JSON réutilisable
-          </div>
-        </div>
+        <ul className="login-features">
+          <li className="login-feature" tabIndex={0}>
+            <PencilSimpleLine size={19} weight="bold" />
+            <span className="feature-label">
+              Annotation au timecode (flèche, cadre, trait libre)
+            </span>
+            <span className="feature-tip" role="tooltip">
+              <span className="feature-tip-window">
+                <span className="tip-title">Dessinez sur l'image</span>
+                <span className="tip-desc">
+                  Flèche, cadre ou trait libre, en six couleurs. Chaque tracé est épinglé
+                  à la seconde exacte de la vidéo.
+                </span>
+              </span>
+            </span>
+          </li>
+          <li className="login-feature" tabIndex={0}>
+            <ChatCircleDots size={19} weight="bold" />
+            <span className="feature-label">
+              Commentaires triés par instant, saut en un clic
+            </span>
+            <span className="feature-tip" role="tooltip">
+              <span className="feature-tip-window">
+                <span className="tip-title">Une timeline de retours</span>
+                <span className="tip-desc">
+                  Chaque commentaire pose un marqueur sur la barre de lecture. Un clic et
+                  la vidéo saute à l'instant concerné.
+                </span>
+              </span>
+            </span>
+          </li>
+          <li className="login-feature" tabIndex={0}>
+            <UsersThree size={19} weight="bold" />
+            <span className="feature-label">
+              Multi-fenêtres en direct, export JSON réutilisable
+            </span>
+            <span className="feature-tip" role="tooltip">
+              <span className="feature-tip-window">
+                <span className="tip-title">Revue en temps réel</span>
+                <span className="tip-desc">
+                  Curseurs et annotations se synchronisent entre les fenêtres. Exportez la
+                  session en JSON, réimportable à tout moment.
+                </span>
+              </span>
+            </span>
+          </li>
+        </ul>
       </aside>
 
       <div className="login-form-wrap">
         <form className="login-card" onSubmit={handleSubmit}>
-          <h1>Connexion</h1>
+          {/* Marque rappelée côté formulaire (mobile : le panneau gauche est masqué) */}
+          <div className="login-card-brand">
+            <PoulpiumMark size={26} />
+            <span>Poulpium</span>
+          </div>
+
+          <h2 className="login-title">Connexion</h2>
           <p className="sub">Accédez à votre espace de revue.</p>
 
           <div className="field">
@@ -110,14 +166,22 @@ export default function Login({ onAuthed }) {
             </div>
           )}
 
-          <button
-            className="btn btn-primary"
-            type="submit"
-            disabled={busy}
-            style={{ width: '100%' }}
-          >
-            {busy ? 'Connexion…' : 'Se connecter'}
-            {!busy && <ArrowRight size={16} weight="bold" />}
+          <button className="btn btn-primary btn-aqua" type="submit" disabled={busy}>
+            <span className="aqua-fill" aria-hidden="true" />
+            <span className="aqua-bubbles" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="aqua-label">
+              {busy ? 'Connexion…' : 'Se connecter'}
+              {!busy && (
+                <span className="btn-icon-circle">
+                  <ArrowRight size={15} weight="bold" />
+                </span>
+              )}
+            </span>
           </button>
 
           <div className="demo-hint">
