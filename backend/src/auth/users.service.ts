@@ -39,4 +39,13 @@ export class UsersService implements OnModuleInit {
   findByUsername(username: string): Promise<User | undefined> {
     return Promise.resolve(this.users.find((u) => u.username === username))
   }
+
+  // Liste publique (sans hash de mot de passe) — pour le back-office admin.
+  listUsers(): Array<{ id: number; username: string; role: Role }> {
+    return this.users.map(({ id, username, role }) => ({ id, username, role }))
+  }
+
+  exists(username: string): boolean {
+    return this.users.some((u) => u.username === username)
+  }
 }

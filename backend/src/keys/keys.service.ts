@@ -3,10 +3,7 @@ import { appendFile, mkdir, readFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { backendPath } from '../common/runtime-paths'
 import { JwtUser } from '../common/request-context'
-
-const CONTENT_ACL: Record<string, string[]> = {
-  poc: ['alice', 'bob', 'carol'],
-}
+import { ContentsService } from '../contents/contents.service'
 
 // Identifiant de contenu autorisé : empêche toute traversée de chemin
 // (ex. "../../secret") dans la construction du chemin de la clé.
@@ -21,6 +18,8 @@ export class KeysService {
   private readonly logger = new Logger(KeysService.name)
   private readonly secretsDir = backendPath('secrets')
   private readonly logPath = backendPath('logs', 'key-access.log')
+
+  constructor(private readonly contents: ContentsService) {}
 
   async getKey(
     contentId: string,
@@ -39,9 +38,29 @@ export class KeysService {
       throw new NotFoundException('Cle de contenu introuvable')
     }
 
-    // 2. Contrôle d'accès AVANT de lire le moindre fichier (refus par défaut).
-    const allowedUsers = CONTENT_ACL[contentId] ?? []
-    if (!allowedUsers.includes(user.username)) {
+    // 2. Contrôle d'accès dynamique AVANT de lire le moindre fichier.
+    const content = this.contents.find(contentId)
+    if (!content) {
+      await this.logAccess({
+        user,
+        contentId,
+        ip: context.ip,
+        granted: false,
+        reason: 'content_not_found',
+      })
+      throw new NotFoundException('Cle de contenu introuvable')
+    }
+    if (content.revoked) {
+      await this.logAccess({
+        user,
+        contentId,
+        ip: context.ip,
+        granted: false,
+        reason: 'key_revoked',
+      })
+      throw new ForbiddenException('Cle revoquee pour ce contenu')
+    }
+    if (!content.allowedUsers.includes(user.username)) {
       await this.logAccess({
         user,
         contentId,

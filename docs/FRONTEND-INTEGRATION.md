@@ -158,12 +158,34 @@ const { label } = await res.json()
 
 ---
 
-## 5. (Optionnel) Back-office admin
+## 5. Back-office admin (endpoints disponibles ✅)
 
-Si vous voulez une vraie page admin (Bloc B), structure suggérée :
-- **Garde de route** : n'afficher que si `isAdmin()`.
-- Onglets : **Sécurité** (dashboard §4) · **Droits/contenus** · **Métadonnées IA** (P3).
-- Les endpoints « droits / révocation de clé » côté P2 ne sont **pas encore** créés → à demander à l'équipe P2 avant de coder l'UI correspondante.
+Toutes les routes `/admin/*` exigent un **JWT admin** (sinon `401`/`403`). Structure UI suggérée :
+garde `isAdmin()` + onglets **Sécurité** (§4) · **Utilisateurs** · **Contenus & droits**.
+
+| Méthode | Endpoint | Effet |
+|---|---|---|
+| `GET` | `/admin/users` | liste des utilisateurs `{ id, username, role }` |
+| `GET` | `/admin/contents` | catalogue `{ id, title, allowedUsers[], revoked }` |
+| `POST` | `/admin/contents/:id/access` `{ username }` | **donner** l'accès d'un user à un contenu |
+| `DELETE` | `/admin/contents/:id/access/:username` | **retirer** l'accès |
+| `POST` | `/admin/contents/:id/revoke` | 🔒 **révoquer la clé** (lecture bloquée immédiatement) |
+| `POST` | `/admin/contents/:id/restore` | rétablir la délivrance |
+
+> Effet immédiat : retirer un user ou révoquer la clé fait passer `GET /keys/:id` à **403**
+> pour les concernés. Idéal pour une démo « je coupe l'accès en direct ».
+
+```js
+// exemples (authFetch ajoute le Bearer admin)
+await authFetch('/admin/contents')                                   // catalogue
+await authFetch('/admin/contents/poc/revoke', { method: 'POST' })    // couper la clé
+await authFetch('/admin/contents/poc/access', {                      // donner l'accès
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'carol' }),
+})
+await authFetch('/admin/contents/poc/access/carol', { method: 'DELETE' }) // retirer
+```
 
 ---
 
@@ -176,6 +198,10 @@ Si vous voulez une vraie page admin (Bloc B), structure suggérée :
 | `GET` | `/keys/:contentId` | Bearer (+droits) | 16 octets (clé AES) |
 | `GET` | `/security/watermark` | Bearer | `{ label, username, sub, ts }` |
 | `GET` | `/security/dashboard` | Bearer **admin** | état sécurité (JSON) |
+| `GET` | `/admin/users` | Bearer **admin** | liste utilisateurs |
+| `GET` | `/admin/contents` | Bearer **admin** | catalogue + droits + révocation |
+| `POST`/`DELETE` | `/admin/contents/:id/access[...]` | Bearer **admin** | gérer les droits |
+| `POST` | `/admin/contents/:id/revoke` \| `/restore` | Bearer **admin** | révoquer / rétablir la clé |
 | `GET` | `:8080/hls/:id/index.m3u8` | non* | playlist HLS |
 
 \* la playlist/segments sont servis sans token (chiffrés) ; **seule la clé exige le token**.
