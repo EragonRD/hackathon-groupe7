@@ -27,6 +27,13 @@ services:
     depends_on:
       - hls
 
+  frontend:
+    build: ./frontend
+    ports:
+      - "5174:80"
+    depends_on:
+      - core
+
   hls:
     image: nginx:alpine
     ports:
