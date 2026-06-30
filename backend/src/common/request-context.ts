@@ -3,7 +3,9 @@ import type { Request } from 'express'
 export interface JwtUser {
   sub: string | number
   username: string
-  role?: string
+  role?: 'superadmin' | 'admin' | 'user'
+  companyId?: string | null
+  mustChangePassword?: boolean
   iat?: number
   exp?: number
 }

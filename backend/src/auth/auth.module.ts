@@ -4,6 +4,9 @@ import type { StringValue } from 'ms'
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { AuthGuard } from './auth.guard'
+import { AdminGuard } from './admin.guard'
+import { SuperAdminGuard } from './superadmin.guard'
+import { PasswordChangedGuard } from './password-changed.guard'
 import { UsersService } from './users.service'
 
 const WEAK_DEFAULT_SECRET = 'dev-secret-change-me'
@@ -48,7 +51,21 @@ function resolveJwtSecret(): string {
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, UsersService, AuthGuard],
-  exports: [AuthGuard, JwtModule],
+  providers: [
+    AuthService,
+    UsersService,
+    AuthGuard,
+    AdminGuard,
+    SuperAdminGuard,
+    PasswordChangedGuard,
+  ],
+  exports: [
+    AuthGuard,
+    AdminGuard,
+    SuperAdminGuard,
+    PasswordChangedGuard,
+    UsersService,
+    JwtModule,
+  ],
 })
 export class AuthModule {}

@@ -8,6 +8,7 @@ import { CollabModule } from './collab/collab.module'
 import { KeysModule } from './keys/keys.module'
 import { SecurityModule } from './security/security.module'
 import { ReviewModule } from './review/review.module'
+import { AdminModule } from './admin/admin.module'
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ReviewModule } from './review/review.module'
     KeysModule,
     SecurityModule,
     ReviewModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [

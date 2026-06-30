@@ -10,6 +10,7 @@ import {
 import { JwtService } from '@nestjs/jwt'
 import { SkipThrottle } from '@nestjs/throttler'
 import { AuthGuard } from '../auth/auth.guard'
+import { AdminGuard } from '../auth/admin.guard'
 import {
   extractBearerToken,
   extractClientIp,
@@ -27,12 +28,9 @@ export class SecurityController {
 
   // Dashboard protégé : réservé à un administrateur (le tableau expose comptes + IP).
   @SkipThrottle()
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AdminGuard)
   @Get('dashboard')
-  dashboard(@Req() req: RequestWithUser) {
-    if (req.user?.role !== 'admin') {
-      throw new ForbiddenException('Acces reserve aux administrateurs')
-    }
+  dashboard() {
     return this.security.getDashboard()
   }
 
