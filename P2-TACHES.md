@@ -84,7 +84,7 @@ L'authentification est **déjà câblée** dans `backend/src/auth/` :
 ---
 
 ## 🧩 Intégration (Bloc B — avec les autres pôles)
-- [x] Caler avec **Alex (P1)** : le lecteur React envoie le token sur la requête de clé (A) et porte le watermark (B)
+- [ ] Caler avec **Alex (P1)** : le lecteur React envoie le token sur la requête de clé (A) et porte le watermark (B)
 - [x] Conserver le **même JWT** que l'auth existante (une seule identité pour A **et** B)
 - [ ] Valider le scénario complet : *login → ouvrir vidéo → Core délivre la clé (A) + surveille l'abus (B) → ça lit*
 
