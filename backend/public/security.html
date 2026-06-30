@@ -44,6 +44,31 @@
         color: #52606d;
       }
 
+      .login {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .login input {
+        padding: 6px 8px;
+        border: 1px solid #d9dee5;
+        border-radius: 6px;
+        font-size: 13px;
+        width: 120px;
+      }
+
+      .login button {
+        padding: 6px 12px;
+        border: 0;
+        border-radius: 6px;
+        background: #155fa0;
+        color: #fff;
+        font-weight: 650;
+        cursor: pointer;
+      }
+
       .metrics {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -140,7 +165,17 @@
     <main>
       <header>
         <h1>Security Dashboard</h1>
-        <div class="status" id="status">Connexion...</div>
+        <div class="login" id="login">
+          <input id="username" value="alice" autocomplete="username" />
+          <input
+            id="password"
+            type="password"
+            value="password"
+            autocomplete="current-password"
+          />
+          <button id="connect" type="button">Se connecter</button>
+          <span class="status" id="status">Non connecte</span>
+        </div>
       </header>
 
       <div class="metrics">
@@ -194,6 +229,35 @@
         alerts: document.querySelector("#alerts"),
       }
 
+      // Le dashboard est protégé : il faut un JWT d'administrateur.
+      let token = sessionStorage.getItem("p2-dashboard-token") || ""
+
+      async function login() {
+        const username = document.querySelector("#username").value
+        const password = document.querySelector("#password").value
+        cells.status.textContent = "Connexion..."
+        try {
+          const response = await fetch("/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          })
+          if (!response.ok) {
+            cells.status.textContent = "Identifiants invalides"
+            return
+          }
+          const data = await response.json()
+          token = data.accessToken
+          sessionStorage.setItem("p2-dashboard-token", token)
+          cells.status.textContent = "Connecte"
+          refresh()
+        } catch (error) {
+          cells.status.textContent = "Login indisponible"
+        }
+      }
+
+      document.querySelector("#connect").addEventListener("click", login)
+
       function text(value) {
         return value === undefined || value === null || value === ""
           ? "-"
@@ -224,10 +288,25 @@
       }
 
       async function refresh() {
+        if (!token) {
+          cells.status.textContent = "Connecte-toi avec un compte admin (alice)"
+          return
+        }
         try {
           const response = await fetch("/security/dashboard", {
             cache: "no-store",
+            headers: { Authorization: `Bearer ${token}` },
           })
+          if (response.status === 401) {
+            token = ""
+            sessionStorage.removeItem("p2-dashboard-token")
+            cells.status.textContent = "Session expiree, reconnecte-toi"
+            return
+          }
+          if (response.status === 403) {
+            cells.status.textContent = "Acces refuse : compte non administrateur"
+            return
+          }
           const data = await response.json()
           cells.status.textContent = `Derniere mise a jour ${data.generatedAt}`
           cells.recentRequests.textContent = data.counters.recentRequests

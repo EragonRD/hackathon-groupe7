@@ -1,4 +1,12 @@
-import { All, Controller, Get, HttpCode, Req, UseGuards } from '@nestjs/common'
+import {
+  All,
+  Controller,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  Req,
+  UseGuards,
+} from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { SkipThrottle } from '@nestjs/throttler'
 import { AuthGuard } from '../auth/auth.guard'
@@ -13,9 +21,14 @@ export class SecurityController {
     private readonly jwt: JwtService,
   ) {}
 
+  // Dashboard protégé : réservé à un administrateur (le tableau expose comptes + IP).
   @SkipThrottle()
+  @UseGuards(AuthGuard)
   @Get('dashboard')
-  dashboard() {
+  dashboard(@Req() req: RequestWithUser) {
+    if (req.user?.role !== 'admin') {
+      throw new ForbiddenException('Acces reserve aux administrateurs')
+    }
     return this.security.getDashboard()
   }
 
@@ -40,7 +53,7 @@ export class SecurityController {
     const user = req.user ?? (await this.verifyTokenIfPresent(req))
     const originalPath = this.header(req, 'x-original-uri') ?? req.originalUrl
 
-    await this.security.recordRequest({
+    const result = await this.security.recordRequest({
       account: user?.sub,
       username: user?.username,
       ip: extractClientIp(req),
@@ -48,6 +61,13 @@ export class SecurityController {
       path: originalPath,
       source: 'hls-mirror',
     })
+
+    // Utilisé par nginx en `auth_request` : un 403 ici fait refuser le segment
+    // par nginx. C'est ce qui rend le blocage du scraping RÉEL (pas seulement
+    // une alerte), puisque les segments .ts sont servis par nginx.
+    if (result.blocked) {
+      throw new ForbiddenException('Debit de scraping suspect : segment refuse')
+    }
   }
 
   private async verifyTokenIfPresent(req: RequestWithUser): Promise<JwtUser | undefined> {

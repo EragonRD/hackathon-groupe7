@@ -59,6 +59,11 @@ BAD_TOKEN_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' \
   "$BASE_URL/keys/poc")"
 expect_status "token bidon" "401" "$BAD_TOKEN_STATUS"
 
+# ⚠️ Pour que ce test prouve bien l'EXPIRATION (et non une signature invalide),
+# JWT_SECRET doit être IDENTIQUE à celui du serveur. Sinon le 401 viendrait de la
+# signature : exporte le même JWT_SECRET avant de lancer ce script.
+#   ex:  JWT_SECRET=mon-secret bash scripts/prove-zero-trust.sh
+echo "Info: signature du token expire avec JWT_SECRET='$JWT_SECRET_VALUE' (doit matcher le serveur)"
 EXPIRED_TOKEN="$(
   cd "$ROOT_DIR/backend"
   JWT_SECRET="$JWT_SECRET_VALUE" node -e "const jwt = require('jsonwebtoken'); const now = Math.floor(Date.now() / 1000); process.stdout.write(jwt.sign({ sub: 1, username: 'alice', role: 'admin', iat: now - 3600, exp: now - 1800 }, process.env.JWT_SECRET, { noTimestamp: true }));"

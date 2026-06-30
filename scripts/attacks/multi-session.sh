@@ -30,7 +30,7 @@ done
 wait
 
 sleep 1
-DASHBOARD="$(curl -sS "$CORE_URL/security/dashboard")"
+DASHBOARD="$(curl -sS -H "Authorization: Bearer $TOKEN" "$CORE_URL/security/dashboard")"
 
 if printf '%s' "$DASHBOARD" | grep -q '"type":"multi_session"'; then
   echo "PASS multi-session alertee pour $USERNAME"

@@ -7,6 +7,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       JWT_TTL: ${JWT_TTL:-15m}
       PORT: 3000
+      # Proxies de confiance pour X-Forwarded-For : loopback + réseaux privés
+      # (le service nginx du compose est sur le réseau Docker privé). En prod,
+      # restreindre au seul sous-réseau du reverse-proxy.
+      TRUST_PROXY: ${TRUST_PROXY:-loopback, uniquelocal}
     volumes:
       - ./backend/secrets:/app/secrets:ro
       - ./backend/logs:/app/logs

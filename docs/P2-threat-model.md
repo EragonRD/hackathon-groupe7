@@ -51,3 +51,7 @@ Nginx :8080 /hls/poc/index.m3u8 -----------+
 - Le chiffrement HLS protege la distribution, pas l'ecran de l'utilisateur final.
 - Il n'y a pas encore de rotation automatique de cle par session.
 - En HTTP local, le token circule sans TLS ; en production il faut HTTPS obligatoire.
+- L'IP client provient de `X-Forwarded-For`, honore uniquement derriere un proxy
+  de confiance (`TRUST_PROXY`, voir `main.ts`). Un client direct non fiable ne peut
+  pas usurper son IP ; en prod, `TRUST_PROXY` doit lister UNIQUEMENT le sous-reseau
+  du reverse-proxy, et nginx doit reecrire l'en-tete entrant.

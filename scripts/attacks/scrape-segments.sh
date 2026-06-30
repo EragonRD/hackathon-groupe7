@@ -62,7 +62,7 @@ for i in $(seq 1 "$REQUESTS"); do
 done
 
 sleep 1
-DASHBOARD="$(curl -sS "$CORE_URL/security/dashboard")"
+DASHBOARD="$(curl -sS -H "Authorization: Bearer $TOKEN" "$CORE_URL/security/dashboard")"
 
 if printf '%s' "$DASHBOARD" | grep -q '"type":"segment_scrape"'; then
   echo "PASS scraping segments alerte"

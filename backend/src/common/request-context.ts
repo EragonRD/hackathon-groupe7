@@ -16,17 +16,8 @@ export function extractBearerToken(req: Request): string | undefined {
 }
 
 export function extractClientIp(req: Request): string {
-  const forwardedFor = req.headers['x-forwarded-for']
-  const firstForwardedIp = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor
-
-  if (firstForwardedIp) {
-    return firstForwardedIp.split(',')[0]?.trim() || 'unknown'
-  }
-
-  const realIp = req.headers['x-real-ip']
-  if (typeof realIp === 'string' && realIp.trim()) {
-    return realIp.trim()
-  }
-
+  // `req.ip` respecte la configuration `trust proxy` posée dans main.ts :
+  // X-Forwarded-For n'est honoré que s'il provient d'un proxy de confiance.
+  // Un client direct non fiable ne peut donc pas usurper son IP.
   return req.ip || req.socket.remoteAddress || 'unknown'
 }

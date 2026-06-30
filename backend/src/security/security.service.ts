@@ -227,7 +227,9 @@ export class SecurityService implements OnModuleInit {
     now: number,
     alert: Omit<SecurityAlert, 'id' | 'ts'>,
   ): Promise<SecurityAlert | undefined> {
-    const dedupeKey = `${alert.type}:${alert.account ?? '-'}:${alert.ip}`
+    // L'action fait partie de la clé : une escalade flag -> block ré-émet une
+    // alerte au lieu d'être avalée par le dédup (sinon le blocage reste invisible).
+    const dedupeKey = `${alert.type}:${alert.account ?? '-'}:${alert.ip}:${alert.action}`
     const lastAlertAt = this.alertDedupe.get(dedupeKey)
     if (lastAlertAt && now - lastAlertAt < ALERT_DEDUPE_MS) {
       return undefined
