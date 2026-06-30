@@ -54,12 +54,22 @@ export class AuthService {
     // Succès : on remet le compteur à zéro.
     this.attempts.delete(username)
 
-    const payload = { sub: user.id, username: user.username, role: user.role }
+    const payload = {
+      sub: user.id,
+      username: user.username,
+      role: user.role,
+      companyId: user.companyId,
+    }
     const accessToken = await this.jwt.signAsync(payload)
 
     return {
       accessToken,
-      user: { id: user.id, username: user.username, role: user.role },
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role,
+        companyId: user.companyId,
+      },
     }
   }
 

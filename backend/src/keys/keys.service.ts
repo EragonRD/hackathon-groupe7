@@ -38,7 +38,7 @@ export class KeysService {
       throw new NotFoundException('Cle de contenu introuvable')
     }
 
-    // 2. Contrôle d'accès dynamique AVANT de lire le moindre fichier.
+    // 2. Contrôle d'accès dynamique multi-tenant AVANT de lire le moindre fichier.
     const content = this.contents.find(contentId)
     if (!content) {
       await this.logAccess({
@@ -47,6 +47,18 @@ export class KeysService {
         ip: context.ip,
         granted: false,
         reason: 'content_not_found',
+      })
+      throw new NotFoundException('Cle de contenu introuvable')
+    }
+    // Isolation entreprise : on ne révèle pas l'existence d'un contenu d'un autre
+    // tenant (404, pas 403) — sauf superadmin.
+    if (user.role !== 'superadmin' && content.companyId !== user.companyId) {
+      await this.logAccess({
+        user,
+        contentId,
+        ip: context.ip,
+        granted: false,
+        reason: 'cross_tenant',
       })
       throw new NotFoundException('Cle de contenu introuvable')
     }
@@ -60,7 +72,7 @@ export class KeysService {
       })
       throw new ForbiddenException('Cle revoquee pour ce contenu')
     }
-    if (!content.allowedUsers.includes(user.username)) {
+    if (!this.contents.isAllowed(contentId, user)) {
       await this.logAccess({
         user,
         contentId,

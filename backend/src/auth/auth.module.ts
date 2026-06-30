@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { AuthGuard } from './auth.guard'
 import { AdminGuard } from './admin.guard'
+import { SuperAdminGuard } from './superadmin.guard'
 import { UsersService } from './users.service'
 
 const WEAK_DEFAULT_SECRET = 'dev-secret-change-me'
@@ -49,7 +50,7 @@ function resolveJwtSecret(): string {
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, UsersService, AuthGuard, AdminGuard],
-  exports: [AuthGuard, AdminGuard, UsersService, JwtModule],
+  providers: [AuthService, UsersService, AuthGuard, AdminGuard, SuperAdminGuard],
+  exports: [AuthGuard, AdminGuard, SuperAdminGuard, UsersService, JwtModule],
 })
 export class AuthModule {}

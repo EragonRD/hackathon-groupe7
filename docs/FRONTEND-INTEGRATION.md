@@ -47,12 +47,14 @@ VITE_HLS_URL=http://localhost:8080
 
 ```js
 // auth.js — petit ajout suggéré
-export function getRole() {
+export function getClaims() {
   const t = getToken()
   if (!t) return null
-  try { return JSON.parse(atob(t.split('.')[1])).role } catch { return null }
+  try { return JSON.parse(atob(t.split('.')[1])) } catch { return null }   // { role, companyId, ... }
 }
-export function isAdmin() { return getRole() === 'admin' }
+export function getRole() { return getClaims()?.role ?? null }
+export function isAdmin() { return ['admin', 'superadmin'].includes(getRole()) }
+export function isSuperAdmin() { return getRole() === 'superadmin' }
 ```
 
 ---
@@ -158,33 +160,52 @@ const { label } = await res.json()
 
 ---
 
-## 5. Back-office admin (endpoints disponibles ✅)
+## 5. Back-office multi-tenant (3 niveaux) ✅
 
-Toutes les routes `/admin/*` exigent un **JWT admin** (sinon `401`/`403`). Structure UI suggérée :
-garde `isAdmin()` + onglets **Sécurité** (§4) · **Utilisateurs** · **Contenus & droits**.
+Le token porte `role` ∈ `superadmin | admin | user` **et** `companyId`. L'UI s'adapte au rôle.
 
+### Niveau 1 — SUPER-ADMIN (gère les entreprises et leurs admins)
 | Méthode | Endpoint | Effet |
 |---|---|---|
-| `GET` | `/admin/users` | liste des utilisateurs `{ id, username, role }` |
-| `GET` | `/admin/contents` | catalogue `{ id, title, allowedUsers[], revoked }` |
-| `POST` | `/admin/contents/:id/access` `{ username }` | **donner** l'accès d'un user à un contenu |
-| `DELETE` | `/admin/contents/:id/access/:username` | **retirer** l'accès |
-| `POST` | `/admin/contents/:id/revoke` | 🔒 **révoquer la clé** (lecture bloquée immédiatement) |
-| `POST` | `/admin/contents/:id/restore` | rétablir la délivrance |
+| `GET` | `/admin/companies` | liste des entreprises |
+| `POST` | `/admin/companies` `{ name }` | créer une entreprise |
+| `POST` | `/admin/companies/:id/admins` `{ username, password }` | créer un **admin** d'entreprise |
 
-> Effet immédiat : retirer un user ou révoquer la clé fait passer `GET /keys/:id` à **403**
-> pour les concernés. Idéal pour une démo « je coupe l'accès en direct ».
+### Niveau 2 — ADMIN d'entreprise (scoppé à SA `companyId`)
+| Méthode | Endpoint | Effet |
+|---|---|---|
+| `GET` | `/admin/users` | utilisateurs de **son** entreprise |
+| `POST` | `/admin/users` `{ username, password }` | créer un **user** dans son entreprise |
+| `GET` | `/admin/contents` | contenus de son entreprise `{ id, title, companyId, allowedUsernames[], revoked }` |
+| `POST` | `/admin/contents` `{ title }` | créer un contenu |
+| `POST` | `/admin/contents/:id/access` `{ username }` | donner l'accès (même entreprise) |
+| `DELETE` | `/admin/contents/:id/access/:username` | retirer l'accès |
+| `POST` | `/admin/contents/:id/revoke` \| `/restore` | 🔒 révoquer / rétablir la clé |
+
+### Niveau 3 — USER
+Pas d'accès `/admin/*` (→ `403`). Lit uniquement les contenus que son entreprise/admin autorise.
+
+> **Isolation** : un admin/user ne voit/agit que dans sa `companyId`. Toute tentative
+> cross-entreprise renvoie `404` (contenu masqué) ou `403`. La révocation/le retrait
+> d'accès fait passer `GET /keys/:id` à `403`/`404` immédiatement.
 
 ```js
-// exemples (authFetch ajoute le Bearer admin)
-await authFetch('/admin/contents')                                   // catalogue
-await authFetch('/admin/contents/poc/revoke', { method: 'POST' })    // couper la clé
-await authFetch('/admin/contents/poc/access', {                      // donner l'accès
-  method: 'POST',
+// SUPER-ADMIN : créer une entreprise puis son admin
+const c = await (await authFetch('/admin/companies', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: 'Acme' }) })).json()
+await authFetch(`/admin/companies/${c.id}/admins`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'boss', password: 'secret123' }) })
+
+// ADMIN : créer un user dans son entreprise + gérer les droits
+await authFetch('/admin/users', { method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ username: 'carol' }),
-})
-await authFetch('/admin/contents/poc/access/carol', { method: 'DELETE' }) // retirer
+  body: JSON.stringify({ username: 'dave', password: 'davepass' }) })
+await authFetch('/admin/contents/poc/access', { method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'dave' }) })
+await authFetch('/admin/contents/poc/revoke', { method: 'POST' }) // couper la clé en direct
 ```
 
 ---
@@ -198,8 +219,9 @@ await authFetch('/admin/contents/poc/access/carol', { method: 'DELETE' }) // ret
 | `GET` | `/keys/:contentId` | Bearer (+droits) | 16 octets (clé AES) |
 | `GET` | `/security/watermark` | Bearer | `{ label, username, sub, ts }` |
 | `GET` | `/security/dashboard` | Bearer **admin** | état sécurité (JSON) |
-| `GET` | `/admin/users` | Bearer **admin** | liste utilisateurs |
-| `GET` | `/admin/contents` | Bearer **admin** | catalogue + droits + révocation |
+| `GET`/`POST` | `/admin/companies[...]` | Bearer **superadmin** | entreprises + leurs admins |
+| `GET`/`POST` | `/admin/users` | Bearer **admin** | users de son entreprise |
+| `GET`/`POST` | `/admin/contents` | Bearer **admin** | contenus de son entreprise |
 | `POST`/`DELETE` | `/admin/contents/:id/access[...]` | Bearer **admin** | gérer les droits |
 | `POST` | `/admin/contents/:id/revoke` \| `/restore` | Bearer **admin** | révoquer / rétablir la clé |
 | `GET` | `:8080/hls/:id/index.m3u8` | non* | playlist HLS |
@@ -232,7 +254,10 @@ await authFetch('/admin/contents/poc/access/carol', { method: 'DELETE' }) // ret
 ## 8. Prérequis côté backend (à demander à P2)
 - Le Core doit tourner (`./scripts/demo-local.sh` lance tout : Core + nginx + HLS chiffré).
 - **CORS** est déjà ouvert pour le dev (le front Vite peut appeler `:3000` et `:8080`).
-- Comptes de démo : `alice` (admin), `bob`, `carol` — mot de passe `password`.
-- Le contenu de démo est `contentId = "poc"`.
+- Comptes de démo (mot de passe `password`) :
+  - `root` → **superadmin** (global)
+  - `alice` → **admin** de l'entreprise « Demo Corp » (`companyId = "demo"`)
+  - `bob`, `carol` → **users** de Demo Corp
+- Le contenu de démo est `contentId = "poc"` (appartient à `demo`).
 
 > En cas de souci CORS/clé/HLS, pinguer **Enzo / l'équipe P2** : c'est leur périmètre.
