@@ -10,7 +10,11 @@ import {
 import { JwtService } from '@nestjs/jwt'
 import { SkipThrottle } from '@nestjs/throttler'
 import { AuthGuard } from '../auth/auth.guard'
-import { extractBearerToken, extractClientIp } from '../common/request-context'
+import {
+  extractBearerToken,
+  extractClientIp,
+  isTrustedPeer,
+} from '../common/request-context'
 import type { JwtUser, RequestWithUser } from '../common/request-context'
 import { SecurityService } from './security.service'
 
@@ -50,6 +54,12 @@ export class SecurityController {
   @All('ingest')
   @HttpCode(204)
   async ingest(@Req() req: RequestWithUser): Promise<void> {
+    // Endpoint interne : appelé par nginx (auth_request) ou le loopback.
+    // Un client externe direct ne doit pas pouvoir polluer la détection.
+    if (!isTrustedPeer(req)) {
+      throw new ForbiddenException('Endpoint interne')
+    }
+
     const user = req.user ?? (await this.verifyTokenIfPresent(req))
     const originalPath = this.header(req, 'x-original-uri') ?? req.originalUrl
 

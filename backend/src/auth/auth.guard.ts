@@ -23,7 +23,10 @@ export class AuthGuard implements CanActivate {
 
     try {
       // payload = { sub, username, role, iat, exp }
-      ;(req as Request & { user?: unknown }).user = await this.jwt.verifyAsync(token)
+      // Algorithme épinglé (HS256) pour bloquer toute confusion d'algorithme.
+      ;(req as Request & { user?: unknown }).user = await this.jwt.verifyAsync(token, {
+        algorithms: ['HS256'],
+      })
       return true
     } catch {
       throw new UnauthorizedException('Token invalide ou expiré')

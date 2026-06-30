@@ -8,12 +8,17 @@ Generer la cle AES et les segments HLS chiffres :
 ./scripts/encrypt-hls.sh
 ```
 
-Demarrer le Core et Nginx en une commande :
+Demarrer le Core et Nginx en une commande. Le conteneur tourne en
+`NODE_ENV=production` et **refuse de demarrer avec un secret faible** : il faut
+fournir un `JWT_SECRET` fort.
 
 ```bash
-cp .env.example .env
+export JWT_SECRET=$(openssl rand -hex 32)
 docker compose up --build
 ```
+
+> Le dashboard `/security/dashboard` est reserve a un compte **admin** (ex. `alice`).
+> Le dashboard HTML `security.html` integre un login pour recuperer le token.
 
 Verifier la playlist HLS :
 
@@ -61,11 +66,17 @@ hls.config.xhrSetup = (xhr, url) => {
 
 ## Anti-scraping temps reel
 
-Le Core applique un rate-limit global de `100 req / 60s / IP`, journalise les
-alertes dans `backend/logs/security-alerts.log` et expose :
+Le Core applique un rate-limit global de `100 req / 60s / IP` (et `10/min/IP` +
+verrouillage de compte sur `/auth/login`), journalise les alertes dans
+`backend/logs/security-alerts.log` et expose :
 
 ```bash
-curl http://localhost:3000/security/dashboard
+# dashboard JSON : réservé admin -> token requis
+ADMIN="$(curl -sS -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"alice","password":"password"}' \
+  | node -e "let s='';process.stdin.on('data',c=>s+=c);process.stdin.on('end',()=>console.log(JSON.parse(s).accessToken))")"
+curl -H "Authorization: Bearer $ADMIN" http://localhost:3000/security/dashboard
 open http://localhost:3000/security.html
 ```
 

@@ -13,6 +13,11 @@ import { UsersService } from './users.service'
 const MAX_FAILS = 5
 const LOCK_MS = 5 * 60 * 1000
 
+// Hash Argon2 « leurre » : sert à vérifier un mot de passe même pour un compte
+// inexistant, afin d'égaliser le temps de réponse (anti-énumération d'utilisateurs).
+const DUMMY_HASH =
+  '$argon2id$v=19$m=65536,t=3,p=4$d7Of2744Y0ddrMcUZWuEAw$2lak1N3gbiislK4GamY0sgedBJYxicaGbYVMSwUZBis'
+
 @Injectable()
 export class AuthService {
   // Suivi en mémoire des tentatives échouées par compte.
@@ -37,8 +42,11 @@ export class AuthService {
       )
     }
 
+    // On vérifie TOUJOURS un hash (réel ou leurre) : temps constant, pas de fuite
+    // permettant de distinguer « compte inexistant » de « mauvais mot de passe ».
     const user = await this.users.findByUsername(username)
-    if (!user || !(await argon2.verify(user.passwordHash, password))) {
+    const passwordOk = await argon2.verify(user?.passwordHash ?? DUMMY_HASH, password)
+    if (!user || !passwordOk) {
       this.registerFailure(username, now)
       throw new UnauthorizedException('Identifiants invalides')
     }

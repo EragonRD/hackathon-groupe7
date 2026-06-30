@@ -4,7 +4,10 @@ services:
     ports:
       - "${PORT:-3000}:3000"
     environment:
-      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      # Secret OBLIGATOIRE et fort (le conteneur tourne en NODE_ENV=production et
+      # refuse de démarrer avec un secret faible). Ex :
+      #   export JWT_SECRET=$(openssl rand -hex 32) && docker compose up
+      JWT_SECRET: ${JWT_SECRET:?Definis un JWT_SECRET fort, ex: export JWT_SECRET=$(openssl rand -hex 32)}
       JWT_TTL: ${JWT_TTL:-15m}
       PORT: 3000
       # Proxies de confiance pour X-Forwarded-For : loopback + réseaux privés
