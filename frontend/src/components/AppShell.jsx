@@ -44,14 +44,16 @@ export default function AppShell({
         {center}
         {right}
 
-        <button
-          className="btn-icon"
-          onClick={onOpenDocs}
-          title="Documentation"
-          aria-label="Documentation"
-        >
-          <BookOpen size={18} />
-        </button>
+        {onOpenDocs && (
+          <button
+            className="btn-icon"
+            onClick={onOpenDocs}
+            title="Documentation"
+            aria-label="Documentation"
+          >
+            <BookOpen size={18} />
+          </button>
+        )}
 
         <div className="user-chip">
           <span

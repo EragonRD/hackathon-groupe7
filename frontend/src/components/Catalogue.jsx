@@ -1,10 +1,18 @@
 import { useRef, useState } from 'react'
-import { FilmSlate, Play, FolderOpen, LockSimple } from '@phosphor-icons/react'
+import {
+  FilmSlate,
+  Play,
+  FolderOpen,
+  LockSimple,
+  ShieldCheck,
+} from '@phosphor-icons/react'
 import { SAMPLE, CATALOGUE_META } from '../data/videos'
 import { formatTime, shortId } from '../lib/format'
 
-// Grille de sélection. `onOpen(video)` ouvre la vidéo en mode revue.
-export default function Catalogue({ onOpen }) {
+// Grille de sélection.
+// `onOpen(video)` ouvre une vidéo en mode revue ; `onOpenSecure()` ouvre la
+// lecture protégée (flux sécurisé).
+export default function Catalogue({ onOpen, onOpenSecure }) {
   const fileRef = useRef(null)
   const [dragging, setDragging] = useState(false)
 
@@ -49,6 +57,28 @@ export default function Catalogue({ onOpen }) {
               </div>
             </div>
           </button>
+
+          {/* Lecture protégée (flux sécurisé) */}
+          {onOpenSecure && (
+            <button className="vid-card" onClick={onOpenSecure}>
+              <div className="vid-thumb">
+                <ShieldCheck size={34} weight="light" color="var(--accent-strong)" />
+                <div className="play-badge">
+                  <Play size={40} weight="fill" />
+                </div>
+              </div>
+              <div className="vid-meta">
+                <div className="vid-title">Présentation sécurisée</div>
+                <div className="vid-sub">
+                  <span className="badge badge-accent">
+                    <LockSimple size={12} weight="bold" />
+                    Protégé
+                  </span>
+                  Lecture en streaming
+                </div>
+              </div>
+            </button>
+          )}
 
           {/* Charger une vidéo locale (drag & drop ou sélection) */}
           <div
