@@ -3,7 +3,7 @@ name: Build and Push to GHCR
 on:
   push:
     branches:
-      - main # L'action se déclenche à chaque push sur la branche main
+      - backend-security # L'action se déclenche à chaque push sur la branche backend-security
 
 jobs:
   build:
