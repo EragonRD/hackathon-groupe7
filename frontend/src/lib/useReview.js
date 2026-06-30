@@ -161,6 +161,20 @@ export function useReview({ session, user, mode }) {
         case 'note:remove':
           setNotes((prev) => prev.filter((n) => n.id !== msg.payload.id))
           break
+        case 'note:like':
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === msg.payload.id ? { ...n, likes: msg.payload.likes } : n,
+            ),
+          )
+          break
+        case 'note:reply':
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === msg.payload.id ? { ...n, replies: msg.payload.replies } : n,
+            ),
+          )
+          break
         case 'sync:state':
           upsertNotes(msg.payload.notes || [])
           break
@@ -327,6 +341,77 @@ export function useReview({ session, user, mode }) {
     [self.id, upsertNotes],
   )
 
+  const toggleLike = useCallback(
+    (noteId) => {
+      setNotes((prev) => {
+        const note = prev.find((n) => n.id === noteId)
+        if (!note) return prev
+        const likes = note.likes || []
+        const idx = likes.findIndex((l) => l.id === self.id)
+        const updated = {
+          ...note,
+          likes:
+            idx >= 0
+              ? likes.filter((l) => l.id !== self.id)
+              : [...likes, { id: self.id, name: self.name }],
+        }
+        const result = prev.map((n) => (n.id === noteId ? updated : n))
+        transportRef.current?.post({ type: 'note:like', from: self.id, payload: updated })
+        return result
+      })
+    },
+    [self],
+  )
+
+  const addReply = useCallback(
+    (noteId, text) => {
+      if (!text.trim()) return
+      const reply = {
+        id: shortId(),
+        author: { id: self.id, name: self.name, color: self.color },
+        text: text.trim(),
+        createdAt: new Date().toISOString(),
+      }
+      setNotes((prev) => {
+        const note = prev.find((n) => n.id === noteId)
+        if (!note) return prev
+        const updated = {
+          ...note,
+          replies: [...(note.replies || []), reply],
+        }
+        const result = prev.map((n) => (n.id === noteId ? updated : n))
+        transportRef.current?.post({
+          type: 'note:reply',
+          from: self.id,
+          payload: updated,
+        })
+        return result
+      })
+    },
+    [self],
+  )
+
+  const deleteReply = useCallback(
+    (noteId, replyId) => {
+      setNotes((prev) => {
+        const note = prev.find((n) => n.id === noteId)
+        if (!note) return prev
+        const updated = {
+          ...note,
+          replies: (note.replies || []).filter((r) => r.id !== replyId),
+        }
+        const result = prev.map((n) => (n.id === noteId ? updated : n))
+        transportRef.current?.post({
+          type: 'note:reply',
+          from: self.id,
+          payload: updated,
+        })
+        return result
+      })
+    },
+    [self],
+  )
+
   // Remplace tout le jeu de notes (réimport JSON) + le diffuse.
   const replaceNotes = useCallback(
     (incoming) => {
@@ -420,7 +505,9 @@ export function useReview({ session, user, mode }) {
     removeNote,
     replaceNotes,
     sendCursor,
-    // Watch Together
+    toggleLike,
+    addReply,
+    deleteReply,
     presenterId,
     isPresenter,
     claimPresenter,

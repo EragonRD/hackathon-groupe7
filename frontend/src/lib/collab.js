@@ -73,7 +73,7 @@ function socketTransport(session, { url } = {}) {
   import('socket.io-client')
     .then(({ io }) => {
       socket = io(API, {
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         auth: { token },
         query: { session },
       })

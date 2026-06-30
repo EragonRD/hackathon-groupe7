@@ -44,6 +44,19 @@ export function formatTime(totalSeconds) {
   return `${m}:${pad(sec)}`
 }
 
+// Temps relatif style YouTube : "à l'instant", "il y a 5 min", "il y a 2 h"…
+export function timeAgo(dateStr) {
+  const now = Date.now()
+  const then = new Date(dateStr).getTime()
+  const diff = Math.floor((now - then) / 1000)
+  if (diff < 10) return "À l'instant"
+  if (diff < 60) return 'Il y a quelques secondes'
+  if (diff < 3600) return `Il y a ${Math.floor(diff / 60)} min`
+  if (diff < 86400) return `Il y a ${Math.floor(diff / 3600)} h`
+  if (diff < 2592000) return `Il y a ${Math.floor(diff / 86400)} j`
+  return `Il y a ${Math.floor(diff / 2592000)} mois`
+}
+
 // Identifiant court unique-ish, sans dépendance (crypto si dispo, sinon fallback).
 export function shortId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {

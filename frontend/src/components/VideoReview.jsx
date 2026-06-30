@@ -69,6 +69,9 @@ export default function VideoReview({ source, session, user }) {
     removeNote,
     replaceNotes,
     sendCursor,
+    toggleLike,
+    addReply,
+    deleteReply,
     presenterId,
     isPresenter,
     claimPresenter,
@@ -653,6 +656,7 @@ export default function VideoReview({ source, session, user }) {
       </div>
 
       <CommentPanel
+        user={self}
         notes={notes}
         activeId={activeId}
         onSelect={selectNote}
@@ -661,7 +665,9 @@ export default function VideoReview({ source, session, user }) {
         onResolve={resolveNote}
         onDelete={(n) => removeNote(n.id)}
         canDelete={canDelete}
-        currentUser={self}
+        onToggleLike={toggleLike}
+        onAddReply={addReply}
+        onDeleteReply={deleteReply}
         peerCount={peers.length}
         composeTime={composeTime}
         draftCount={draftShapes.length}

@@ -8,22 +8,32 @@ import {
   User,
   LockKey,
   ShieldCheck,
+  Eye,
+  EyeSlash,
+  Check,
 } from '@phosphor-icons/react'
 import PoulpiumMark from './components/PoulpiumMark'
 import { login } from './auth'
+import { colorForUser, initials } from './lib/format'
 
 // Écran d'authentification Poulpium — câblé sur le Core NestJS (POST /auth/login).
 // `onAuthed(user)` est appelé une fois connecté.
 // Interactivité : spotlight + parallaxe pilotés par le curseur (variables CSS,
 // aucun re-render), yeux du poulpe qui suivent, bouton « marée » aquatique,
 // tooltips bulle sur les features. Tout en transform/opacity.
-const DEMO_ACCOUNTS = ['alice', 'bob', 'carol']
+const DEMO_ACCOUNTS = [
+  { name: 'alice', role: 'admin' },
+  { name: 'bob', role: 'member' },
+  { name: 'carol', role: 'member' },
+]
 
 export default function Login({ onAuthed }) {
   const [username, setUsername] = useState('alice')
   const [password, setPassword] = useState('password')
   const [error, setError] = useState(null)
-  const [busy, setBusy] = useState(false)
+  // 'idle' | 'busy' | 'done' — pilote le retour visuel du bouton
+  const [status, setStatus] = useState('idle')
+  const [showPassword, setShowPassword] = useState(false)
 
   const asideRef = useRef(null)
 
@@ -39,15 +49,22 @@ export default function Login({ onAuthed }) {
   async function handleSubmit(e) {
     e.preventDefault()
     setError(null)
-    setBusy(true)
+    setStatus('busy')
     try {
       const user = await login(username, password)
-      onAuthed?.(user)
+      // brève confirmation visuelle avant de basculer dans l'app
+      setStatus('done')
+      setTimeout(() => onAuthed?.(user), 500)
     } catch (err) {
       setError(err.message || 'Connexion impossible')
-    } finally {
-      setBusy(false)
+      setStatus('idle')
     }
+  }
+
+  function fillDemo(name) {
+    setUsername(name)
+    setPassword('password')
+    setError(null)
   }
 
   return (
@@ -159,12 +176,24 @@ export default function Login({ onAuthed }) {
               <LockKey className="input-icon" size={17} weight="bold" />
               <input
                 id="login-pass"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="mot de passe"
+                className="has-action"
               />
+              <button
+                type="button"
+                className="input-action"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={
+                  showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'
+                }
+                title={showPassword ? 'Masquer' : 'Afficher'}
+              >
+                {showPassword ? <EyeSlash size={17} /> : <Eye size={17} />}
+              </button>
             </div>
           </div>
 
@@ -175,7 +204,11 @@ export default function Login({ onAuthed }) {
             </div>
           )}
 
-          <button className="btn btn-primary btn-aqua" type="submit" disabled={busy}>
+          <button
+            className="btn btn-primary btn-aqua"
+            type="submit"
+            disabled={status !== 'idle'}
+          >
             <span className="aqua-fill" aria-hidden="true" />
             <span className="aqua-bubbles" aria-hidden="true">
               <span />
@@ -184,28 +217,49 @@ export default function Login({ onAuthed }) {
               <span />
             </span>
             <span className="aqua-label">
-              {busy ? 'Connexion…' : 'Se connecter'}
-              {!busy && (
-                <span className="btn-icon-circle">
-                  <ArrowRight size={15} weight="bold" />
-                </span>
+              {status === 'busy' && (
+                <>
+                  <span className="spinner" aria-hidden="true" />
+                  Connexion…
+                </>
+              )}
+              {status === 'done' && (
+                <>
+                  <Check size={17} weight="bold" />
+                  Connecté
+                </>
+              )}
+              {status === 'idle' && (
+                <>
+                  Se connecter
+                  <span className="btn-icon-circle">
+                    <ArrowRight size={15} weight="bold" />
+                  </span>
+                </>
               )}
             </span>
           </button>
 
           <div className="demo-hint">
             Comptes de démonstration (mot de passe <code>password</code>) :
-            <div className="demo-accounts">
-              {DEMO_ACCOUNTS.map((name) => (
+            <div className="demo-cards">
+              {DEMO_ACCOUNTS.map((acc) => (
                 <button
-                  key={name}
+                  key={acc.name}
                   type="button"
-                  onClick={() => {
-                    setUsername(name)
-                    setPassword('password')
-                  }}
+                  className="demo-card"
+                  onClick={() => fillDemo(acc.name)}
                 >
-                  {name}
+                  <span
+                    className="demo-avatar"
+                    style={{ background: colorForUser(acc.name) }}
+                  >
+                    {initials(acc.name)}
+                  </span>
+                  <span className="demo-info">
+                    <span className="demo-name">{acc.name}</span>
+                    <span className="demo-role">{acc.role}</span>
+                  </span>
                 </button>
               ))}
             </div>

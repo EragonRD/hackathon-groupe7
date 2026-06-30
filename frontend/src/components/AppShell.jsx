@@ -1,4 +1,4 @@
-import { SignOut, CaretLeft } from '@phosphor-icons/react'
+import { SignOut, CaretLeft, BookOpen } from '@phosphor-icons/react'
 import PoulpiumMark from './PoulpiumMark'
 import { colorForUser, initials } from '../lib/format'
 
@@ -8,9 +8,11 @@ export default function AppShell({
   user,
   onLogout,
   onBack,
+  onHome,
   title,
   center,
   right,
+  onOpenDocs,
   children,
 }) {
   return (
@@ -22,13 +24,13 @@ export default function AppShell({
             Catalogue
           </button>
         ) : (
-          <div className="brand">
+          <button className="brand" onClick={onHome} title="Accueil">
             <PoulpiumMark size={28} />
             <span>
               Poulpium
               <small>Lecteur de revue augmenté</small>
             </span>
-          </div>
+          </button>
         )}
 
         {title && (
@@ -41,6 +43,17 @@ export default function AppShell({
 
         {center}
         {right}
+
+        {onOpenDocs && (
+          <button
+            className="btn-icon"
+            onClick={onOpenDocs}
+            title="Documentation"
+            aria-label="Documentation"
+          >
+            <BookOpen size={18} />
+          </button>
+        )}
 
         <div className="user-chip">
           <span
