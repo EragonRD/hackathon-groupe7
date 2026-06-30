@@ -12,6 +12,7 @@ export default function App() {
   const [checking, setChecking] = useState(Boolean(getToken()))
   // view : { name: 'catalogue' } | { name: 'review', video }
   const [view, setView] = useState({ name: 'catalogue' })
+  const [reviewPeers, setReviewPeers] = useState([])
 
   // Réhydrate la session si un token est déjà présent (rechargement de page).
   useEffect(() => {
@@ -52,14 +53,20 @@ export default function App() {
   const inReview = view.name === 'review'
   const inDocs = view.name === 'docs'
 
+  function goToCatalogue() {
+    setReviewPeers([])
+    setView({ name: 'catalogue' })
+  }
+
   return (
     <AppShell
       user={user}
       onLogout={handleLogout}
-      onBack={inReview ? () => setView({ name: 'catalogue' }) : undefined}
-      onHome={() => setView({ name: 'catalogue' })}
+      onBack={inReview ? goToCatalogue : undefined}
+      onHome={goToCatalogue}
       onOpenDocs={() => setView({ name: 'docs' })}
       title={inReview ? view.video.title : undefined}
+      peers={reviewPeers}
     >
       {inReview ? (
         <VideoReview
@@ -67,9 +74,10 @@ export default function App() {
           source={view.video.src}
           session={view.video.session ?? view.video.id}
           user={user}
+          onPeersUpdate={setReviewPeers}
         />
       ) : inDocs ? (
-        <Documentation onBack={() => setView({ name: 'catalogue' })} />
+        <Documentation onBack={goToCatalogue} />
       ) : (
         <Catalogue onOpen={(video) => setView({ name: 'review', video })} />
       )}

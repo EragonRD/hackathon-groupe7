@@ -12,6 +12,8 @@ import {
   Broadcast,
   Eye,
   TrashSimple,
+  ArrowsOutSimple,
+  ArrowsInSimple,
 } from '@phosphor-icons/react'
 import DrawingCanvas from './DrawingCanvas'
 import CommentPanel from './CommentPanel'
@@ -53,9 +55,10 @@ const SWATCHES = [
 const DRIFT_THRESHOLD = 0.4
 const HEARTBEAT_MS = 2000
 
-export default function VideoReview({ source, session, user }) {
+export default function VideoReview({ source, session, user, onPeersUpdate }) {
   const videoRef = useRef(null)
   const fileRef = useRef(null)
+  const stageRef = useRef(null)
 
   const {
     self,
@@ -313,6 +316,11 @@ export default function VideoReview({ source, session, user }) {
     return () => clearInterval(id)
   }, [isPresenter, sendHeartbeat])
 
+  // --- Remonte les pairs vers AppShell pour les pastilles de présence -----
+  useEffect(() => {
+    onPeersUpdate?.(peers)
+  }, [peers, onPeersUpdate])
+
   // --- Invité : applique les commandes distantes -------------------------
   useEffect(() => {
     const off = subscribePlayback((evt) => {
@@ -411,6 +419,28 @@ export default function VideoReview({ source, session, user }) {
 
   const progress = duration ? (currentTime / duration) * 100 : 0
 
+  // --- Plein écran --------------------------------------------------------
+  const [fullscreen, setFullscreen] = useState(false)
+  function toggleFullscreen() {
+    const el = stageRef.current
+    if (!el) return
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.()
+        .then(() => setFullscreen(true))
+        .catch(() => {})
+    } else {
+      document
+        .exitFullscreen?.()
+        .then(() => setFullscreen(false))
+        .catch(() => {})
+    }
+  }
+  useEffect(() => {
+    const onFs = () => setFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+
   // Nom du présentateur courant (pour le badge).
   const presenterName = isPresenter
     ? self.name
@@ -419,7 +449,7 @@ export default function VideoReview({ source, session, user }) {
   return (
     <div className="review">
       <div className="review-main">
-        <div className="stage">
+        <div className="stage" ref={stageRef}>
           <div className="stage-inner">
             <video
               ref={videoRef}
@@ -456,6 +486,63 @@ export default function VideoReview({ source, session, user }) {
                 </div>
               ))}
           </div>
+
+          {/* Barre d'outils flottante (plein écran) */}
+          {fullscreen && (
+            <div className="fs-toolbar">
+              <div className="fs-toolbar-tools">
+                {TOOLS.map(({ id, label, Icon }) => (
+                  <button
+                    key={id}
+                    className={`tool-btn${tool === id ? ' active' : ''}`}
+                    onClick={() => setTool(id)}
+                    title={label}
+                    aria-label={label}
+                    aria-pressed={tool === id}
+                  >
+                    <Icon size={16} weight={tool === id ? 'fill' : 'regular'} />
+                  </button>
+                ))}
+                <span className="toolbar-sep" />
+                <div className="swatches">
+                  {SWATCHES.map((s) => (
+                    <button
+                      key={s.value}
+                      className={`swatch${color === s.value ? ' active' : ''}`}
+                      style={{ background: s.value }}
+                      onClick={() => setColor(s.value)}
+                      title={s.name}
+                      aria-label={`Couleur ${s.name}`}
+                    />
+                  ))}
+                </div>
+                <span className="toolbar-sep" />
+                <button
+                  className="tool-btn"
+                  onClick={() => {
+                    if (activeId) {
+                      const note = notes.find((n) => n.id === activeId)
+                      if (note && note.shapes?.length) updateNoteShapes(note.id, [])
+                    } else {
+                      clearDraft()
+                    }
+                  }}
+                  title="Effacer tout"
+                  aria-label="Effacer tout"
+                >
+                  <TrashSimple size={16} />
+                </button>
+                <button
+                  className="tool-btn"
+                  onClick={toggleFullscreen}
+                  title="Quitter le plein écran"
+                  aria-label="Quitter le plein écran"
+                >
+                  <ArrowsInSimple size={16} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="controls">
@@ -606,6 +693,14 @@ export default function VideoReview({ source, session, user }) {
               aria-label="Effacer les dessins"
             >
               <TrashSimple size={18} />
+            </button>
+            <button
+              className="btn-icon"
+              onClick={toggleFullscreen}
+              title={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+              aria-label={fullscreen ? 'Quitter le plein écran' : 'Plein écran'}
+            >
+              {fullscreen ? <ArrowsInSimple size={18} /> : <ArrowsOutSimple size={18} />}
             </button>
           </div>
         </div>

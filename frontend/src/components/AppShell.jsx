@@ -4,6 +4,7 @@ import { colorForUser, initials } from '../lib/format'
 
 // Barre supérieure + cadre de l'application.
 // `onBack` (optionnel) affiche un retour ; `center` et `right` sont des slots.
+// `peers` : liste des participants connectés (affichés en pastilles).
 export default function AppShell({
   user,
   onLogout,
@@ -12,6 +13,7 @@ export default function AppShell({
   title,
   center,
   right,
+  peers,
   onOpenDocs,
   children,
 }) {
@@ -37,6 +39,32 @@ export default function AppShell({
           <span style={{ fontWeight: 600, color: 'var(--text-dim)' }} title={title}>
             {title}
           </span>
+        )}
+
+        {peers && peers.length > 0 && (
+          <div className="presence">
+            <div className="presence-avatars">
+              {peers.map((p) => (
+                <span
+                  key={p.id}
+                  className="presence-avatar"
+                  style={{ background: p.color }}
+                  title={p.name}
+                >
+                  {initials(p.name)}
+                </span>
+              ))}
+            </div>
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--text-faint)',
+                fontFeatureSettings: "'tnum'",
+              }}
+            >
+              {peers.length + 1}
+            </span>
+          </div>
         )}
 
         <div className="topbar-spacer" />
