@@ -9,10 +9,13 @@ import { JwtService } from '@nestjs/jwt'
 import * as argon2 from 'argon2'
 import { UsersService } from './users.service'
 
-// Anti-bruteforce : au-delà de MAX_FAILS échecs, le compte est verrouillé
-// temporairement (LOCK_MS). Complète le rate-limit par IP posé sur la route.
+// Anti-bruteforce : au-delà de MAX_FAILS échecs, le COUPLE (IP, compte) est
+// verrouillé temporairement (LOCK_MS). Clé par IP+username pour qu'un attaquant
+// ne puisse pas verrouiller la victime depuis une autre IP. Complète le rate-limit.
 const MAX_FAILS = 5
 const LOCK_MS = 5 * 60 * 1000
+// Borne mémoire : au-delà, on purge les entrées expirées (anti-OOM si spray d'usernames).
+const MAX_ATTEMPT_ENTRIES = 10_000
 
 // Hash Argon2 « leurre » : sert à vérifier un mot de passe même pour un compte
 // inexistant, afin d'égaliser le temps de réponse (anti-énumération d'utilisateurs).
@@ -21,8 +24,11 @@ const DUMMY_HASH =
 
 @Injectable()
 export class AuthService {
-  // Suivi en mémoire des tentatives échouées par compte.
-  private readonly attempts = new Map<string, { fails: number; lockedUntil: number }>()
+  // Suivi en mémoire des tentatives échouées par couple (IP, compte).
+  private readonly attempts = new Map<
+    string,
+    { fails: number; lockedUntil: number; ts: number }
+  >()
 
   constructor(
     private readonly users: UsersService,
@@ -31,14 +37,15 @@ export class AuthService {
 
   // Vérifie les identifiants puis émet un JWT court qui identifiera l'utilisateur
   // sur toutes les requêtes suivantes.
-  async login(username: string, password: string) {
+  async login(username: string, password: string, ip = 'unknown') {
     const now = Date.now()
-    const record = this.attempts.get(username)
+    const key = `${ip}|${username}`
+    const record = this.attempts.get(key)
 
-    // Compte verrouillé : on refuse sans même tester le mot de passe.
+    // Couple (IP, compte) verrouillé : on refuse sans même tester le mot de passe.
     if (record && record.lockedUntil > now) {
       throw new HttpException(
-        'Compte temporairement verrouille apres trop de tentatives',
+        'Trop de tentatives, reessayez plus tard',
         HttpStatus.TOO_MANY_REQUESTS,
       )
     }
@@ -48,7 +55,7 @@ export class AuthService {
     const user = await this.users.findByUsername(username)
     const passwordOk = await argon2.verify(user?.passwordHash ?? DUMMY_HASH, password)
     if (!user || !passwordOk) {
-      this.registerFailure(username, now)
+      this.registerFailure(key, now)
       throw new UnauthorizedException('Identifiants invalides')
     }
 
@@ -59,8 +66,8 @@ export class AuthService {
       )
     }
 
-    // Succès : on remet le compteur à zéro.
-    this.attempts.delete(username)
+    // Succès : on remet le compteur à zéro pour ce couple.
+    this.attempts.delete(key)
     return this.issueSession(user)
   }
 
@@ -111,13 +118,23 @@ export class AuthService {
     }
   }
 
-  private registerFailure(username: string, now: number): void {
-    const record = this.attempts.get(username) ?? { fails: 0, lockedUntil: 0 }
+  private registerFailure(key: string, now: number): void {
+    this.pruneAttempts(now)
+    const record = this.attempts.get(key) ?? { fails: 0, lockedUntil: 0, ts: now }
     record.fails += 1
+    record.ts = now
     if (record.fails >= MAX_FAILS) {
       record.lockedUntil = now + LOCK_MS
       record.fails = 0
     }
-    this.attempts.set(username, record)
+    this.attempts.set(key, record)
+  }
+
+  // Borne la mémoire : purge les entrées dont le verrou et l'activité sont expirés.
+  private pruneAttempts(now: number): void {
+    if (this.attempts.size < MAX_ATTEMPT_ENTRIES) return
+    for (const [k, r] of this.attempts) {
+      if (r.lockedUntil < now && now - r.ts > LOCK_MS) this.attempts.delete(k)
+    }
   }
 }

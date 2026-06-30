@@ -18,6 +18,7 @@ export class KeysService {
   private readonly logger = new Logger(KeysService.name)
   private readonly secretsDir = backendPath('secrets')
   private readonly logPath = backendPath('logs', 'key-access.log')
+  private logDirReady = false
 
   constructor(private readonly contents: ContentsService) {}
 
@@ -134,7 +135,10 @@ export class KeysService {
       this.logger.warn(line)
     }
 
-    await mkdir(dirname(this.logPath), { recursive: true })
+    if (!this.logDirReady) {
+      await mkdir(dirname(this.logPath), { recursive: true })
+      this.logDirReady = true
+    }
     await appendFile(this.logPath, `${line}\n`, 'utf8')
   }
 }

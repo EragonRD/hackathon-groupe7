@@ -11,6 +11,7 @@ import { Throttle } from '@nestjs/throttler'
 import type { Request } from 'express'
 import { AuthService } from './auth.service'
 import { AuthGuard } from './auth.guard'
+import { extractClientIp } from '../common/request-context'
 
 @Controller('auth')
 export class AuthController {
@@ -21,11 +22,11 @@ export class AuthController {
   // en complément du verrouillage de compte côté AuthService.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
-  login(@Body() body: { username?: string; password?: string }) {
+  login(@Req() req: Request, @Body() body: { username?: string; password?: string }) {
     if (!body?.username || !body?.password) {
       throw new UnauthorizedException('username et password requis')
     }
-    return this.auth.login(body.username, body.password)
+    return this.auth.login(body.username, body.password, extractClientIp(req))
   }
 
   // GET /auth/me  (route protégée d'exemple) -> l'utilisateur courant.
