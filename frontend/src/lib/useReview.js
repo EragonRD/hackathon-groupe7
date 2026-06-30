@@ -17,6 +17,11 @@ import { colorForUser, shortId } from './format'
 //  Synchro : chaque mutation locale est diffusée via le transport (collab.js).
 //  Persistance : miroir local (localStorage) pour survivre à un rechargement
 //  et amorcer une fenêtre qui rejoint sans pair actif.
+//
+//  "Watch Together" (sujet B) : le présentateur pilote la lecture, les invités
+//  suivent. Tout passe par le même bus (messages `wt:*`). Le présentateur est
+//  REVENDIQUÉ manuellement (claimPresenter) -> pas d'élection raciste. Anti-écho
+//  et resync du retardataire gérés ici + dans VideoReview.
 // ============================================================================
 
 const PRESENCE_PING_MS = 3000
@@ -48,18 +53,31 @@ export function useReview({ session, user, mode }) {
 
   const [notes, setNotes] = useState(() => loadNotes(session))
   const [peers, setPeers] = useState({}) // id -> { id, name, color, lastSeen, cursor }
+  const [presenterId, setPresenterId] = useState(null) // id du présentateur (Watch Together)
   const transportRef = useRef(null)
   // Références "toujours fraîches" pour l'effet de connexion (handlers async) :
   // elles évitent de remettre `self`/`notes` en dépendances de la (re)connexion.
   // Mises à jour dans des effets (jamais pendant le render).
   const selfRef = useRef(self)
   const notesRef = useRef(notes)
+  const presenterIdRef = useRef(presenterId)
+  // Dernier état de lecture connu du présentateur (pour répondre aux retardataires).
+  const lastPlaybackRef = useRef(null)
+  // Abonnés aux commandes de lecture distantes (VideoReview s'y branche).
+  const playbackListenersRef = useRef(new Set())
   useEffect(() => {
     selfRef.current = self
   }, [self])
   useEffect(() => {
     notesRef.current = notes
   }, [notes])
+  useEffect(() => {
+    presenterIdRef.current = presenterId
+  }, [presenterId])
+
+  const emitPlayback = useCallback((evt) => {
+    for (const fn of playbackListenersRef.current) fn(evt)
+  }, [])
 
   // --- Miroir localStorage à chaque changement de notes -------------------
   useEffect(() => {
@@ -104,6 +122,17 @@ export function useReview({ session, user, mode }) {
             from: selfRef.current.id,
             payload: { notes: notesRef.current },
           })
+          // Si JE présente, je resynchronise le retardataire sur la lecture.
+          if (presenterIdRef.current === selfRef.current.id) {
+            t.post({
+              type: 'wt:state',
+              from: selfRef.current.id,
+              payload: {
+                presenterId: selfRef.current.id,
+                playback: lastPlaybackRef.current,
+              },
+            })
+          }
           break
         case 'presence':
           touchPeer(msg.payload)
@@ -114,6 +143,8 @@ export function useReview({ session, user, mode }) {
             delete next[msg.from]
             return next
           })
+          // Le présentateur est parti -> plus personne ne pilote.
+          if (presenterIdRef.current === msg.from) setPresenterId(null)
           break
         case 'cursor':
           touchPeer({ id: msg.from }, { cursor: msg.payload })
@@ -126,6 +157,32 @@ export function useReview({ session, user, mode }) {
           break
         case 'sync:state':
           upsertNotes(msg.payload.notes || [])
+          break
+        // --- Watch Together ------------------------------------------------
+        case 'wt:claim':
+          // Quelqu'un prend la présentation : il devient le présentateur unique.
+          setPresenterId(msg.from)
+          break
+        case 'wt:release':
+          if (presenterIdRef.current === msg.from) setPresenterId(null)
+          break
+        case 'wt:state':
+          // Réponse de resync reçue par un retardataire.
+          setPresenterId(msg.payload?.presenterId ?? null)
+          if (msg.payload?.playback) {
+            emitPlayback({ kind: 'state', ...msg.payload.playback })
+          }
+          break
+        case 'wt:playback':
+          // On n'applique QUE les commandes du présentateur courant (anti-usurpation).
+          if (msg.from === presenterIdRef.current) {
+            emitPlayback({ kind: 'playback', ...msg.payload })
+          }
+          break
+        case 'wt:heartbeat':
+          if (msg.from === presenterIdRef.current) {
+            emitPlayback({ kind: 'heartbeat', ...msg.payload })
+          }
           break
         default:
           break
@@ -148,6 +205,14 @@ export function useReview({ session, user, mode }) {
           if (p.lastSeen >= cutoff) next[id] = p
           else changed = true
         }
+        // Présentateur disparu sans `leave` (crash onglet) -> on libère la main.
+        if (
+          presenterIdRef.current &&
+          presenterIdRef.current !== selfRef.current.id &&
+          !next[presenterIdRef.current]
+        ) {
+          setPresenterId(null)
+        }
         return changed ? next : prev
       })
     }, 2000)
@@ -167,7 +232,7 @@ export function useReview({ session, user, mode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session, mode, self.id])
 
-  // --- API publique -------------------------------------------------------
+  // --- API publique : notes ----------------------------------------------
   const addNote = useCallback(
     ({ time, text, shapes, color }) => {
       const note = {
@@ -226,7 +291,55 @@ export function useReview({ session, user, mode }) {
     [self],
   )
 
+  // --- API publique : Watch Together -------------------------------------
+  const claimPresenter = useCallback(() => {
+    setPresenterId(self.id)
+    transportRef.current?.post({ type: 'wt:claim', from: self.id })
+  }, [self.id])
+
+  const releasePresenter = useCallback(() => {
+    setPresenterId(null)
+    transportRef.current?.post({ type: 'wt:release', from: self.id })
+  }, [self.id])
+
+  // Commande de lecture émise par le présentateur (play/pause/seek).
+  const sendPlayback = useCallback(
+    ({ action, position }) => {
+      lastPlaybackRef.current = {
+        paused: action !== 'play',
+        position,
+        at: Date.now(),
+      }
+      transportRef.current?.post({
+        type: 'wt:playback',
+        from: self.id,
+        payload: { action, position, at: Date.now() },
+      })
+    },
+    [self.id],
+  )
+
+  // Battement régulier (anti-dérive) émis par le présentateur.
+  const sendHeartbeat = useCallback(
+    ({ position, paused }) => {
+      lastPlaybackRef.current = { paused, position, at: Date.now() }
+      transportRef.current?.post({
+        type: 'wt:heartbeat',
+        from: self.id,
+        payload: { position, paused, at: Date.now() },
+      })
+    },
+    [self.id],
+  )
+
+  // VideoReview s'abonne aux commandes distantes (play/pause/seek/state/heartbeat).
+  const subscribePlayback = useCallback((fn) => {
+    playbackListenersRef.current.add(fn)
+    return () => playbackListenersRef.current.delete(fn)
+  }, [])
+
   const peerList = useMemo(() => Object.values(peers), [peers])
+  const isPresenter = presenterId === self.id
 
   return {
     self,
@@ -236,5 +349,13 @@ export function useReview({ session, user, mode }) {
     removeNote,
     replaceNotes,
     sendCursor,
+    // Watch Together
+    presenterId,
+    isPresenter,
+    claimPresenter,
+    releasePresenter,
+    sendPlayback,
+    sendHeartbeat,
+    subscribePlayback,
   }
 }
