@@ -21,16 +21,17 @@ export class KeysController {
   async getKey(
     @Param('contentId') contentId: string,
     @Req() req: RequestWithUser,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<Buffer> {
+    @Res() res: Response,
+  ): Promise<void> {
     const key = await this.keys.getKey(contentId, req.user!, {
       ip: extractClientIp(req),
     })
 
-    res.setHeader('Content-Type', 'application/octet-stream')
-    res.setHeader('Cache-Control', 'no-store')
-    res.setHeader('Content-Length', key.length)
-
-    return key
+    res
+      .status(200)
+      .setHeader('Content-Type', 'application/octet-stream')
+      .setHeader('Cache-Control', 'no-store')
+      .setHeader('Content-Length', key.length)
+      .send(key)
   }
 }
