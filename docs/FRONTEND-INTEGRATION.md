@@ -275,3 +275,83 @@ await authFetch('/admin/contents/poc/revoke', { method: 'POST' }) // couper la c
 - Le contenu de démo est `contentId = "poc"` (appartient à `demo`).
 
 > En cas de souci CORS/clé/HLS, pinguer **Enzo / l'équipe P2** : c'est leur périmètre.
+
+---
+
+## 9. 🆕 Récap des ajouts récents (multi-tenant, invitations, sécurité)
+
+Cette section résume tout ce qui a été ajouté côté backend depuis la 1ʳᵉ version de ce guide.
+
+### 9.1 Modèle d'identité enrichi
+Le JWT porte désormais **`role`** (`superadmin | admin | user`), **`companyId`** et
+**`mustChangePassword`**. Helpers conseillés dans `auth.js` :
+```js
+export function getClaims() {
+  const t = getToken(); if (!t) return null
+  try { return JSON.parse(atob(t.split('.')[1])) } catch { return null }
+}
+export const getRole       = () => getClaims()?.role ?? null
+export const getCompanyId  = () => getClaims()?.companyId ?? null
+export const isAdmin       = () => ['admin','superadmin'].includes(getRole())
+export const isSuperAdmin  = () => getRole() === 'superadmin'
+export const mustChangePwd = () => Boolean(getClaims()?.mustChangePassword)
+```
+La réponse de `/auth/login` renvoie aussi `user.{role,companyId,mustChangePassword}`.
+
+### 9.2 Onboarding d'un admin invité (mot de passe temporaire 24 h)
+Workflow imposé par le produit :
+1. **Super-admin** invite : `POST /admin/companies/:id/invite-admin { email }`
+   → réponse `{ invited, invitation:{ email, link, tempPassword, expiresAt }, delivery, message }`.
+   L'email part via **Mailjet** s'il est configuré, sinon `delivery.provider === "simulated"`
+   (le `link` + `tempPassword` sont quand même dans la réponse).
+2. L'admin se connecte avec le **mot de passe temporaire** → `mustChangePassword: true`,
+   et **tout `/admin/*` est bloqué (403)** tant qu'il n'a pas changé son mot de passe.
+3. `POST /auth/change-password { currentPassword, newPassword }` (≥ 8 car., différent)
+   → **nouveau token** sans le flag ; stocker ce token et continuer.
+4. Au-delà de 24 h, le mot de passe temporaire est **refusé** au login (`401`).
+
+Côté UX : si `mustChangePwd()` est vrai après login, **rediriger vers un écran
+« changer mon mot de passe »** avant d'afficher le panel.
+
+### 9.3 Back-office multi-tenant (3 niveaux) — endpoints
+**Super-admin** (`role = superadmin`)
+| Méthode | Endpoint | Corps |
+|---|---|---|
+| `GET` | `/admin/companies` | — |
+| `POST` | `/admin/companies` | `{ name }` |
+| `POST` | `/admin/companies/:id/invite-admin` | `{ email }` |
+
+**Admin d'entreprise** (scoppé à sa `companyId` ; superadmin = global)
+| Méthode | Endpoint | Corps |
+|---|---|---|
+| `GET` | `/admin/users` | — |
+| `POST` | `/admin/users` | `{ username, password }` |
+| `GET` | `/admin/contents` | — |
+| `POST` | `/admin/contents` | `{ title }` |
+| `POST` | `/admin/contents/:id/access` | `{ username }` |
+| `DELETE` | `/admin/contents/:id/access/:username` | — |
+| `POST` | `/admin/contents/:id/revoke` \| `/restore` | — |
+
+> **Isolation** : un admin/user ne voit/agit que dans sa `companyId`. Tout accès
+> cross-entreprise renvoie **404** (existence masquée) ou **403**. On ne peut donner
+> l'accès qu'à un user **de la même entreprise** que le contenu.
+
+### 9.4 Codes d'erreur supplémentaires
+| Code | Cas |
+|---|---|
+| `403` | rôle insuffisant **ou** `mustChangePassword` non résolu (panel verrouillé) |
+| `404` | contenu/entreprise hors de SA `companyId` (masqué) |
+| `409` | email déjà admin / username déjà pris |
+| `400` | email invalide, mot de passe trop court, `companyId` manquant (superadmin) |
+
+### 9.5 Écrans suggérés selon le rôle
+- **Super-admin** : liste des entreprises · créer une entreprise · inviter un admin (formulaire email) · afficher l'invitation renvoyée.
+- **Admin** : (1ʳᵉ connexion → changer le mot de passe) · liste/création d'users · liste/création de contenus · gestion des droits + révocation de clé · dashboard sécurité.
+- **User** : lecteur vidéo (`<SecureVideo>`) limité aux contenus autorisés.
+
+### 9.6 Checklist complémentaire
+- [ ] Helpers `getRole/getCompanyId/isSuperAdmin/mustChangePwd`
+- [ ] Écran **changement de mot de passe** (redirection si `mustChangePassword`)
+- [ ] Vues **super-admin** (entreprises + invitations) et **admin** (users + contenus)
+- [ ] Adapter le menu/navigation au `role`
+- [ ] Gérer `409`/`400` dans les formulaires (messages clairs)
