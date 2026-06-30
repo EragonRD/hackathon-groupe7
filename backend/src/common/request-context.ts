@@ -17,9 +17,7 @@ export function extractBearerToken(req: Request): string | undefined {
 
 export function extractClientIp(req: Request): string {
   const forwardedFor = req.headers['x-forwarded-for']
-  const firstForwardedIp = Array.isArray(forwardedFor)
-    ? forwardedFor[0]
-    : forwardedFor
+  const firstForwardedIp = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor
 
   if (firstForwardedIp) {
     return firstForwardedIp.split(',')[0]?.trim() || 'unknown'

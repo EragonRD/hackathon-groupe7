@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Req,
-  Res,
-  UseGuards,
-} from '@nestjs/common'
+import { Controller, Get, Param, Req, Res, UseGuards } from '@nestjs/common'
 import type { Response } from 'express'
 import { AuthGuard } from '../auth/auth.guard'
 import { extractClientIp } from '../common/request-context'
