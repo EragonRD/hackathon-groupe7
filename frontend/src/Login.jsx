@@ -5,6 +5,9 @@ import {
   UsersThree,
   ArrowRight,
   Warning,
+  User,
+  LockKey,
+  ShieldCheck,
 } from '@phosphor-icons/react'
 import PoulpiumMark from './components/PoulpiumMark'
 import { login } from './auth'
@@ -136,27 +139,33 @@ export default function Login({ onAuthed }) {
             <label className="field-label" htmlFor="login-user">
               Utilisateur
             </label>
-            <input
-              id="login-user"
-              autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="ex. alice"
-            />
+            <div className="input-wrap">
+              <User className="input-icon" size={17} weight="bold" />
+              <input
+                id="login-user"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="ex. alice"
+              />
+            </div>
           </div>
 
           <div className="field">
             <label className="field-label" htmlFor="login-pass">
               Mot de passe
             </label>
-            <input
-              id="login-pass"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="mot de passe"
-            />
+            <div className="input-wrap">
+              <LockKey className="input-icon" size={17} weight="bold" />
+              <input
+                id="login-pass"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="mot de passe"
+              />
+            </div>
           </div>
 
           {error && (
@@ -201,6 +210,11 @@ export default function Login({ onAuthed }) {
               ))}
             </div>
           </div>
+
+          <p className="login-foot">
+            <ShieldCheck size={14} weight="fill" />
+            Authentification par jeton sécurisé (JWT)
+          </p>
         </form>
       </div>
     </div>

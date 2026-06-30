@@ -479,15 +479,48 @@
 }
 
 .login-form-wrap {
+  position: relative;
+  overflow: hidden;
   display: grid;
   place-items: center;
   padding: var(--s-6);
-  background: var(--bg);
+  /* profondeur aquatique discrète (rappel du panneau gauche) */
+  background:
+    radial-gradient(72% 52% at 88% 110%, rgba(61, 109, 253, 0.13), transparent 60%),
+    radial-gradient(60% 45% at 4% -10%, rgba(41, 197, 230, 0.07), transparent 60%),
+    var(--bg);
 }
+
+/* Carte élevée : ancre le formulaire, lui donne du corps */
 .login-card {
+  position: relative;
   width: 100%;
-  max-width: 400px;
+  max-width: 432px;
+  padding: clamp(28px, 3.4vw, 40px);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(23, 28, 36, 0.92), rgba(15, 18, 24, 0.94));
+  border: 1px solid var(--line-strong);
+  box-shadow:
+    var(--shadow-2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   animation: login-rise 0.7s var(--ease) 0.15s both;
+}
+/* fin liseré dégradé sur le bord haut de la carte */
+.login-card::before {
+  content: '';
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(91, 133, 255, 0.7),
+    transparent
+  );
 }
 .login-card-brand {
   display: flex;
@@ -507,10 +540,31 @@
   margin-top: 8px;
   margin-bottom: var(--s-5);
 }
+
+/* Champ avec icône */
+.input-wrap {
+  position: relative;
+}
+.input-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+  transition: color var(--dur) var(--ease);
+}
+.input-wrap:focus-within .input-icon {
+  color: var(--accent-strong);
+}
 /* Champs du login : plus grands que la densité par défaut de l'app */
 .login-card input {
+  width: 100%;
   font-size: 15.5px;
   padding: 13px 15px;
+}
+.login-card .input-wrap input {
+  padding-left: 42px;
 }
 .login-card .btn {
   width: 100%;
@@ -519,6 +573,22 @@
 .login-card .btn-primary {
   height: 48px;
   font-size: 15px;
+}
+
+/* Pied de carte : réassurance B2B */
+.login-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.login-foot svg {
+  color: var(--text-dim);
 }
 
 /* Bouton aquatique : une marée liquide monte et ondule au survol */
