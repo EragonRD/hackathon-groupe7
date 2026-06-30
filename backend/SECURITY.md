@@ -58,3 +58,38 @@ hls.config.xhrSetup = (xhr, url) => {
 
 - Modele de menace : `docs/P2-threat-model.md`
 - Anti-scraping : `docs/P2-anti-scraping.md`
+
+## Anti-scraping temps reel
+
+Le Core applique un rate-limit global de `100 req / 60s / IP`, journalise les
+alertes dans `backend/logs/security-alerts.log` et expose :
+
+```bash
+curl http://localhost:3000/security/dashboard
+open http://localhost:3000/security.html
+```
+
+Endpoint watermark protege :
+
+```bash
+TOKEN="$(curl -sS -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"alice","password":"password"}' \
+  | node -e "let s='';process.stdin.on('data',c=>s+=c);process.stdin.on('end',()=>console.log(JSON.parse(s).accessToken))")"
+curl -H "Authorization: Bearer $TOKEN" http://localhost:3000/security/watermark
+```
+
+Scripts d'attaque :
+
+```bash
+./scripts/attacks/multi-session.sh
+./scripts/attacks/proxy-ip.sh
+./scripts/attacks/scrape-segments.sh
+./scripts/attacks/flood.sh
+```
+
+IP proxy de demo :
+
+```bash
+./scripts/attacks/proxy-ip.sh
+```

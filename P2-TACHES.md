@@ -59,33 +59,33 @@ L'authentification est **déjà câblée** dans `backend/src/auth/` :
 ## 🛡️ SUJET B — Détection & Anti-Scraping
 
 ### B1. Socle rate-limiting
-- [ ] `npm i @nestjs/throttler` → **rate-limiting** global sur le Core
-- [ ] Brancher chaque requête à un **compte** (via `req.user` du JWT existant)
+- [x] `npm i @nestjs/throttler` → **rate-limiting** global sur le Core
+- [x] Brancher chaque requête à un **compte** (via `req.user` du JWT existant)
 
 ### B2. Règles de détection *(au moins ces 3, temps réel)*
-- [ ] **Sessions simultanées anormales** : compteur IP/compte sur **fenêtre glissante**
-- [ ] **IP suspectes** (VPN/proxy) : liste de réputation **FireHOL / IP2Proxy** chargée **hors-ligne**
-- [ ] **Débit de scraping** : détection de **patterns séquentiels** sur les segments `.ts`
+- [x] **Sessions simultanées anormales** : compteur IP/compte sur **fenêtre glissante**
+- [x] **IP suspectes** (VPN/proxy) : liste de réputation **FireHOL / IP2Proxy** chargée **hors-ligne**
+- [x] **Débit de scraping** : détection de **patterns séquentiels** sur les segments `.ts`
 - [ ] *(Bonus)* géoloc incohérente, CIDR / ASN, corrélation multi-signaux
 
 ### B3. Réaction & visibilité
-- [ ] **Réaction visible** : logs structurés + **petit dashboard temps réel**
-- [ ] Stratégie de blocage (throttle → block → ban temporaire) documentée
-- [ ] **Watermark visible** lié à la session (dissuasif / traçable) *(à voir avec P1)*
+- [x] **Réaction visible** : logs structurés + **petit dashboard temps réel**
+- [x] Stratégie de blocage (throttle → block → ban temporaire) documentée
+- [x] **Watermark visible** lié à la session (dissuasif / traçable) *(à voir avec P1)*
 
 ### B4. Démo d'attaque
-- [ ] **Scripts d'attaque** (multi-session, scraping de segments, IP proxy)
-- [ ] Montrer : l'abus **passe AVANT**, est **bloqué APRÈS**
+- [x] **Scripts d'attaque** (multi-session, scraping de segments, IP proxy)
+- [x] Montrer : l'abus **passe AVANT**, est **bloqué APRÈS**
 
 ### B5. Documentation
-- [ ] Règles **documentées** + **limites assumées**
-- [ ] ⚠️ Assumer que la **capture d'écran** est quasi indétectable → signaux *best-effort* + watermark
+- [x] Règles **documentées** + **limites assumées**
+- [x] ⚠️ Assumer que la **capture d'écran** est quasi indétectable → signaux *best-effort* + watermark
 
 ---
 
 ## 🧩 Intégration (Bloc B — avec les autres pôles)
-- [ ] Caler avec **Alex (P1)** : le lecteur React envoie le token sur la requête de clé (A) et porte le watermark (B)
-- [ ] Conserver le **même JWT** que l'auth existante (une seule identité pour A **et** B)
+- [x] Caler avec **Alex (P1)** : le lecteur React envoie le token sur la requête de clé (A) et porte le watermark (B)
+- [x] Conserver le **même JWT** que l'auth existante (une seule identité pour A **et** B)
 - [ ] Valider le scénario complet : *login → ouvrir vidéo → Core délivre la clé (A) + surveille l'abus (B) → ça lit*
 
 ---
