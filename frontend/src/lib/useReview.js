@@ -1,0 +1,240 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createTransport } from './collab'
+import { colorForUser, shortId } from './format'
+
+// ============================================================================
+//  useReview — état d'une session de revue, synchronisé entre participants.
+// ----------------------------------------------------------------------------
+//  Une "note" rattache un commentaire ET des dessins à un timecode précis :
+//    {
+//      id, time,                 // instant dans la vidéo (secondes)
+//      author: { id, name, color },
+//      text,                     // commentaire (peut être vide si dessin seul)
+//      shapes: [ { tool, color, points|rect, ... } ],
+//      createdAt                 // ISO
+//    }
+//
+//  Synchro : chaque mutation locale est diffusée via le transport (collab.js).
+//  Persistance : miroir local (localStorage) pour survivre à un rechargement
+//  et amorcer une fenêtre qui rejoint sans pair actif.
+// ============================================================================
+
+const PRESENCE_PING_MS = 3000
+const PRESENCE_TIMEOUT_MS = 9000
+
+function storageKey(session) {
+  return `review:notes:${session}`
+}
+
+function loadNotes(session) {
+  try {
+    const raw = localStorage.getItem(storageKey(session))
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+export function useReview({ session, user, mode }) {
+  const self = useMemo(
+    () => ({
+      id: String(user?.id ?? user?.username ?? shortId()),
+      name: user?.username ?? 'invité',
+      role: user?.role ?? 'member',
+      color: colorForUser(user?.id ?? user?.username ?? 'invité'),
+    }),
+    [user],
+  )
+
+  const [notes, setNotes] = useState(() => loadNotes(session))
+  const [peers, setPeers] = useState({}) // id -> { id, name, color, lastSeen, cursor }
+  const transportRef = useRef(null)
+  // Références "toujours fraîches" pour l'effet de connexion (handlers async) :
+  // elles évitent de remettre `self`/`notes` en dépendances de la (re)connexion.
+  // Mises à jour dans des effets (jamais pendant le render).
+  const selfRef = useRef(self)
+  const notesRef = useRef(notes)
+  useEffect(() => {
+    selfRef.current = self
+  }, [self])
+  useEffect(() => {
+    notesRef.current = notes
+  }, [notes])
+
+  // --- Miroir localStorage à chaque changement de notes -------------------
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey(session), JSON.stringify(notes))
+    } catch {
+      /* quota/private mode : on ignore, la synchro live reste la source */
+    }
+  }, [notes, session])
+
+  // --- Helpers d'agrégation (dédupe par id) -------------------------------
+  const upsertNotes = useCallback((incoming) => {
+    setNotes((prev) => {
+      const byId = new Map(prev.map((n) => [n.id, n]))
+      for (const n of incoming) byId.set(n.id, n)
+      return [...byId.values()].sort((a, b) => a.time - b.time)
+    })
+  }, [])
+
+  // --- Connexion au transport + boucle de présence ------------------------
+  useEffect(() => {
+    const t = createTransport(session, { mode })
+    transportRef.current = t
+
+    const touchPeer = (p, extra = {}) => {
+      if (!p || p.id === selfRef.current.id) return
+      setPeers((prev) => ({
+        ...prev,
+        [p.id]: { ...prev[p.id], ...p, ...extra, lastSeen: Date.now() },
+      }))
+    }
+
+    const off = t.subscribe((msg) => {
+      if (!msg || msg.from === selfRef.current.id) return
+      switch (msg.type) {
+        case 'join':
+          touchPeer(msg.payload)
+          // On se présente au nouveau venu + on lui envoie l'état courant.
+          t.post({ type: 'presence', from: selfRef.current.id, payload: selfRef.current })
+          t.post({
+            type: 'sync:state',
+            from: selfRef.current.id,
+            payload: { notes: notesRef.current },
+          })
+          break
+        case 'presence':
+          touchPeer(msg.payload)
+          break
+        case 'leave':
+          setPeers((prev) => {
+            const next = { ...prev }
+            delete next[msg.from]
+            return next
+          })
+          break
+        case 'cursor':
+          touchPeer({ id: msg.from }, { cursor: msg.payload })
+          break
+        case 'note:add':
+          upsertNotes([msg.payload])
+          break
+        case 'note:remove':
+          setNotes((prev) => prev.filter((n) => n.id !== msg.payload.id))
+          break
+        case 'sync:state':
+          upsertNotes(msg.payload.notes || [])
+          break
+        default:
+          break
+      }
+    })
+
+    t.post({ type: 'join', from: self.id, payload: self })
+
+    const ping = setInterval(() => {
+      t.post({ type: 'presence', from: selfRef.current.id, payload: selfRef.current })
+    }, PRESENCE_PING_MS)
+
+    // Purge des pairs silencieux (fermeture brutale d'onglet, etc.)
+    const prune = setInterval(() => {
+      const cutoff = Date.now() - PRESENCE_TIMEOUT_MS
+      setPeers((prev) => {
+        let changed = false
+        const next = {}
+        for (const [id, p] of Object.entries(prev)) {
+          if (p.lastSeen >= cutoff) next[id] = p
+          else changed = true
+        }
+        return changed ? next : prev
+      })
+    }, 2000)
+
+    const onUnload = () => t.post({ type: 'leave', from: selfRef.current.id })
+    window.addEventListener('beforeunload', onUnload)
+
+    return () => {
+      onUnload()
+      off()
+      clearInterval(ping)
+      clearInterval(prune)
+      window.removeEventListener('beforeunload', onUnload)
+      t.close()
+    }
+    // session/mode/self.id pilotent la (re)connexion ; notes lues via ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, mode, self.id])
+
+  // --- API publique -------------------------------------------------------
+  const addNote = useCallback(
+    ({ time, text, shapes, color }) => {
+      const note = {
+        id: shortId(),
+        time,
+        author: { id: self.id, name: self.name, color: self.color },
+        text: (text || '').trim(),
+        shapes: shapes || [],
+        color: color || self.color,
+        createdAt: new Date().toISOString(),
+      }
+      upsertNotes([note])
+      transportRef.current?.post({ type: 'note:add', from: self.id, payload: note })
+      return note
+    },
+    [self, upsertNotes],
+  )
+
+  const removeNote = useCallback(
+    (id) => {
+      setNotes((prev) => prev.filter((n) => n.id !== id))
+      transportRef.current?.post({ type: 'note:remove', from: self.id, payload: { id } })
+    },
+    [self.id],
+  )
+
+  // Remplace tout le jeu de notes (réimport JSON) + le diffuse.
+  const replaceNotes = useCallback(
+    (incoming) => {
+      const clean = (incoming || [])
+        .filter((n) => typeof n.time === 'number')
+        .sort((a, b) => a.time - b.time)
+      setNotes(clean)
+      transportRef.current?.post({
+        type: 'sync:state',
+        from: self.id,
+        payload: { notes: clean },
+      })
+    },
+    [self.id],
+  )
+
+  // Position de curseur (normalisée 0..1), throttlée pour ne pas saturer.
+  const lastCursorRef = useRef(0)
+  const sendCursor = useCallback(
+    (nx, ny) => {
+      const now = Date.now()
+      if (now - lastCursorRef.current < 55) return
+      lastCursorRef.current = now
+      transportRef.current?.post({
+        type: 'cursor',
+        from: self.id,
+        payload: { x: nx, y: ny, name: self.name, color: self.color },
+      })
+    },
+    [self],
+  )
+
+  const peerList = useMemo(() => Object.values(peers), [peers])
+
+  return {
+    self,
+    notes,
+    peers: peerList,
+    addNote,
+    removeNote,
+    replaceNotes,
+    sendCursor,
+  }
+}

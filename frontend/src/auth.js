@@ -24,6 +24,22 @@ export function getToken() {
   return localStorage.getItem(TOKEN_KEY)
 }
 
+// Réhydrate l'utilisateur courant à partir du token (au rechargement de page).
+// Renvoie l'utilisateur si le token est valide, sinon null (et nettoie le token).
+export async function me() {
+  if (!getToken()) return null
+  try {
+    const res = await authFetch('/auth/me')
+    if (!res.ok) {
+      logout()
+      return null
+    }
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
 // fetch authentifié : ajoute automatiquement `Authorization: Bearer <token>`.
 export async function authFetch(path, options = {}) {
   const token = getToken()
