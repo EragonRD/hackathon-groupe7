@@ -3,9 +3,10 @@ import { useCallback, useEffect, useRef } from 'react'
 // Calque de dessin superposé à la vidéo.
 // - Coordonnées NORMALISÉES (0..1) -> les formes s'adaptent à toute taille
 //   d'affichage et se mappent à l'identique d'une fenêtre à l'autre.
-// - Outils : 'cursor' (navigation), 'pen', 'eraser', 'arrow', 'rect'.
+// - Outils : 'cursor' (navigation), 'pen', 'eraser', 'arrow', 'rect', 'text'.
 // - `shapes` : formes à afficher (brouillon courant + note active).
 // - onAddShape(shape) : forme terminée. onErase(path) : gomme libre.
+//   onTextPlace(point) : demande placement d'un texte.
 //   onCursor(nx,ny) : suivi du pointeur.
 //   onBackgroundClick() : clic en mode 'cursor' (utilisé pour play/pause).
 const LINE_WIDTH = 3
@@ -61,6 +62,13 @@ function drawShape(ctx, s, w, h) {
     ctx.lineTo(s.to.x * w, s.to.y * h)
     ctx.stroke()
     drawArrowHead(ctx, s.from, s.to, w, h)
+  } else if (s.tool === 'text') {
+    ctx.font = `${s.fontSize || 18}px ui-monospace, 'Cascadia Code', 'SF Mono', monospace`
+    ctx.fillStyle = s.color
+    const lines = (s.text || '').split('\n')
+    lines.forEach((line, i) => {
+      ctx.fillText(line, s.x * w, s.y * h + i * (s.fontSize || 18) * 1.3)
+    })
   }
 }
 
@@ -70,6 +78,7 @@ export default function DrawingCanvas({
   shapes,
   onAddShape,
   onErase,
+  onTextPlace,
   onCursor,
   onBackgroundClick,
 }) {
@@ -144,6 +153,10 @@ export default function DrawingCanvas({
     }
     e.currentTarget.setPointerCapture(e.pointerId)
     const p = pointFromEvent(e)
+    if (tool === 'text') {
+      onTextPlace?.(p)
+      return
+    }
     if (tool === 'eraser') {
       draftRef.current = { tool: 'eraser', points: [p] }
       redraw()

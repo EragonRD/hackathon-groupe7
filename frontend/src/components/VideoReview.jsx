@@ -7,6 +7,7 @@ import {
   Eraser,
   ArrowUpRight,
   Rectangle,
+  TextT,
   DownloadSimple,
   UploadSimple,
   Broadcast,
@@ -40,6 +41,7 @@ const TOOLS = [
   { id: 'eraser', label: 'Gomme libre', Icon: Eraser },
   { id: 'arrow', label: 'Flèche', Icon: ArrowUpRight },
   { id: 'rect', label: 'Cadre', Icon: Rectangle },
+  { id: 'text', label: 'Texte', Icon: TextT },
 ]
 
 const SWATCHES = [
@@ -93,6 +95,7 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
   const [pinnedTime, setPinnedTime] = useState(null)
   const [text, setText] = useState('')
   const [activeId, setActiveId] = useState(null)
+  const [pendingText, setPendingText] = useState(null) // { x, y } position du texte en attente
 
   // Suit-on un présentateur ? (présentateur défini, et ce n'est pas moi)
   const following = Boolean(presenterId) && !isPresenter
@@ -191,6 +194,32 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
       setDraftShapes((prev) => prev.filter((s) => !shapeHitByPath(s, points)))
     }
     setTool('eraser') // keep eraser active for consecutive strokes
+  }
+
+  function handleTextPlace(pos) {
+    setPendingText(pos)
+    setActiveId(null)
+  }
+
+  function handleTextSubmit(textVal) {
+    if (!textVal.trim()) {
+      setPendingText(null)
+      return
+    }
+    const shape = {
+      tool: 'text',
+      color,
+      x: pendingText.x,
+      y: pendingText.y,
+      text: textVal,
+      fontSize: 18,
+    }
+    setDraftShapes((prev) => [...prev, shape])
+    if (pinnedTime == null) {
+      setPinnedTime(videoRef.current?.currentTime ?? currentTime)
+      if (!followingRef.current) pause()
+    }
+    setPendingText(null)
   }
 
   function handleTextChange(value) {
@@ -464,6 +493,7 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
               shapes={shapesToShow}
               onAddShape={handleAddShape}
               onErase={handleErase}
+              onTextPlace={handleTextPlace}
               onCursor={sendCursor}
               onBackgroundClick={togglePlay}
             />
@@ -486,6 +516,32 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
                 </div>
               ))}
           </div>
+
+          {/* Input texte flottant */}
+          {pendingText && (
+            <div
+              className="text-input-overlay"
+              style={{
+                left: `${pendingText.x * 100}%`,
+                top: `${pendingText.y * 100}%`,
+              }}
+            >
+              <textarea
+                className="text-input-field"
+                placeholder="Écrire…"
+                autoFocus
+                rows={2}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleTextSubmit(e.target.value)
+                  }
+                  if (e.key === 'Escape') setPendingText(null)
+                }}
+                onBlur={(e) => handleTextSubmit(e.target.value)}
+              />
+            </div>
+          )}
 
           {/* Barre d'outils flottante (plein écran) */}
           {fullscreen && (

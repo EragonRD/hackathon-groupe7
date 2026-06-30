@@ -1823,3 +1823,24 @@
   height: 20px;
   background: var(--line);
 }
+
+/* --- Input texte flottant sur la vidéo ------------------------------------- */
+.text-input-overlay {
+  position: absolute;
+  z-index: 15;
+  transform: translate(-50%, -50%);
+}
+.text-input-field {
+  width: 180px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 2px solid var(--accent);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--font-mono);
+  line-height: 1.4;
+  resize: none;
+  outline: none;
+  box-shadow: var(--shadow-2);
+}
