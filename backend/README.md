@@ -176,7 +176,16 @@ scraping distribué · capture d'écran. Voir [`docs/P2-threat-model.md`](../doc
 | `JWT_TTL` | `15m` | durée de vie du token |
 | `TRUST_PROXY` | `loopback, uniquelocal` | proxies de confiance pour `X-Forwarded-For` |
 | `APP_URL` | `http://localhost:5173` | base du lien d'invitation (front) |
+| `MAILJET_API_KEY` | — | clé API Mailjet (envoi des invitations) |
+| `MAILJET_SECRET_KEY` | — | clé secrète Mailjet |
+| `MAILJET_FROM_EMAIL` | — | expéditeur (adresse validée chez Mailjet) |
+| `MAILJET_FROM_NAME` | `Plateforme Vidéo` | nom de l'expéditeur |
+| `MAILJET_SANDBOX` | `false` | `true` = valide l'appel sans délivrer |
 | `NODE_ENV` | — | `production` active le fail-fast du secret |
+
+> 📧 **Email** : l'invitation est envoyée via **Mailjet** (API v3.1). Sans les 3 clés
+> `MAILJET_*`, le service **retombe en simulation** (log + lien/mdp renvoyés dans la
+> réponse HTTP) — la démo fonctionne donc sans compte Mailjet.
 
 ---
 

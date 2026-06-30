@@ -84,7 +84,7 @@ export class AdminController {
     })
 
     const link = `${APP_URL}/login?email=${encodeURIComponent(email)}`
-    await this.email.sendAdminInvite({
+    const delivery = await this.email.sendAdminInvite({
       to: email,
       companyName: company.name,
       link,
@@ -95,7 +95,10 @@ export class AdminController {
     return {
       invited: admin,
       invitation: { email, companyId, link, tempPassword, expiresAt },
-      message: 'Invitation envoyée (mot de passe temporaire valable 24 h)',
+      delivery,
+      message: delivery.delivered
+        ? 'Invitation envoyée par email (mot de passe temporaire valable 24 h)'
+        : 'Invitation créée — email non configuré ou échec, partagez le lien manuellement',
     }
   }
 
