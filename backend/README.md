@@ -169,6 +169,15 @@ scraping distribué · capture d'écran. Voir [`docs/P2-threat-model.md`](../doc
 
 ## ⚙️ Variables d'environnement
 
+> 📂 **Chargement des `.env`** : au démarrage, le Core charge automatiquement
+> (via `dotenv`, voir `src/load-env.ts`) le **`.env` à la racine du dépôt** et
+> `backend/.env`. Priorité : variables déjà exportées dans le shell > `.env` le plus
+> proche du dossier de lancement > les autres (dotenv n'écrase jamais une variable
+> existante). En **Docker**, c'est le **`.env` racine** que `docker compose` injecte.
+> 👉 Conseil : mettez vos secrets dans le **`.env` racine** (commun local + Docker).
+> Les `.env` sont **gitignorés** — ne jamais les committer.
+
+
 | Variable | Défaut | Rôle |
 |---|---|---|
 | `PORT` | `3000` | port d'écoute |
