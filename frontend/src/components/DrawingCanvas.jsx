@@ -3,9 +3,10 @@ import { useCallback, useEffect, useRef } from 'react'
 // Calque de dessin superposé à la vidéo.
 // - Coordonnées NORMALISÉES (0..1) -> les formes s'adaptent à toute taille
 //   d'affichage et se mappent à l'identique d'une fenêtre à l'autre.
-// - Outils : 'cursor' (navigation), 'pen', 'arrow', 'rect'.
+// - Outils : 'cursor' (navigation), 'pen', 'eraser', 'arrow', 'rect'.
 // - `shapes` : formes à afficher (brouillon courant + note active).
-// - onAddShape(shape) : forme terminée. onCursor(nx,ny) : suivi du pointeur.
+// - onAddShape(shape) : forme terminée. onErase(path) : gomme libre.
+//   onCursor(nx,ny) : suivi du pointeur.
 //   onBackgroundClick() : clic en mode 'cursor' (utilisé pour play/pause).
 const LINE_WIDTH = 3
 
@@ -68,6 +69,7 @@ export default function DrawingCanvas({
   color,
   shapes,
   onAddShape,
+  onErase,
   onCursor,
   onBackgroundClick,
 }) {
@@ -89,7 +91,23 @@ export default function DrawingCanvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, w, h)
     for (const s of shapesRef.current) drawShape(ctx, s, w, h)
-    if (draftRef.current) drawShape(ctx, draftRef.current, w, h)
+    if (draftRef.current) {
+      if (draftRef.current.tool === 'eraser') {
+        const pts = draftRef.current.points
+        if (pts.length > 1) {
+          ctx.beginPath()
+          ctx.moveTo(pts[0].x * w, pts[0].y * h)
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * w, pts[i].y * h)
+          ctx.strokeStyle = 'rgba(255,255,255,0.3)'
+          ctx.lineWidth = 22
+          ctx.lineCap = 'round'
+          ctx.lineJoin = 'round'
+          ctx.stroke()
+        }
+      } else {
+        drawShape(ctx, draftRef.current, w, h)
+      }
+    }
   }, [])
 
   // Taille du canvas alignée sur l'élément affiché.
@@ -126,6 +144,11 @@ export default function DrawingCanvas({
     }
     e.currentTarget.setPointerCapture(e.pointerId)
     const p = pointFromEvent(e)
+    if (tool === 'eraser') {
+      draftRef.current = { tool: 'eraser', points: [p] }
+      redraw()
+      return
+    }
     draftRef.current =
       tool === 'pen'
         ? { tool: 'pen', color, points: [p] }
@@ -137,7 +160,8 @@ export default function DrawingCanvas({
     const p = pointFromEvent(e)
     onCursor?.(p.x, p.y)
     if (!draftRef.current) return
-    if (draftRef.current.tool === 'pen') draftRef.current.points.push(p)
+    if (draftRef.current.tool === 'pen' || draftRef.current.tool === 'eraser')
+      draftRef.current.points.push(p)
     else draftRef.current.to = p
     redraw()
   }
@@ -146,6 +170,11 @@ export default function DrawingCanvas({
     const draft = draftRef.current
     draftRef.current = null
     if (!draft) return
+    if (draft.tool === 'eraser') {
+      if (draft.points.length > 1) onErase?.(draft.points)
+      redraw()
+      return
+    }
     // Ignore les gestes trop courts (clic accidentel).
     const valid =
       draft.tool === 'pen'

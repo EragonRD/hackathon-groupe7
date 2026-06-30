@@ -4,12 +4,14 @@ import {
   Pause,
   Cursor,
   PencilSimple,
+  Eraser,
   ArrowUpRight,
   Rectangle,
   DownloadSimple,
   UploadSimple,
   Broadcast,
   Eye,
+  TrashSimple,
 } from '@phosphor-icons/react'
 import DrawingCanvas from './DrawingCanvas'
 import CommentPanel from './CommentPanel'
@@ -33,6 +35,7 @@ import { formatTime } from '../lib/format'
 const TOOLS = [
   { id: 'cursor', label: 'Curseur', Icon: Cursor },
   { id: 'pen', label: 'Trait libre', Icon: PencilSimple },
+  { id: 'eraser', label: 'Gomme libre', Icon: Eraser },
   { id: 'arrow', label: 'Flèche', Icon: ArrowUpRight },
   { id: 'rect', label: 'Cadre', Icon: Rectangle },
 ]
@@ -60,6 +63,7 @@ export default function VideoReview({ source, session, user }) {
     peers,
     addNote,
     removeNote,
+    updateNoteShapes,
     replaceNotes,
     sendCursor,
     toggleLike,
@@ -149,6 +153,41 @@ export default function VideoReview({ source, session, user }) {
       if (!followingRef.current) pause()
     }
     setActiveId(null)
+  }
+
+  const ERASE_THRESHOLD = 0.04
+  function shapeHitByPath(shape, points) {
+    if (shape.tool === 'pen') {
+      const pts = shape.points || []
+      return pts.some((sp) =>
+        points.some((ep) => Math.hypot(sp.x - ep.x, sp.y - ep.y) < ERASE_THRESHOLD),
+      )
+    }
+    if (shape.tool === 'rect' || shape.tool === 'arrow') {
+      const minX = Math.min(shape.from.x, shape.to.x) - ERASE_THRESHOLD
+      const maxX = Math.max(shape.from.x, shape.to.x) + ERASE_THRESHOLD
+      const minY = Math.min(shape.from.y, shape.to.y) - ERASE_THRESHOLD
+      const maxY = Math.max(shape.from.y, shape.to.y) + ERASE_THRESHOLD
+      return points.some(
+        (ep) => ep.x >= minX && ep.x <= maxX && ep.y >= minY && ep.y <= maxY,
+      )
+    }
+    return false
+  }
+
+  function handleErase(points) {
+    if (activeId) {
+      const note = notes.find((n) => n.id === activeId)
+      if (note) {
+        const remaining = (note.shapes || []).filter((s) => !shapeHitByPath(s, points))
+        if (remaining.length !== (note.shapes || []).length) {
+          updateNoteShapes(note.id, remaining)
+        }
+      }
+    } else {
+      setDraftShapes((prev) => prev.filter((s) => !shapeHitByPath(s, points)))
+    }
+    setTool('eraser') // keep eraser active for consecutive strokes
   }
 
   function handleTextChange(value) {
@@ -394,6 +433,7 @@ export default function VideoReview({ source, session, user }) {
               color={color}
               shapes={shapesToShow}
               onAddShape={handleAddShape}
+              onErase={handleErase}
               onCursor={sendCursor}
               onBackgroundClick={togglePlay}
             />
@@ -551,6 +591,22 @@ export default function VideoReview({ source, session, user }) {
               hidden
               onChange={(e) => importJSON(e.target.files?.[0])}
             />
+            <span className="toolbar-sep" />
+            <button
+              className="btn-icon"
+              onClick={() => {
+                if (activeId) {
+                  const note = notes.find((n) => n.id === activeId)
+                  if (note && note.shapes?.length) updateNoteShapes(note.id, [])
+                } else {
+                  clearDraft()
+                }
+              }}
+              title="Effacer tous les dessins"
+              aria-label="Effacer les dessins"
+            >
+              <TrashSimple size={18} />
+            </button>
           </div>
         </div>
       </div>

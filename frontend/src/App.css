@@ -1269,6 +1269,7 @@
   color: var(--text-dim);
   line-height: 1.45;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 .comment-tags {
   display: flex;
@@ -1350,6 +1351,7 @@
   color: var(--text-dim);
   margin-top: 2px;
   line-height: 1.4;
+  white-space: pre-wrap;
 }
 .reply-composer {
   margin-top: 8px;
