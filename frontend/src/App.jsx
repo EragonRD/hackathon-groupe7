@@ -5,6 +5,7 @@ import Login from './Login.jsx'
 import AppShell from './components/AppShell.jsx'
 import Catalogue from './components/Catalogue.jsx'
 import VideoReview from './components/VideoReview.jsx'
+import Documentation from './components/Documentation.jsx'
 import { getToken, logout, me, isAdmin } from './auth'
 
 // Chargés à la demande : SecureVideo embarque hls.js (lourd) -> hors du bundle initial.
@@ -95,6 +96,7 @@ export default function App() {
       onLogout={handleLogout}
       onBack={showBack ? toCatalogue : undefined}
       onHome={toCatalogue}
+      onOpenDocs={() => setView({ name: 'docs' })}
       title={titles[view.name]}
       right={adminButton}
     >
@@ -116,6 +118,7 @@ export default function App() {
           <SecurityDashboard />
         </Suspense>
       )}
+      {view.name === 'docs' && <Documentation onBack={toCatalogue} />}
       {view.name === 'catalogue' && (
         <Catalogue
           onOpen={(video) => setView({ name: 'review', video })}
