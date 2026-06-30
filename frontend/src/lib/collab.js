@@ -50,25 +50,40 @@ function broadcastTransport(session) {
   }
 }
 
-// --- Adapter 2 : socket.io (LAN) — connecté au backend NestJS -------------
-// Le backend expose une gateway WebSocket qui relaye les messages aux membres
-// de la room `session`. L'authentification se fait via le JWT passé en query.
-function socketTransport(session, { url = 'http://localhost:3000' } = {}) {
+// --- Adapter 2 : socket.io (LAN, 2-3 machines) -----------------------------
+// Parle à la gateway NestJS (ReviewGateway) : on émet `join {session}` puis des
+// `msg` ; le serveur relaie chaque `msg` aux AUTRES membres de la room `session`
+// (jamais à l'émetteur -> pas d'écho serveur). Même contrat que l'adapter
+// BroadcastChannel, donc l'UI est identique.
+function socketTransport(session, { url } = {}) {
+  const API = url ?? import.meta.env?.VITE_API_URL ?? 'http://localhost:3000'
+  // Token d'auth (handshake) : identité best-effort côté Core. Clé partagée
+  // avec auth.js. Lecture défensive (mode privé / quota).
+  let token = null
+  try {
+    token = localStorage.getItem('hackathon_token')
+  } catch {
+    token = null
+  }
+
   const listeners = new Set()
   let socket = null
 
+  // Import dynamique : aucun coût/connexion tant que ce mode n'est pas choisi.
   import('socket.io-client')
     .then(({ io }) => {
-      const token = localStorage.getItem('hackathon_token')
-      socket = io(url, {
+      socket = io(API, {
         transports: ['websocket', 'polling'],
-        query: { session, token },
+        auth: { token },
+        query: { session },
       })
-      socket.on('connect', () => {
-        socket.emit('join', { session })
-      })
+      // (Re)joindre la room à chaque connexion (couvre la reconnexion auto).
+      socket.on('connect', () => socket.emit('join', { session }))
       socket.on('msg', (data) => {
         for (const fn of listeners) fn(data)
+      })
+      socket.on('connect_error', (err) => {
+        console.error('[collab] connexion LAN refusée :', err?.message || err)
       })
     })
     .catch((err) => {

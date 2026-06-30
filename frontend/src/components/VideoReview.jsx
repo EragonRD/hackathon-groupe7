@@ -8,6 +8,8 @@ import {
   Rectangle,
   DownloadSimple,
   UploadSimple,
+  Broadcast,
+  Eye,
 } from '@phosphor-icons/react'
 import DrawingCanvas from './DrawingCanvas'
 import CommentPanel from './CommentPanel'
@@ -20,8 +22,12 @@ import { formatTime } from '../lib/format'
 //    source  : URL de la vidéo (string)
 //    session : identifiant de session de revue (string) — sert de "room"
 //    user    : { id?, username, role } (utilisé comme auteur + couleur)
-//  Tout l'état (notes, présence, curseurs) vit dans useReview et se synchronise
-//  via la couche collab. Aucune dépendance au reste de l'application.
+//  Tout l'état (notes, présence, curseurs, lecture partagée) vit dans useReview
+//  et se synchronise via la couche collab. Aucune dépendance au reste de l'app.
+//
+//  Watch Together : un participant « prend la présentation » -> ses play/pause/
+//  seek se répercutent chez les invités, qui suivent (contrôles verrouillés) et
+//  se recalent en cas de dérive. Anti-écho via un drapeau `applyingRemote`.
 // ============================================================================
 
 const TOOLS = [
@@ -40,6 +46,10 @@ const SWATCHES = [
   { name: 'Blanc', value: '#f4f6fa' },
 ]
 
+// Seuil de recalage (s) : en dessous on ne touche à rien (éviter le saccadé).
+const DRIFT_THRESHOLD = 0.4
+const HEARTBEAT_MS = 2000
+
 export default function VideoReview({ source, session, user }) {
   const videoRef = useRef(null)
   const fileRef = useRef(null)
@@ -55,6 +65,13 @@ export default function VideoReview({ source, session, user }) {
     toggleLike,
     addReply,
     deleteReply,
+    presenterId,
+    isPresenter,
+    claimPresenter,
+    releasePresenter,
+    sendPlayback,
+    sendHeartbeat,
+    subscribePlayback,
   } = useReview({ session, user })
 
   const [playing, setPlaying] = useState(false)
@@ -70,6 +87,9 @@ export default function VideoReview({ source, session, user }) {
   const [text, setText] = useState('')
   const [activeId, setActiveId] = useState(null)
 
+  // Suit-on un présentateur ? (présentateur défini, et ce n'est pas moi)
+  const following = Boolean(presenterId) && !isPresenter
+
   const composeTime = pinnedTime ?? currentTime
   const activeNote = useMemo(
     () => notes.find((n) => n.id === activeId) || null,
@@ -79,12 +99,36 @@ export default function VideoReview({ source, session, user }) {
   // Le calque affiche le brouillon en cours, sinon les dessins de la note active.
   const shapesToShow = draftShapes.length > 0 ? draftShapes : (activeNote?.shapes ?? [])
 
+  // --- Réfs "fraîches" pour les handlers d'événements vidéo --------------
+  const isPresenterRef = useRef(isPresenter)
+  const followingRef = useRef(following)
+  const applyingRemoteRef = useRef(false) // true pendant qu'on applique une commande distante
+  const applyTimerRef = useRef(null)
+  const driftRef = useRef(null) // { position, paused, receivedAt } du présentateur
+  useEffect(() => {
+    isPresenterRef.current = isPresenter
+  }, [isPresenter])
+  useEffect(() => {
+    followingRef.current = following
+  }, [following])
+
+  // Pose le drapeau anti-écho puis le relâche (les events play/pause/seeked sont
+  // asynchrones) — on évite ainsi de réémettre une commande qu'on vient d'appliquer.
+  const beginApplyingRemote = useCallback(() => {
+    applyingRemoteRef.current = true
+    clearTimeout(applyTimerRef.current)
+    applyTimerRef.current = setTimeout(() => {
+      applyingRemoteRef.current = false
+    }, 250)
+  }, [])
+
   // --- Contrôle de la lecture --------------------------------------------
   const pause = useCallback(() => {
     videoRef.current?.pause()
   }, [])
 
   const togglePlay = useCallback(() => {
+    if (followingRef.current) return // invité : contrôles verrouillés
     const v = videoRef.current
     if (!v) return
     if (v.paused) v.play()
@@ -102,7 +146,7 @@ export default function VideoReview({ source, session, user }) {
     setDraftShapes((prev) => [...prev, shape])
     if (pinnedTime == null) {
       setPinnedTime(videoRef.current?.currentTime ?? currentTime)
-      pause()
+      if (!followingRef.current) pause()
     }
     setActiveId(null)
   }
@@ -133,8 +177,10 @@ export default function VideoReview({ source, session, user }) {
     setDraftShapes([])
     setPinnedTime(null)
     setText('')
-    seekTo(note.time)
-    pause()
+    if (!following) {
+      seekTo(note.time)
+      pause()
+    }
   }
 
   const canDelete = useCallback(
@@ -178,7 +224,7 @@ export default function VideoReview({ source, session, user }) {
     reader.readAsText(file)
   }
 
-  // --- Événements vidéo ---------------------------------------------------
+  // --- Événements vidéo : état local + émission présentateur --------------
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
@@ -187,21 +233,121 @@ export default function VideoReview({ source, session, user }) {
       setDuration(v.duration || 0)
       setReady(true)
     }
-    const onPlay = () => setPlaying(true)
-    const onPause = () => setPlaying(false)
+    const onPlay = () => {
+      setPlaying(true)
+      if (isPresenterRef.current && !applyingRemoteRef.current) {
+        sendPlayback({ action: 'play', position: v.currentTime })
+      }
+    }
+    const onPause = () => {
+      setPlaying(false)
+      if (isPresenterRef.current && !applyingRemoteRef.current) {
+        sendPlayback({ action: 'pause', position: v.currentTime })
+      }
+    }
+    const onSeeked = () => {
+      if (isPresenterRef.current && !applyingRemoteRef.current) {
+        sendPlayback({ action: 'seek', position: v.currentTime })
+      }
+    }
     v.addEventListener('timeupdate', onTime)
     v.addEventListener('loadedmetadata', onMeta)
     v.addEventListener('play', onPlay)
     v.addEventListener('pause', onPause)
+    v.addEventListener('seeked', onSeeked)
     return () => {
       v.removeEventListener('timeupdate', onTime)
       v.removeEventListener('loadedmetadata', onMeta)
       v.removeEventListener('play', onPlay)
       v.removeEventListener('pause', onPause)
+      v.removeEventListener('seeked', onSeeked)
     }
-  }, [source])
+  }, [source, sendPlayback])
 
-  // Barre d'espace = play/pause (sauf en saisie de texte).
+  // --- Présentateur : battement régulier (anti-dérive) -------------------
+  useEffect(() => {
+    if (!isPresenter) return
+    const id = setInterval(() => {
+      const v = videoRef.current
+      if (v) sendHeartbeat({ position: v.currentTime, paused: v.paused })
+    }, HEARTBEAT_MS)
+    return () => clearInterval(id)
+  }, [isPresenter, sendHeartbeat])
+
+  // --- Invité : applique les commandes distantes -------------------------
+  useEffect(() => {
+    const off = subscribePlayback((evt) => {
+      if (isPresenterRef.current) return // le présentateur ne s'applique pas à lui-même
+      const v = videoRef.current
+      if (!v) return
+
+      if (evt.kind === 'playback') {
+        beginApplyingRemote()
+        if (evt.action === 'seek' && typeof evt.position === 'number') {
+          v.currentTime = evt.position
+        } else if (evt.action === 'play') {
+          if (
+            typeof evt.position === 'number' &&
+            Math.abs(v.currentTime - evt.position) > 0.3
+          ) {
+            v.currentTime = evt.position
+          }
+          v.play().catch(() => {})
+        } else if (evt.action === 'pause') {
+          if (typeof evt.position === 'number') v.currentTime = evt.position
+          v.pause()
+        }
+        driftRef.current = {
+          position: evt.position,
+          paused: evt.action !== 'play',
+          receivedAt: Date.now(),
+        }
+      } else if (evt.kind === 'state' || evt.kind === 'heartbeat') {
+        // Resync (retardataire) ou battement : on mémorise pour le recalage.
+        if (typeof evt.position === 'number') {
+          // Compense le temps écoulé depuis l'émission si la lecture tourne.
+          const elapsed = evt.paused
+            ? 0
+            : Math.max(0, (Date.now() - (evt.at ?? Date.now())) / 1000)
+          driftRef.current = {
+            position: evt.position + elapsed,
+            paused: !!evt.paused,
+            receivedAt: Date.now(),
+          }
+        }
+      }
+    })
+    return off
+  }, [subscribePlayback, beginApplyingRemote])
+
+  // --- Invité : boucle de recalage (dérive + état lecture) ---------------
+  useEffect(() => {
+    if (!following) return
+    const id = setInterval(() => {
+      const v = videoRef.current
+      const d = driftRef.current
+      if (!v || !d) return
+      // Aligne l'état lecture/pause sur le présentateur.
+      if (d.paused && !v.paused) {
+        beginApplyingRemote()
+        v.pause()
+      } else if (!d.paused && v.paused) {
+        beginApplyingRemote()
+        v.play().catch(() => {})
+      }
+      // Recalage de position seulement en lecture.
+      if (!d.paused) {
+        const expected = d.position + (Date.now() - d.receivedAt) / 1000
+        if (Math.abs(v.currentTime - expected) > DRIFT_THRESHOLD) {
+          beginApplyingRemote()
+          v.currentTime = expected
+        }
+      }
+    }, 1000)
+    return () => clearInterval(id)
+  }, [following, beginApplyingRemote])
+
+  // Barre d'espace = play/pause (sauf en saisie de texte ou si on suit un présentateur).
   useEffect(() => {
     const onKey = (e) => {
       const tag = e.target.tagName
@@ -218,12 +364,18 @@ export default function VideoReview({ source, session, user }) {
   // --- Scrubber ----------------------------------------------------------
   const scrubRef = useRef(null)
   function scrubToEvent(e) {
+    if (following) return // invité : navigation verrouillée
     const r = scrubRef.current.getBoundingClientRect()
     const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width))
     seekTo(frac * (duration || 0))
   }
 
   const progress = duration ? (currentTime / duration) * 100 : 0
+
+  // Nom du présentateur courant (pour le badge).
+  const presenterName = isPresenter
+    ? self.name
+    : (peers.find((p) => p.id === presenterId)?.name ?? 'le présentateur')
 
   return (
     <div className="review">
@@ -268,7 +420,7 @@ export default function VideoReview({ source, session, user }) {
 
         <div className="controls">
           <div
-            className="scrubber"
+            className={`scrubber${following ? ' locked' : ''}`}
             ref={scrubRef}
             onClick={scrubToEvent}
             role="slider"
@@ -304,7 +456,9 @@ export default function VideoReview({ source, session, user }) {
             <button
               className="play-btn"
               onClick={togglePlay}
+              disabled={following}
               aria-label={playing ? 'Pause' : 'Lecture'}
+              title={following ? `Lecture pilotée par ${presenterName}` : undefined}
             >
               {playing ? (
                 <Pause size={20} weight="fill" />
@@ -315,6 +469,33 @@ export default function VideoReview({ source, session, user }) {
             <span className="timecode">
               <b>{formatTime(currentTime)}</b> / {ready ? formatTime(duration) : '–:––'}
             </span>
+
+            {/* Watch Together : prise/abandon de la présentation */}
+            {isPresenter ? (
+              <button
+                className="badge badge-accent wt-badge"
+                onClick={releasePresenter}
+                title="Arrêter de présenter"
+              >
+                <Broadcast size={13} weight="fill" /> Vous présentez · Arrêter
+              </button>
+            ) : following ? (
+              <button
+                className="badge wt-badge"
+                onClick={claimPresenter}
+                title="Reprendre la main"
+              >
+                <Eye size={13} weight="fill" /> Suit {presenterName} · Reprendre
+              </button>
+            ) : (
+              <button
+                className="badge wt-badge"
+                onClick={claimPresenter}
+                title="Synchroniser la lecture pour tous les invités"
+              >
+                <Broadcast size={13} /> Présenter
+              </button>
+            )}
 
             <div className="controls-spacer" />
 

@@ -14,7 +14,8 @@ direct), au langage visuel *dark studio* (type Frame.io).
 | **VideoReview** | `components/VideoReview.jsx` : **composant autonome réutilisable** (props `source` / `session` / `user`). Lecteur custom, timeline avec **marqueurs de commentaires**, barre d'outils. |
 | **Annotation** | `components/DrawingCanvas.jsx` : trait libre / flèche / cadre, 6 couleurs, **coordonnées normalisées** (s'adaptent à toute taille et se mappent entre fenêtres), rattachées au **timecode**. |
 | **Commentaires** | `components/CommentPanel.jsx` : liste **triée par temps**, saut à l'instant, suppression (auteur ou admin), compositeur (texte + dessins) avec `⌘/Ctrl+↵`. |
-| **Temps réel** | `lib/useReview.js` + `lib/collab.js` : présence, **curseurs distants**, diffusion des notes, **synchro multi-fenêtres** via `BroadcastChannel` (offline, sans backend). |
+| **Temps réel** | `lib/useReview.js` + `lib/collab.js` : présence, **curseurs distants**, diffusion des notes. Deux transports au **même contrat** : `BroadcastChannel` (multi-fenêtres, offline) **et** `socket.io` → **LAN 2-3 machines** via la gateway du Core. |
+| **Watch Together** | Un participant **prend la présentation** : ses play/pause/seek se répercutent chez les invités (contrôles verrouillés), retardataire **resynchronisé**, **dérive recalée** (seuil 0,4 s), anti-écho par drapeau. Messages `wt:*` sur le même bus. |
 | **Export / Import** | JSON propre `{ version, session, exportedAt, notes[] }`, réimportable. |
 
 ### Format d'export (réutilisable)
@@ -49,12 +50,13 @@ direct), au langage visuel *dark studio* (type Frame.io).
 L'UI ne dépend **jamais** d'un transport concret. `createTransport(session)`
 expose un contrat unique : `post(msg)` / `subscribe(fn)` / `close()`.
 
-- **Aujourd'hui** : adapter `BroadcastChannel` → démo multi-fenêtres réelle,
-  100 % offline, aucun backend à écrire.
-- **Demain (LAN, 2-3 machines)** : adapter `socket.io` déjà esquissé dans
-  `collab.js` (import dynamique, `VITE_COLLAB_MODE=socket`). Côté Core, une
-  `@WebSocketGateway` relaie les messages aux membres de la room `session`.
-  **Aucune ligne d'UI à changer.**
+- **Mono-machine** : adapter `BroadcastChannel` → démo multi-fenêtres réelle,
+  100 % offline, aucun backend.
+- **LAN, 2-3 machines** *(implémenté)* : adapter `socket.io` (`VITE_COLLAB_MODE=socket`,
+  `VITE_API_URL=http://<ip>:3000`). Côté Core, `ReviewGateway`
+  (`backend/src/review/`) relaie les messages aux membres de la room `session`
+  (`client.to(room).emit` → pas d'écho serveur), avec auth JWT best-effort au
+  handshake. **Aucune ligne d'UI à changer** : même contrat de transport.
 
 ## Démarrage
 
@@ -70,13 +72,14 @@ cd frontend && npm install && npm run dev
 
 Par ordre de valeur pour la soutenance. Les briques 1–2 sont les plus payantes.
 
-### 1. Brancher le temps réel LAN (socket.io) — *priorité haute*
-- Implémenter la `@WebSocketGateway` côté `backend/` (rooms = `session`, relai
-  `socket.to(room).emit`). Activer l'adapter socket de `collab.js`.
-- **Pourquoi** : le sujet demande 2-3 utilisateurs **sur le réseau local** ;
-  `BroadcastChannel` ne couvre que le multi-fenêtres d'une même machine.
-- **Risque** : dérive d'horloge / ordre des messages → ajouter un `seq` et un
-  `lastWriteWins` par note.
+### 1. ~~Brancher le temps réel LAN (socket.io)~~ — ✅ FAIT
+- `ReviewGateway` (`backend/src/review/`) relaie les messages par room `session` ;
+  adapter socket activé dans `collab.js` (`VITE_COLLAB_MODE=socket`).
+- **Watch Together** (sujet B) livré par-dessus : présentateur/invité, sync
+  play/pause/seek, resync retardataire, recalage de dérive, anti-écho.
+- *Reste possible* : promotion auto du présentateur à la déconnexion (aujourd'hui
+  un invité « reprend la main » manuellement), offset d'horloge NTP-like si on
+  veut viser < 0,2 s entre machines.
 
 ### 2. Robustesse de la session de revue
 - **Réponses / fil de discussion** par note (champ `replies[]`).

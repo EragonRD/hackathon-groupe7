@@ -8,8 +8,8 @@
 
 export const SAMPLE = {
   id: 'demo-42c',
-  title: 'Démo 42c — Parc des Princes (POC)',
-  category: 'Démo interne',
+  title: 'Séquence de démonstration',
+  category: 'Présentation',
   duration_sec: null, // lu directement depuis la vidéo au chargement
   src: '/sample.mp4',
   session: 'demo-42c',

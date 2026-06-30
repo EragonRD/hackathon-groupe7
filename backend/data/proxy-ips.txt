@@ -1,0 +1,6 @@
+# Echantillon hors-ligne de reputation proxy/VPN pour la demo P2-B.
+# Les plages RFC 5737 ci-dessous sont reservees a la documentation et sures
+# pour simuler une IP suspecte sans viser un acteur reel.
+203.0.113.0/24
+198.51.100.66
+10.66.0.0/16

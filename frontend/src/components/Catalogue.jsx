@@ -44,7 +44,7 @@ export default function Catalogue({ onOpen }) {
             <div className="vid-meta">
               <div className="vid-title">{SAMPLE.title}</div>
               <div className="vid-sub">
-                <span className="badge badge-accent">Jouable</span>
+                <span className="badge badge-accent">Disponible</span>
                 {SAMPLE.category}
               </div>
             </div>
@@ -81,12 +81,7 @@ export default function Catalogue({ onOpen }) {
 
           {/* Métadonnées du catalogue (data/videos.csv) — fichier non fourni */}
           {CATALOGUE_META.map((v) => (
-            <button
-              key={v.id}
-              className="vid-card"
-              disabled
-              title="Métadonnées seulement — déposez le fichier pour l'activer"
-            >
+            <button key={v.id} className="vid-card" disabled title="Bientôt disponible">
               <div className="vid-thumb">
                 <img src={v.thumb} alt="" loading="lazy" />
                 <span className="dur">{formatTime(v.duration_sec)}</span>
@@ -95,7 +90,7 @@ export default function Catalogue({ onOpen }) {
                 <div className="vid-title">{v.title}</div>
                 <div className="vid-sub">
                   <LockSimple size={13} weight="bold" />
-                  {v.category} · métadonnées
+                  {v.category} · bientôt
                 </div>
               </div>
             </button>

@@ -1,4 +1,5 @@
-import { FilmSlate, SignOut, CaretLeft, BookOpen } from '@phosphor-icons/react'
+import { SignOut, CaretLeft, BookOpen } from '@phosphor-icons/react'
+import PoulpiumMark from './PoulpiumMark'
 import { colorForUser, initials } from '../lib/format'
 
 // Barre supérieure + cadre de l'application.
@@ -24,11 +25,9 @@ export default function AppShell({
           </button>
         ) : (
           <button className="brand" onClick={onHome} title="Accueil">
-            <span className="brand-mark">
-              <FilmSlate size={18} weight="fill" />
-            </span>
+            <PoulpiumMark size={28} />
             <span>
-              Revue
+              Poulpium
               <small>Lecteur de revue augmenté</small>
             </span>
           </button>

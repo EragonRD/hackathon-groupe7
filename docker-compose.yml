@@ -1,0 +1,29 @@
+services:
+  core:
+    build: ./backend
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      # Secret OBLIGATOIRE et fort (le conteneur tourne en NODE_ENV=production et
+      # refuse de démarrer avec un secret faible). Ex :
+      #   export JWT_SECRET=$(openssl rand -hex 32) && docker compose up
+      JWT_SECRET: ${JWT_SECRET:?Definis un JWT_SECRET fort, ex: export JWT_SECRET=$(openssl rand -hex 32)}
+      JWT_TTL: ${JWT_TTL:-15m}
+      PORT: 3000
+      # Proxies de confiance pour X-Forwarded-For : loopback + réseaux privés
+      # (le service nginx du compose est sur le réseau Docker privé). En prod,
+      # restreindre au seul sous-réseau du reverse-proxy.
+      TRUST_PROXY: ${TRUST_PROXY:-loopback, uniquelocal}
+    volumes:
+      - ./backend/secrets:/app/secrets:ro
+      - ./backend/logs:/app/logs
+    depends_on:
+      - hls
+
+  hls:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./media/hls:/usr/share/nginx/html/hls:ro
+      - ./nginx/hls.conf:/etc/nginx/conf.d/default.conf:ro
