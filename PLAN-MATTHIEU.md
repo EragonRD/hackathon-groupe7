@@ -27,7 +27,7 @@ Dans `frontend/src/` :
 
 ## 🎯 Ce qui reste pour toi (par priorité)
 
-### P1 — Outil **Texte** (manque explicite du sujet)
+### ✅ P1 — Outil **Texte** (manque explicite du sujet)
 Le sujet liste « flèche, formes, trait libre, **texte** ». Le texte n'existe pas.
 - Ajouter l'outil `text` à `TOOLS` dans `VideoReview.jsx` (icône Phosphor, ex. `TextT`).
 - Dans `DrawingCanvas.jsx` : au clic en mode `text`, poser un point `{x,y}` normalisé,
@@ -37,13 +37,13 @@ Le sujet liste « flèche, formes, trait libre, **texte** ». Le texte n'existe 
 - **DoD** : on tape un texte sur l'image, il s'affiche au bon endroit à toute taille,
   il part dans la note, il se resynchronise dans une 2ᵉ fenêtre, il est dans l'export JSON.
 
-### P2 — Outil **Ellipse / cercle**
+### ✅ P2 — Outil **Ellipse / cercle**
 « formes » au pluriel : ajouter `ellipse` à côté de `rect`.
 - `TOOLS` dans `VideoReview.jsx` + branche `s.tool === 'ellipse'` dans `drawShape`
   (`ctx.ellipse(cx, cy, rx, ry, …)` à partir de `from`/`to`).
 - **DoD** : ellipse dessinée, normalisée, synchronisée, exportée.
 
-### P3 — **Éditer** une note existante (aujourd'hui : supprime/recrée)
+### ✅ P3 — **Éditer** une note existante (aujourd'hui : supprime/recrée)
 - Bouton « Modifier » sur une note sélectionnée → charge `note.shapes` dans
   `draftShapes` + `note.text` dans `text` + ré-épingle `note.time`, puis met à jour.
 - Ajouter `updateNote(id, patch)` dans `lib/useReview.js` (mutation + diffusion
@@ -51,7 +51,7 @@ Le sujet liste « flèche, formes, trait libre, **texte** ». Le texte n'existe 
 - **DoD** : on rouvre une note, on ajoute une flèche, on enregistre, les autres
   fenêtres voient la version modifiée (pas une 2ᵉ note).
 
-### P4 — **Réponses (fil de discussion)** + **Résolu / non résolu** + **Filtres**
+### ✅ P4 — **Réponses (fil de discussion)** + **Résolu / non résolu** + **Filtres**
 - Champ `replies: [{ id, author, text, createdAt }]` et `resolved: boolean` sur la note.
 - `CommentPanel.jsx` : sous-fil sous chaque note + champ réponse ; toggle « Résolu ».
 - Barre de filtres : **par auteur**, **état (résolu/ouvert)**, **« mes commentaires »**.
@@ -59,12 +59,12 @@ Le sujet liste « flèche, formes, trait libre, **texte** ». Le texte n'existe 
 - **DoD** : une réponse et un changement d'état se propagent en direct ; les filtres
   fonctionnent ; tout reste dans l'export.
 
-### P5 — **Navigation clavier** sur la timeline
+### ✅ P5 — **Navigation clavier** sur la timeline
 - Sur le scrubber (`VideoReview.jsx`) : `←/→` = ±5 s, `Shift+←/→` = marqueur précédent/suivant,
   `Home/End` = début/fin. Marqueurs `tabbable`.
 - **DoD** : on pilote la lecture et on saute de commentaire en commentaire au clavier.
 
-### P6 — États **chargement / erreur / vide**
+### ✅ P6 — États **chargement / erreur / vide**
 - `VideoReview.jsx` : skeleton tant que `loadedmetadata` n'a pas fired ; écouter
   l'event `error` du `<video>` → message « source illisible » (utile pour le futur
   flux chiffré P2). `Catalogue.jsx` : message clair si aucune vidéo.

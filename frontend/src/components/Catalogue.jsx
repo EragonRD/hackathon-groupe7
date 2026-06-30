@@ -79,6 +79,15 @@ export default function Catalogue({ onOpen }) {
             </div>
           </div>
 
+          {CATALOGUE_META.length === 0 && (
+            <div className="empty catalogue-empty">
+              <FilmSlate size={38} weight="light" />
+              <p>
+                Aucune vidéo dans le catalogue. Chargez une vidéo locale pour commencer.
+              </p>
+            </div>
+          )}
+
           {/* Métadonnées du catalogue (data/videos.csv) — fichier non fourni */}
           {CATALOGUE_META.map((v) => (
             <button key={v.id} className="vid-card" disabled title="Bientôt disponible">

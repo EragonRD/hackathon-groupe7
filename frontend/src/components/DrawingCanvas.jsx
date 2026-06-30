@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Calque de dessin superposé à la vidéo.
 // - Coordonnées NORMALISÉES (0..1) -> les formes s'adaptent à toute taille
 //   d'affichage et se mappent à l'identique d'une fenêtre à l'autre.
-// - Outils : 'cursor' (navigation), 'pen', 'arrow', 'rect'.
+// - Outils : 'cursor' (navigation), 'pen', 'arrow', 'rect', 'ellipse', 'text'.
 // - `shapes` : formes à afficher (brouillon courant + note active).
 // - onAddShape(shape) : forme terminée. onCursor(nx,ny) : suivi du pointeur.
 //   onBackgroundClick() : clic en mode 'cursor' (utilisé pour play/pause).
 const LINE_WIDTH = 3
+const TEXT_FONT_RATIO = 0.04
 
 function drawArrowHead(ctx, from, to, w, h) {
   const ax = from.x * w
@@ -54,12 +55,36 @@ function drawShape(ctx, s, w, h) {
     const x = s.from.x * w
     const y = s.from.y * h
     ctx.strokeRect(x, y, (s.to.x - s.from.x) * w, (s.to.y - s.from.y) * h)
+  } else if (s.tool === 'ellipse') {
+    const x1 = s.from.x * w
+    const y1 = s.from.y * h
+    const x2 = s.to.x * w
+    const y2 = s.to.y * h
+    const cx = (x1 + x2) / 2
+    const cy = (y1 + y2) / 2
+    const rx = Math.abs(x2 - x1) / 2
+    const ry = Math.abs(y2 - y1) / 2
+    ctx.beginPath()
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2)
+    ctx.stroke()
   } else if (s.tool === 'arrow') {
     ctx.beginPath()
     ctx.moveTo(s.from.x * w, s.from.y * h)
     ctx.lineTo(s.to.x * w, s.to.y * h)
     ctx.stroke()
     drawArrowHead(ctx, s.from, s.to, w, h)
+  } else if (s.tool === 'text') {
+    const value = (s.value || '').trim()
+    if (!value) return
+    const fontSize = Math.max(14, Math.round(h * TEXT_FONT_RATIO))
+    ctx.font = `700 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
+    ctx.textBaseline = 'top'
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)'
+    ctx.lineWidth = Math.max(3, fontSize * 0.18)
+    ctx.strokeText(value, s.at.x * w, s.at.y * h)
+    ctx.fillStyle = s.color
+    ctx.fillText(value, s.at.x * w, s.at.y * h)
   }
 }
 
@@ -68,13 +93,16 @@ export default function DrawingCanvas({
   color,
   shapes,
   onAddShape,
+  onBeginAnnotation,
   onCursor,
   onBackgroundClick,
 }) {
   const canvasRef = useRef(null)
+  const textInputRef = useRef(null)
   const sizeRef = useRef({ w: 0, h: 0 })
   const draftRef = useRef(null)
   const shapesRef = useRef(shapes)
+  const [textDraft, setTextDraft] = useState(null)
 
   const redraw = useCallback(() => {
     const cv = canvasRef.current
@@ -111,6 +139,12 @@ export default function DrawingCanvas({
     redraw()
   }, [shapes, redraw])
 
+  useEffect(() => {
+    if (!textDraft) return
+    textInputRef.current?.focus()
+    textInputRef.current?.select()
+  }, [textDraft])
+
   function pointFromEvent(e) {
     const r = canvasRef.current.getBoundingClientRect()
     return {
@@ -124,8 +158,13 @@ export default function DrawingCanvas({
       onBackgroundClick?.()
       return
     }
-    e.currentTarget.setPointerCapture(e.pointerId)
     const p = pointFromEvent(e)
+    onBeginAnnotation?.()
+    if (tool === 'text') {
+      setTextDraft({ at: p, value: '' })
+      return
+    }
+    e.currentTarget.setPointerCapture(e.pointerId)
     draftRef.current =
       tool === 'pen'
         ? { tool: 'pen', color, points: [p] }
@@ -155,14 +194,53 @@ export default function DrawingCanvas({
     redraw()
   }
 
+  function commitTextDraft() {
+    if (!textDraft) return
+    const value = textDraft.value.trim()
+    if (value) onAddShape?.({ tool: 'text', color, at: textDraft.at, value })
+    setTextDraft(null)
+  }
+
+  function cancelTextDraft() {
+    setTextDraft(null)
+  }
+
   return (
-    <canvas
-      ref={canvasRef}
-      className={`overlay-canvas${tool !== 'cursor' ? ' drawing' : ''}`}
-      onPointerDown={handleDown}
-      onPointerMove={handleMove}
-      onPointerUp={handleUp}
-      onPointerLeave={handleUp}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        className={`overlay-canvas${tool !== 'cursor' ? ' drawing' : ''}`}
+        onPointerDown={handleDown}
+        onPointerMove={handleMove}
+        onPointerUp={handleUp}
+        onPointerLeave={handleUp}
+      />
+      {textDraft && (
+        <input
+          ref={textInputRef}
+          className="text-draft-input"
+          value={textDraft.value}
+          style={{
+            left: `${textDraft.at.x * 100}%`,
+            top: `${textDraft.at.y * 100}%`,
+            color,
+          }}
+          aria-label="Texte de l'annotation"
+          onChange={(e) =>
+            setTextDraft((draft) => (draft ? { ...draft, value: e.target.value } : draft))
+          }
+          onBlur={commitTextDraft}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commitTextDraft()
+            } else if (e.key === 'Escape') {
+              e.preventDefault()
+              cancelTextDraft()
+            }
+          }}
+        />
+      )}
+    </>
   )
 }

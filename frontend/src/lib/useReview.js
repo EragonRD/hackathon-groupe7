@@ -152,6 +152,12 @@ export function useReview({ session, user, mode }) {
         case 'note:add':
           upsertNotes([msg.payload])
           break
+        case 'note:reply':
+          upsertNotes([msg.payload])
+          break
+        case 'note:resolve':
+          upsertNotes([msg.payload])
+          break
         case 'note:remove':
           setNotes((prev) => prev.filter((n) => n.id !== msg.payload.id))
           break
@@ -242,6 +248,8 @@ export function useReview({ session, user, mode }) {
         text: (text || '').trim(),
         shapes: shapes || [],
         color: color || self.color,
+        replies: [],
+        resolved: false,
         createdAt: new Date().toISOString(),
       }
       upsertNotes([note])
@@ -257,6 +265,66 @@ export function useReview({ session, user, mode }) {
       transportRef.current?.post({ type: 'note:remove', from: self.id, payload: { id } })
     },
     [self.id],
+  )
+
+  const updateNote = useCallback(
+    (id, patch) => {
+      const current = notesRef.current.find((n) => n.id === id)
+      if (!current) return null
+      const note = {
+        ...current,
+        ...patch,
+        id: current.id,
+        author: current.author,
+        updatedAt: new Date().toISOString(),
+      }
+      upsertNotes([note])
+      transportRef.current?.post({ type: 'note:add', from: self.id, payload: note })
+      return note
+    },
+    [self.id, upsertNotes],
+  )
+
+  const replyToNote = useCallback(
+    (id, text) => {
+      const value = (text || '').trim()
+      if (!value) return null
+      const current = notesRef.current.find((n) => n.id === id)
+      if (!current) return null
+      const note = {
+        ...current,
+        replies: [
+          ...(current.replies || []),
+          {
+            id: shortId(),
+            author: { id: self.id, name: self.name, color: self.color },
+            text: value,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        updatedAt: new Date().toISOString(),
+      }
+      upsertNotes([note])
+      transportRef.current?.post({ type: 'note:reply', from: self.id, payload: note })
+      return note
+    },
+    [self, upsertNotes],
+  )
+
+  const resolveNote = useCallback(
+    (id, resolved) => {
+      const current = notesRef.current.find((n) => n.id === id)
+      if (!current) return null
+      const note = {
+        ...current,
+        resolved: Boolean(resolved),
+        updatedAt: new Date().toISOString(),
+      }
+      upsertNotes([note])
+      transportRef.current?.post({ type: 'note:resolve', from: self.id, payload: note })
+      return note
+    },
+    [self.id, upsertNotes],
   )
 
   // Remplace tout le jeu de notes (réimport JSON) + le diffuse.
@@ -346,6 +414,9 @@ export function useReview({ session, user, mode }) {
     notes,
     peers: peerList,
     addNote,
+    updateNote,
+    replyToNote,
+    resolveNote,
     removeNote,
     replaceNotes,
     sendCursor,

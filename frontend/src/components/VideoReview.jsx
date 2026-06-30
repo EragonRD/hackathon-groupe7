@@ -6,6 +6,8 @@ import {
   PencilSimple,
   ArrowUpRight,
   Rectangle,
+  Circle,
+  TextT,
   DownloadSimple,
   UploadSimple,
   Broadcast,
@@ -35,6 +37,8 @@ const TOOLS = [
   { id: 'pen', label: 'Trait libre', Icon: PencilSimple },
   { id: 'arrow', label: 'Flèche', Icon: ArrowUpRight },
   { id: 'rect', label: 'Cadre', Icon: Rectangle },
+  { id: 'ellipse', label: 'Ellipse', Icon: Circle },
+  { id: 'text', label: 'Texte', Icon: TextT },
 ]
 
 const SWATCHES = [
@@ -59,6 +63,9 @@ export default function VideoReview({ source, session, user }) {
     notes,
     peers,
     addNote,
+    updateNote,
+    replyToNote,
+    resolveNote,
     removeNote,
     replaceNotes,
     sendCursor,
@@ -75,6 +82,7 @@ export default function VideoReview({ source, session, user }) {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [ready, setReady] = useState(false)
+  const [videoError, setVideoError] = useState(false)
 
   const [tool, setTool] = useState('cursor')
   const [color, setColor] = useState('#f5a623')
@@ -83,6 +91,7 @@ export default function VideoReview({ source, session, user }) {
   const [pinnedTime, setPinnedTime] = useState(null)
   const [text, setText] = useState('')
   const [activeId, setActiveId] = useState(null)
+  const [editingId, setEditingId] = useState(null)
 
   // Suit-on un présentateur ? (présentateur défini, et ce n'est pas moi)
   const following = Boolean(presenterId) && !isPresenter
@@ -148,6 +157,14 @@ export default function VideoReview({ source, session, user }) {
     setActiveId(null)
   }
 
+  function handleBeginAnnotation() {
+    if (pinnedTime == null) {
+      setPinnedTime(videoRef.current?.currentTime ?? currentTime)
+      pause()
+    }
+    setActiveId(null)
+  }
+
   function handleTextChange(value) {
     setText(value)
     if (value && pinnedTime == null) {
@@ -162,11 +179,21 @@ export default function VideoReview({ source, session, user }) {
 
   function submitNote() {
     if (!text.trim() && draftShapes.length === 0) return
-    addNote({ time: composeTime, text, shapes: draftShapes, color })
+    if (editingId) {
+      updateNote(editingId, {
+        time: composeTime,
+        text: text.trim(),
+        shapes: draftShapes,
+        color,
+      })
+    } else {
+      addNote({ time: composeTime, text, shapes: draftShapes, color })
+    }
     setDraftShapes([])
     setText('')
     setPinnedTime(null)
     setTool('cursor')
+    setEditingId(null)
   }
 
   function selectNote(note) {
@@ -174,10 +201,32 @@ export default function VideoReview({ source, session, user }) {
     setDraftShapes([])
     setPinnedTime(null)
     setText('')
+    setEditingId(null)
     if (!following) {
       seekTo(note.time)
       pause()
     }
+  }
+
+  function editNote(note) {
+    setActiveId(note.id)
+    setEditingId(note.id)
+    setDraftShapes(note.shapes ?? [])
+    setPinnedTime(note.time)
+    setText(note.text ?? '')
+    setColor(note.color ?? note.author.color ?? color)
+    seekTo(note.time)
+    pause()
+  }
+
+  function seekToAdjacentNote(direction) {
+    if (notes.length === 0) return
+    const sorted = [...notes].sort((a, b) => a.time - b.time)
+    const target =
+      direction < 0
+        ? [...sorted].reverse().find((n) => n.time < currentTime - 0.05)
+        : sorted.find((n) => n.time > currentTime + 0.05)
+    if (target) selectNote(target)
   }
 
   const canDelete = useCallback(
@@ -225,6 +274,8 @@ export default function VideoReview({ source, session, user }) {
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
+    setReady(false)
+    setVideoError(false)
     const onTime = () => setCurrentTime(v.currentTime)
     const onMeta = () => {
       setDuration(v.duration || 0)
@@ -247,17 +298,24 @@ export default function VideoReview({ source, session, user }) {
         sendPlayback({ action: 'seek', position: v.currentTime })
       }
     }
+    const onError = () => {
+      setReady(false)
+      setVideoError(true)
+      setPlaying(false)
+    }
     v.addEventListener('timeupdate', onTime)
     v.addEventListener('loadedmetadata', onMeta)
     v.addEventListener('play', onPlay)
     v.addEventListener('pause', onPause)
     v.addEventListener('seeked', onSeeked)
+    v.addEventListener('error', onError)
     return () => {
       v.removeEventListener('timeupdate', onTime)
       v.removeEventListener('loadedmetadata', onMeta)
       v.removeEventListener('play', onPlay)
       v.removeEventListener('pause', onPause)
       v.removeEventListener('seeked', onSeeked)
+      v.removeEventListener('error', onError)
     }
   }, [source, sendPlayback])
 
@@ -367,6 +425,28 @@ export default function VideoReview({ source, session, user }) {
     seekTo(frac * (duration || 0))
   }
 
+  function handleScrubberKey(e) {
+    if (e.key === 'ArrowLeft' && e.shiftKey) {
+      e.preventDefault()
+      seekToAdjacentNote(-1)
+    } else if (e.key === 'ArrowRight' && e.shiftKey) {
+      e.preventDefault()
+      seekToAdjacentNote(1)
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      seekTo(currentTime - 5)
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      seekTo(currentTime + 5)
+    } else if (e.key === 'Home') {
+      e.preventDefault()
+      seekTo(0)
+    } else if (e.key === 'End') {
+      e.preventDefault()
+      seekTo(duration || currentTime)
+    }
+  }
+
   const progress = duration ? (currentTime / duration) * 100 : 0
 
   // Nom du présentateur courant (pour le badge).
@@ -386,11 +466,22 @@ export default function VideoReview({ source, session, user }) {
               playsInline
               preload="metadata"
             />
+            {!ready && !videoError && (
+              <div className="video-state" aria-live="polite">
+                Chargement de la vidéo…
+              </div>
+            )}
+            {videoError && (
+              <div className="video-state error" role="alert">
+                Source vidéo illisible.
+              </div>
+            )}
             <DrawingCanvas
               tool={tool}
               color={color}
               shapes={shapesToShow}
               onAddShape={handleAddShape}
+              onBeginAnnotation={handleBeginAnnotation}
               onCursor={sendCursor}
               onBackgroundClick={togglePlay}
             />
@@ -426,6 +517,7 @@ export default function VideoReview({ source, session, user }) {
             aria-valuemax={Math.round(duration)}
             aria-valuenow={Math.round(currentTime)}
             tabIndex={0}
+            onKeyDown={handleScrubberKey}
           >
             <div className="scrubber-track" />
             <div className="scrubber-fill" style={{ width: `${progress}%` }} />
@@ -435,6 +527,8 @@ export default function VideoReview({ source, session, user }) {
                 <span
                   key={n.id}
                   className="scrubber-marker"
+                  role="button"
+                  tabIndex={0}
                   style={{
                     left: `${(n.time / duration) * 100}%`,
                     background: n.color || n.author.color,
@@ -443,6 +537,12 @@ export default function VideoReview({ source, session, user }) {
                   onClick={(e) => {
                     e.stopPropagation()
                     selectNote(n)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      selectNote(n)
+                    }
                   }}
                 />
               ))}
@@ -556,12 +656,17 @@ export default function VideoReview({ source, session, user }) {
         notes={notes}
         activeId={activeId}
         onSelect={selectNote}
+        onEdit={editNote}
+        onReply={replyToNote}
+        onResolve={resolveNote}
         onDelete={(n) => removeNote(n.id)}
         canDelete={canDelete}
+        currentUser={self}
         peerCount={peers.length}
         composeTime={composeTime}
         draftCount={draftShapes.length}
         text={text}
+        isEditing={Boolean(editingId)}
         onText={handleTextChange}
         onSubmit={submitNote}
         onClearDraft={clearDraft}
