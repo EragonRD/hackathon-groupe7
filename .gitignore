@@ -26,6 +26,10 @@ dist/
 # JetBrains IDE
 .idea/
 
+# Outillage agents (local, non versionné)
+.agents/
+.claude/
+
 # Unit test reports
 TEST*.xml
 
