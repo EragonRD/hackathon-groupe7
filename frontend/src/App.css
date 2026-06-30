@@ -506,8 +506,8 @@
 .login-card {
   position: relative;
   width: 100%;
-  max-width: 432px;
-  padding: clamp(28px, 3.4vw, 40px);
+  max-width: 460px;
+  padding: clamp(32px, 3.8vw, 46px);
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(23, 28, 36, 0.92), rgba(15, 18, 24, 0.94));
   border: 1px solid var(--line-strong);
@@ -542,14 +542,14 @@
   letter-spacing: -0.01em;
 }
 .login-title {
-  font-size: clamp(2rem, 2.6vw, 2.4rem);
+  font-size: clamp(2.1rem, 2.8vw, 2.6rem);
   letter-spacing: -0.025em;
 }
 .login-card .sub {
   font-size: 15px;
   color: var(--text-dim);
   margin-top: 8px;
-  margin-bottom: var(--s-5);
+  margin-bottom: var(--s-6);
 }
 
 /* Champ avec icône */
@@ -576,6 +576,29 @@
 }
 .login-card .input-wrap input {
   padding-left: 42px;
+}
+.login-card .input-wrap input.has-action {
+  padding-right: 44px;
+}
+/* Bouton afficher/masquer dans le champ */
+.input-action {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+  transition:
+    color var(--dur) var(--ease),
+    background var(--dur) var(--ease);
+}
+.input-action:hover {
+  color: var(--text);
+  background: var(--bg-3);
 }
 .login-card .btn {
   width: 100%;
@@ -694,7 +717,7 @@
 .field {
   display: grid;
   gap: 7px;
-  margin-bottom: var(--s-4);
+  margin-bottom: var(--s-5);
 }
 .field-label {
   font-size: 13px;
@@ -794,6 +817,37 @@
   color: #ffd2d2;
   background: rgba(255, 91, 91, 0.1);
   border: 1px solid rgba(255, 91, 91, 0.3);
+  /* secousse au montage (retour d'erreur) */
+  animation: err-shake 0.4s var(--ease);
+}
+
+/* Spinner du bouton (état « busy ») */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes err-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
 }
 
 .demo-hint {
@@ -808,25 +862,55 @@
   font-family: var(--font-mono);
   color: var(--text-dim);
 }
-.demo-accounts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
+/* Comptes de démonstration en mini-cartes cliquables */
+.demo-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
 }
-.demo-accounts button {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  padding: 4px 9px;
-  border-radius: var(--r-pill);
+.demo-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  text-align: left;
+  border-radius: var(--r-md);
   background: var(--bg-2);
   border: 1px solid var(--line);
-  color: var(--text-dim);
-  transition: border-color var(--dur) var(--ease);
+  transition:
+    border-color var(--dur) var(--ease),
+    transform var(--dur) var(--ease);
 }
-.demo-accounts button:hover {
+.demo-card:hover {
   border-color: var(--accent-line);
+  transform: translateY(-1px);
+}
+.demo-avatar {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #0a0c0f;
+}
+.demo-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.demo-name {
+  font-size: 12px;
+  font-weight: 600;
   color: var(--text);
+}
+.demo-role {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  text-transform: capitalize;
 }
 
 /* ----------------------------------------------------------------------------
