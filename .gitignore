@@ -16,6 +16,11 @@ dist/
 # Log files
 *.log
 
+# P2 runtime secrets and generated media
+backend/secrets/
+backend/logs/
+media/hls/
+
 # Package files
 *.jar
 
@@ -25,6 +30,11 @@ dist/
 
 # JetBrains IDE
 .idea/
+
+# Outillage agents (local, non versionné)
+.agents/
+.claude/
+skills-lock.json
 
 # Unit test reports
 TEST*.xml
@@ -48,3 +58,4 @@ Thumbs.db
 *.mov
 *.wmv
 
+.env

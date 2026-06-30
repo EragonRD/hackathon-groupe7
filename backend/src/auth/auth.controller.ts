@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import type { Request } from 'express'
 import { AuthService } from './auth.service'
 import { AuthGuard } from './auth.guard'
@@ -16,6 +17,9 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   // POST /auth/login  { username, password }  ->  { accessToken, user }
+  // Rate-limit strict par IP (10/min) : ralentit fortement le credential stuffing,
+  // en complément du verrouillage de compte côté AuthService.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
   login(@Body() body: { username?: string; password?: string }) {
     if (!body?.username || !body?.password) {
@@ -30,5 +34,25 @@ export class AuthController {
   @Get('me')
   me(@Req() req: Request) {
     return (req as Request & { user?: unknown }).user
+  }
+
+  // POST /auth/change-password  { currentPassword, newPassword }
+  // Première connexion d'un admin invité : il pose son vrai mot de passe.
+  // Renvoie un NOUVEAU token (sans le flag mustChangePassword).
+  @UseGuards(AuthGuard)
+  @Post('change-password')
+  changePassword(
+    @Req() req: Request,
+    @Body() body: { currentPassword?: string; newPassword?: string },
+  ) {
+    const user = (req as Request & { user?: { username: string } }).user
+    if (!body?.currentPassword || !body?.newPassword) {
+      throw new UnauthorizedException('currentPassword et newPassword requis')
+    }
+    return this.auth.changePassword(
+      user!.username,
+      body.currentPassword,
+      body.newPassword,
+    )
   }
 }

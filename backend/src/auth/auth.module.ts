@@ -4,7 +4,33 @@ import type { StringValue } from 'ms'
 import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { AuthGuard } from './auth.guard'
+import { AdminGuard } from './admin.guard'
+import { SuperAdminGuard } from './superadmin.guard'
+import { PasswordChangedGuard } from './password-changed.guard'
 import { UsersService } from './users.service'
+
+const WEAK_DEFAULT_SECRET = 'dev-secret-change-me'
+
+// 🔐 Résout le secret JWT en REFUSANT de démarrer avec un secret faible en prod :
+//    un secret par défaut ou trop court = tokens forgeables (escalade admin).
+function resolveJwtSecret(): string {
+  const secret = process.env.JWT_SECRET
+  const isProd = process.env.NODE_ENV === 'production'
+  const weak = !secret || secret === WEAK_DEFAULT_SECRET || secret.length < 16
+
+  if (weak && isProd) {
+    throw new Error(
+      'JWT_SECRET manquant ou trop faible en production. ' +
+        'Définis un secret fort, ex: export JWT_SECRET=$(openssl rand -hex 32)',
+    )
+  }
+  if (weak) {
+    console.warn(
+      '[auth] JWT_SECRET faible/par défaut — toléré en DEV uniquement, JAMAIS en prod.',
+    )
+  }
+  return secret ?? WEAK_DEFAULT_SECRET
+}
 
 // 🔐 Brique d'IDENTITÉ partagée — point de départ, PAS l'objet de la note.
 //    • P1   : identifie le collaborateur (req.user) pour la collaboration temps réel.
@@ -15,12 +41,31 @@ import { UsersService } from './users.service'
   imports: [
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET ?? 'dev-secret-change-me',
-      signOptions: { expiresIn: (process.env.JWT_TTL ?? '15m') as StringValue }, // token volontairement court
+      secret: resolveJwtSecret(),
+      // Algorithme épinglé : empêche toute confusion d'algorithme (ex. alg=none).
+      signOptions: {
+        expiresIn: (process.env.JWT_TTL ?? '15m') as StringValue, // token volontairement court
+        algorithm: 'HS256',
+      },
+      verifyOptions: { algorithms: ['HS256'] },
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, UsersService, AuthGuard],
-  exports: [AuthGuard, JwtModule],
+  providers: [
+    AuthService,
+    UsersService,
+    AuthGuard,
+    AdminGuard,
+    SuperAdminGuard,
+    PasswordChangedGuard,
+  ],
+  exports: [
+    AuthGuard,
+    AdminGuard,
+    SuperAdminGuard,
+    PasswordChangedGuard,
+    UsersService,
+    JwtModule,
+  ],
 })
 export class AuthModule {}
