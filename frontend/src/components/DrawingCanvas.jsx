@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 // Calque de dessin superposé à la vidéo.
 // - Coordonnées NORMALISÉES (0..1) -> les formes s'adaptent à toute taille
 //   d'affichage et se mappent à l'identique d'une fenêtre à l'autre.
-// - Outils : 'cursor' (navigation), 'pen', 'arrow', 'rect', 'ellipse', 'text'.
+// - Outils : 'cursor' (navigation), 'pen', 'eraser', 'arrow', 'rect', 'ellipse', 'text'.
 // - `shapes` : formes à afficher (brouillon courant + note active).
-// - onAddShape(shape) : forme terminée. onCursor(nx,ny) : suivi du pointeur.
+// - onAddShape(shape) : forme terminée. onErase(path) : gomme libre.
+//   onTextPlace(point) : demande placement d'un texte.
+//   onCursor(nx,ny) : suivi du pointeur.
 //   onBackgroundClick() : clic en mode 'cursor' (utilisé pour play/pause).
 const LINE_WIDTH = 3
 const TEXT_FONT_RATIO = 0.04
@@ -74,17 +76,27 @@ function drawShape(ctx, s, w, h) {
     ctx.stroke()
     drawArrowHead(ctx, s.from, s.to, w, h)
   } else if (s.tool === 'text') {
-    const value = (s.value || '').trim()
-    if (!value) return
-    const fontSize = Math.max(14, Math.round(h * TEXT_FONT_RATIO))
-    ctx.font = `700 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
-    ctx.textBaseline = 'top'
-    ctx.lineJoin = 'round'
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)'
-    ctx.lineWidth = Math.max(3, fontSize * 0.18)
-    ctx.strokeText(value, s.at.x * w, s.at.y * h)
-    ctx.fillStyle = s.color
-    ctx.fillText(value, s.at.x * w, s.at.y * h)
+    if (s.text !== undefined) {
+      ctx.font = `${s.fontSize || 18}px ui-monospace, 'Cascadia Code', 'SF Mono', monospace`
+      ctx.fillStyle = s.color
+      const lines = (s.text || '').split('\n')
+      lines.forEach((line, i) => {
+        ctx.fillText(line, s.x * w, s.y * h + i * (s.fontSize || 18) * 1.3)
+      })
+    }
+    if (s.value !== undefined) {
+      const value = (s.value || '').trim()
+      if (!value) return
+      const fontSize = Math.max(14, Math.round(h * TEXT_FONT_RATIO))
+      ctx.font = `700 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`
+      ctx.textBaseline = 'top'
+      ctx.lineJoin = 'round'
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)'
+      ctx.lineWidth = Math.max(3, fontSize * 0.18)
+      ctx.strokeText(value, s.at.x * w, s.at.y * h)
+      ctx.fillStyle = s.color
+      ctx.fillText(value, s.at.x * w, s.at.y * h)
+    }
   }
 }
 
@@ -94,15 +106,15 @@ export default function DrawingCanvas({
   shapes,
   onAddShape,
   onBeginAnnotation,
+  onErase,
+  onTextPlace,
   onCursor,
   onBackgroundClick,
 }) {
   const canvasRef = useRef(null)
-  const textInputRef = useRef(null)
   const sizeRef = useRef({ w: 0, h: 0 })
   const draftRef = useRef(null)
   const shapesRef = useRef(shapes)
-  const [textDraft, setTextDraft] = useState(null)
 
   const redraw = useCallback(() => {
     const cv = canvasRef.current
@@ -117,7 +129,23 @@ export default function DrawingCanvas({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     ctx.clearRect(0, 0, w, h)
     for (const s of shapesRef.current) drawShape(ctx, s, w, h)
-    if (draftRef.current) drawShape(ctx, draftRef.current, w, h)
+    if (draftRef.current) {
+      if (draftRef.current.tool === 'eraser') {
+        const pts = draftRef.current.points
+        if (pts.length > 1) {
+          ctx.beginPath()
+          ctx.moveTo(pts[0].x * w, pts[0].y * h)
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * w, pts[i].y * h)
+          ctx.strokeStyle = 'rgba(255,255,255,0.3)'
+          ctx.lineWidth = 22
+          ctx.lineCap = 'round'
+          ctx.lineJoin = 'round'
+          ctx.stroke()
+        }
+      } else {
+        drawShape(ctx, draftRef.current, w, h)
+      }
+    }
   }, [])
 
   // Taille du canvas alignée sur l'élément affiché.
@@ -139,12 +167,6 @@ export default function DrawingCanvas({
     redraw()
   }, [shapes, redraw])
 
-  useEffect(() => {
-    if (!textDraft) return
-    textInputRef.current?.focus()
-    textInputRef.current?.select()
-  }, [textDraft])
-
   function pointFromEvent(e) {
     const r = canvasRef.current.getBoundingClientRect()
     return {
@@ -159,11 +181,16 @@ export default function DrawingCanvas({
       return
     }
     const p = pointFromEvent(e)
-    onBeginAnnotation?.()
     if (tool === 'text') {
-      setTextDraft({ at: p, value: '' })
+      onTextPlace?.(p)
       return
     }
+    if (tool === 'eraser') {
+      draftRef.current = { tool: 'eraser', points: [p] }
+      redraw()
+      return
+    }
+    onBeginAnnotation?.()
     e.currentTarget.setPointerCapture(e.pointerId)
     draftRef.current =
       tool === 'pen'
@@ -176,7 +203,8 @@ export default function DrawingCanvas({
     const p = pointFromEvent(e)
     onCursor?.(p.x, p.y)
     if (!draftRef.current) return
-    if (draftRef.current.tool === 'pen') draftRef.current.points.push(p)
+    if (draftRef.current.tool === 'pen' || draftRef.current.tool === 'eraser')
+      draftRef.current.points.push(p)
     else draftRef.current.to = p
     redraw()
   }
@@ -185,6 +213,11 @@ export default function DrawingCanvas({
     const draft = draftRef.current
     draftRef.current = null
     if (!draft) return
+    if (draft.tool === 'eraser') {
+      if (draft.points.length > 1) onErase?.(draft.points)
+      redraw()
+      return
+    }
     // Ignore les gestes trop courts (clic accidentel).
     const valid =
       draft.tool === 'pen'
@@ -194,53 +227,14 @@ export default function DrawingCanvas({
     redraw()
   }
 
-  function commitTextDraft() {
-    if (!textDraft) return
-    const value = textDraft.value.trim()
-    if (value) onAddShape?.({ tool: 'text', color, at: textDraft.at, value })
-    setTextDraft(null)
-  }
-
-  function cancelTextDraft() {
-    setTextDraft(null)
-  }
-
   return (
-    <>
-      <canvas
-        ref={canvasRef}
-        className={`overlay-canvas${tool !== 'cursor' ? ' drawing' : ''}`}
-        onPointerDown={handleDown}
-        onPointerMove={handleMove}
-        onPointerUp={handleUp}
-        onPointerLeave={handleUp}
-      />
-      {textDraft && (
-        <input
-          ref={textInputRef}
-          className="text-draft-input"
-          value={textDraft.value}
-          style={{
-            left: `${textDraft.at.x * 100}%`,
-            top: `${textDraft.at.y * 100}%`,
-            color,
-          }}
-          aria-label="Texte de l'annotation"
-          onChange={(e) =>
-            setTextDraft((draft) => (draft ? { ...draft, value: e.target.value } : draft))
-          }
-          onBlur={commitTextDraft}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              commitTextDraft()
-            } else if (e.key === 'Escape') {
-              e.preventDefault()
-              cancelTextDraft()
-            }
-          }}
-        />
-      )}
-    </>
+    <canvas
+      ref={canvasRef}
+      className={`overlay-canvas${tool !== 'cursor' ? ' drawing' : ''}`}
+      onPointerDown={handleDown}
+      onPointerMove={handleMove}
+      onPointerUp={handleUp}
+      onPointerLeave={handleUp}
+    />
   )
 }

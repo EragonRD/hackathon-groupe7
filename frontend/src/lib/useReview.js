@@ -175,6 +175,13 @@ export function useReview({ session, user, mode }) {
             ),
           )
           break
+        case 'note:update':
+          setNotes((prev) =>
+            prev.map((n) =>
+              n.id === msg.payload.id ? { ...n, shapes: msg.payload.shapes } : n,
+            ),
+          )
+          break
         case 'sync:state':
           upsertNotes(msg.payload.notes || [])
           break
@@ -412,6 +419,19 @@ export function useReview({ session, user, mode }) {
     [self],
   )
 
+  // Remplace les shapes d'une note (gomme, clear).
+  const updateNoteShapes = useCallback(
+    (noteId, shapes) => {
+      setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, shapes } : n)))
+      transportRef.current?.post({
+        type: 'note:update',
+        from: self.id,
+        payload: { id: noteId, shapes },
+      })
+    },
+    [self.id],
+  )
+
   // Remplace tout le jeu de notes (réimport JSON) + le diffuse.
   const replaceNotes = useCallback(
     (incoming) => {
@@ -503,6 +523,7 @@ export function useReview({ session, user, mode }) {
     replyToNote,
     resolveNote,
     removeNote,
+    updateNoteShapes,
     replaceNotes,
     sendCursor,
     toggleLike,
