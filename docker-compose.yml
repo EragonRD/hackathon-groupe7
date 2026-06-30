@@ -1,0 +1,22 @@
+services:
+  core:
+    build: ./backend
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      JWT_TTL: ${JWT_TTL:-15m}
+      PORT: 3000
+    volumes:
+      - ./backend/secrets:/app/secrets:ro
+      - ./backend/logs:/app/logs
+    depends_on:
+      - hls
+
+  hls:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./media/hls:/usr/share/nginx/html/hls:ro
+      - ./nginx/hls.conf:/etc/nginx/conf.d/default.conf:ro

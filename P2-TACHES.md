@@ -27,32 +27,32 @@ L'authentification est **déjà câblée** dans `backend/src/auth/` :
 ## 🔐 SUJET A — Diffusion « Zero-Trust »
 
 ### A1. Préparer le contenu HLS chiffré *(amont, hors NestJS)*
-- [ ] Convertir `media/42 - POC Parc des Princes V1 .mp4` en **HLS** (`ffmpeg` → `.m3u8` + segments `.ts`)
-- [ ] Chiffrer les segments en **AES-128** (clé + IV ; `#EXT-X-KEY` dans la playlist)
-- [ ] L'URL de clé (`#EXT-X-KEY`) doit pointer vers le **Core**, jamais vers un fichier statique
+- [x] Convertir `media/42 - POC Parc des Princes V1 .mp4` en **HLS** (`ffmpeg` → `.m3u8` + segments `.ts`)
+- [x] Chiffrer les segments en **AES-128** (clé + IV ; `#EXT-X-KEY` dans la playlist)
+- [x] L'URL de clé (`#EXT-X-KEY`) doit pointer vers le **Core**, jamais vers un fichier statique
 
 ### A2. Serveur de clés éphémères *(cœur noté — NestJS)*
-- [ ] Créer le module `keys/` : `GET /keys/:contentId` **protégé par `AuthGuard`**
-- [ ] Renvoyer la clé AES **uniquement si token valide** ; sinon **401 / 403 par défaut**
-- [ ] Vérifier explicitement le **refus si token expiré**
-- [ ] *(Bonus)* **Droits par contenu** : ce `user`/`role` a-t-il accès à CE `contentId` ?
+- [x] Créer le module `keys/` : `GET /keys/:contentId` **protégé par `AuthGuard`**
+- [x] Renvoyer la clé AES **uniquement si token valide** ; sinon **401 / 403 par défaut**
+- [x] Vérifier explicitement le **refus si token expiré**
+- [x] *(Bonus)* **Droits par contenu** : ce `user`/`role` a-t-il accès à CE `contentId` ?
 
 ### A3. Servir le flux HLS
-- [ ] Endpoint (ou Nginx) servant `.m3u8` + segments `.ts` chiffrés
+- [x] Endpoint (ou Nginx) servant `.m3u8` + segments `.ts` chiffrés
 - [ ] Côté lecteur : `xhrSetup` pour **envoyer le token** sur la requête de clé *(à caler avec P1 / Alex)*
 
 ### A4. Infra reproductible
-- [ ] **`docker-compose.yml`** : Core (NestJS) + origine HLS (Nginx) → **`docker-compose up` en 1 commande**
-- [ ] `.env.example` (`JWT_SECRET`, `JWT_TTL`, ports…)
+- [x] **`docker-compose.yml`** : Core (NestJS) + origine HLS (Nginx) → **`docker-compose up` en 1 commande**
+- [x] `.env.example` (`JWT_SECRET`, `JWT_TTL`, ports…)
 
 ### A5. Preuve de sécurité *(très regardé)*
-- [ ] Script/démo : **avec token → ça lit** · **sans token / expiré → clé refusée (401/403)**
-- [ ] **Journalisation** des accès clé (qui · quand · quel contenu)
+- [x] Script/démo : **avec token → ça lit** · **sans token / expiré → clé refusée (401/403)**
+- [x] **Journalisation** des accès clé (qui · quand · quel contenu)
 - [ ] *(Bonus)* **Rotation / révocation** de clés
 
 ### A6. Modèle de menace *(livrable doc)*
-- [ ] **Schéma** : quoi protéger · contre quoi · hypothèses · **limites assumées**
-- [ ] Document court et honnête (couvert vs non couvert)
+- [x] **Schéma** : quoi protéger · contre quoi · hypothèses · **limites assumées**
+- [x] Document court et honnête (couvert vs non couvert)
 
 ---
 
