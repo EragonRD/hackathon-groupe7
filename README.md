@@ -306,12 +306,21 @@ rattacher chaque requête à un **compte** (sessions simultanées, blocage…). 
 starter-hackathon-estiam/
 ├── frontend/   → application React (Vite) + démo d'authentification
 ├── backend/    → API NestJS (Core) + authentification
+├── engine/     → Engine (Pôle 3 · IA & Data) — pipeline NLP (3A) + analyse audience (3B)
 ├── data/       → jeu de logs de visionnage (Pôle 3-B) + DATA_SCHEMA.md
-├── docs/       → format JSON P3-A + mise en place Python (Pôle 3)
+├── docs/       → format JSON P3-A + mise en place Python + plans de feature
 ├── media/      → vidéo d'exemple libre de droits (P1 / P2-A / P3-A) — voir media/README.md
 ├── scripts/    → prefetch + récupération de la vidéo (coup de pouce)
 └── README.md
 ```
+
+> 🤖 **Groupe 7 — branche `feat/intelligence-artificielle-data` (Pôle 3).** La brique
+> **Engine** (`engine/`, Python/FastAPI, 100 % local CPU) est en cours de construction :
+> transcription Whisper, résumé/chapitres/mots-clés via **llama.cpp** (Qwen2.5-1.5B GGUF),
+> recherche sémantique, et analyse d'audience/rétention. Documentation : [`engine/README.md`](engine/README.md),
+> plan d'exécution [`docs/feature-plans/engine-p3-ia-data.md`](docs/feature-plans/engine-p3-ia-data.md),
+> choix des modèles [`engine/docs/model-selection.md`](engine/docs/model-selection.md).
+> **Scope de cette branche : strictement le Pôle 3 (Engine).**
 
 > Le **barème détaillé** est fourni séparément par l'organisation. Ce README décrit le
 > **périmètre et les attendus** de chaque sujet — **la solution reste entièrement à

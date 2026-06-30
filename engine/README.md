@@ -42,11 +42,33 @@ engine/
 ## Démarrage (cible — non encore opérationnel)
 ```bash
 cd engine
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload   # API
+# 1) venv — python3-venv absent → on passe par virtualenv (sans sudo)
+python3 -m pip install --user virtualenv
+python3 -m virtualenv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+
+# 2) torch CPU-only AVANT le reste (évite ~2,5 Go de wheels CUDA inutiles)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# 3) reste des dépendances (+ wheel llama.cpp CPU pré-compilé, pas de cmake)
+pip install -r requirements.txt \
+  --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+# 4) lancer
+uvicorn app.main:app --reload   # API       → http://localhost:8000
 streamlit run dashboard/app.py  # dashboard 3B
 ```
+> ⚠️ **Ordre important** : installer `torch` CPU **en premier** fige la version CPU ; sinon `sentence-transformers` retire la variante CUDA (~2,5 Go).
+> Pré-requis système : `ffmpeg` (présent ✅). Modèles → voir `docs/model-selection.md`.
+
+## Statut setup (tâche 00) — ✅ opérationnel
+| Élément | État |
+|---|---|
+| venv + dépendances CPU-only | ✅ installé |
+| `torch` | 2.12.1+**cpu** (CUDA off) |
+| API `/health` | ✅ répond |
+| Modèle LLM | `Qwen2.5-1.5B-Instruct Q4_K_M` → `models/` |
 
 ## Documentation
 | Doc | Contenu |

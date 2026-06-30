@@ -1,0 +1,24 @@
+# === API (brique Engine) ===
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+
+# === NLP 3A — transcription ===
+faster-whisper
+ffmpeg-python
+
+# === NLP 3A — LLM résumé/chapitres (llama.cpp) ===
+llama-cpp-python
+
+# === NLP 3A — embeddings / recherche / mots-clés ===
+sentence-transformers
+keybert
+
+# === Data 3B — analyse & modèle ===
+pandas
+numpy
+scikit-learn
+
+# === Data 3B — dashboard ===
+streamlit

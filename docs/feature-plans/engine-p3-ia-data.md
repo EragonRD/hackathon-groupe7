@@ -105,7 +105,10 @@ Deux sujets sont menés en parallèle :
 | 2026-06-30 | Création `engine/` + README + ce plan | ✅ |
 | 2026-06-30 | FastAPI validé · **llama.cpp** retenu (vs Ollama) | ✅ |
 | 2026-06-30 | Génération des 9 fiches de tâches `engine/tasks/` | ✅ |
-| — | Validation finale du plan | 🟡 en attente |
+| 2026-06-30 | **Tâche 00 setup** : venv + deps CPU-only + `/health` OK | ✅ |
+| 2026-06-30 | Nettoyage disque (~60 Go) + choix modèles légers (`docs/model-selection.md`) | ✅ |
+| 2026-06-30 | Téléchargement GGUF Qwen2.5-1.5B Q4_K_M → `engine/models/` | 🟡 en cours |
+| — | Tâches 10→33 (implémentation) | ❌ à venir |
 
 ## 9. Résumé Non-Technique
 
