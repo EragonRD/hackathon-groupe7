@@ -8,6 +8,8 @@ Detecter les abus en temps reel sans dupliquer l'identite : le meme JWT emis par
 ## Socle
 
 - Rate limit global NestJS : `100 req / 60s / IP` via `@nestjs/throttler`.
+- Protection bruteforce login : `/auth/login` limite a `10/min/IP` + verrouillage
+  du compte apres 5 echecs (`429`), voir `AuthService`.
 - Middleware global : chaque requete Core est ajoutee dans une fenetre glissante
   de 5 minutes.
 - Nginx interroge le Core en `auth_request` (`/security/ingest`) AVANT de servir

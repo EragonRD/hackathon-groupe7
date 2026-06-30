@@ -7,6 +7,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common'
+import { Throttle } from '@nestjs/throttler'
 import type { Request } from 'express'
 import { AuthService } from './auth.service'
 import { AuthGuard } from './auth.guard'
@@ -16,6 +17,9 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   // POST /auth/login  { username, password }  ->  { accessToken, user }
+  // Rate-limit strict par IP (10/min) : ralentit fortement le credential stuffing,
+  // en complément du verrouillage de compte côté AuthService.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
   login(@Body() body: { username?: string; password?: string }) {
     if (!body?.username || !body?.password) {

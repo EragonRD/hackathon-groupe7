@@ -37,6 +37,10 @@ Nginx :8080 /hls/poc/index.m3u8 -----------+
 - JWT invalide ou expire : refus `401` par `AuthGuard`.
 - Utilisateur sans droit sur un contenu : refus `403` par `KeysService`.
 - Exposition accidentelle de la cle via Nginx : le service HLS ne monte que `media/hls/`.
+- Traversee de chemin sur `contentId` : identifiant valide par regex stricte et
+  controle d'acces effectue AVANT toute lecture de fichier (`KeysService`).
+- Bruteforce / credential stuffing sur `/auth/login` : rate-limit `10/min/IP`
+  (`@Throttle`) + verrouillage du compte apres 5 echecs (`429`, voir `AuthService`).
 
 ## Hypotheses
 
@@ -55,3 +59,20 @@ Nginx :8080 /hls/poc/index.m3u8 -----------+
   de confiance (`TRUST_PROXY`, voir `main.ts`). Un client direct non fiable ne peut
   pas usurper son IP ; en prod, `TRUST_PROXY` doit lister UNIQUEMENT le sous-reseau
   du reverse-proxy, et nginx doit reecrire l'en-tete entrant.
+
+## Menaces connues NON traitees (assumees)
+
+- **Pas de revocation de JWT** : un token vole reste valide jusqu'a expiration
+  (stateless). Mitige par le TTL court ; un vrai produit ajouterait une blacklist
+  ou des refresh tokens.
+- **Cle unique par contenu** (pas par session) : si la cle fuite, tout le contenu
+  est compromis. Piste : cle par session + rotation.
+- **Verrouillage de compte = DoS cible possible** : un attaquant peut volontairement
+  verrouiller un compte connu en enchainant des echecs. Compromis assume ; un produit
+  reel combinerait verrouillage par IP + captcha + backoff progressif.
+- **Scraping distribue** (botnet, low-and-slow, multi-comptes) : echappe aux seuils
+  par IP / par compte. Necessiterait une correlation comportementale plus avancee.
+- **DoS volumetrique / epuisement memoire** : le store de detection est en memoire
+  et borne ; pas de protection dediee contre un flood distribue.
+- **Capture d'ecran / HDMI** : indetectable de maniere fiable cote serveur ; seul le
+  watermark de session dissuade et trace.

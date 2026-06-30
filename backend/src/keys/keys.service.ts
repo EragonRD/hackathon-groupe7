@@ -8,6 +8,10 @@ const CONTENT_ACL: Record<string, string[]> = {
   poc: ['alice', 'bob', 'carol'],
 }
 
+// Identifiant de contenu autorisé : empêche toute traversée de chemin
+// (ex. "../../secret") dans la construction du chemin de la clé.
+const CONTENT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/
+
 interface KeyAccessContext {
   ip: string
 }
@@ -23,9 +27,34 @@ export class KeysService {
     user: JwtUser,
     context: KeyAccessContext,
   ): Promise<Buffer> {
+    // 1. Validation stricte de l'identifiant AVANT toute construction de chemin.
+    if (!CONTENT_ID_PATTERN.test(contentId)) {
+      await this.logAccess({
+        user,
+        contentId,
+        ip: context.ip,
+        granted: false,
+        reason: 'invalid_content_id',
+      })
+      throw new NotFoundException('Cle de contenu introuvable')
+    }
+
+    // 2. Contrôle d'accès AVANT de lire le moindre fichier (refus par défaut).
+    const allowedUsers = CONTENT_ACL[contentId] ?? []
+    if (!allowedUsers.includes(user.username)) {
+      await this.logAccess({
+        user,
+        contentId,
+        ip: context.ip,
+        granted: false,
+        reason: 'content_acl_denied',
+      })
+      throw new ForbiddenException('Acces refuse pour ce contenu')
+    }
+
+    // 3. Seulement maintenant : lecture de la clé.
     const keyPath = join(this.secretsDir, `${contentId}.key`)
     let key: Buffer
-
     try {
       key = await readFile(keyPath)
     } catch {
@@ -37,18 +66,6 @@ export class KeysService {
         reason: 'key_not_found',
       })
       throw new NotFoundException('Cle de contenu introuvable')
-    }
-
-    const allowedUsers = CONTENT_ACL[contentId] ?? []
-    if (!allowedUsers.includes(user.username)) {
-      await this.logAccess({
-        user,
-        contentId,
-        ip: context.ip,
-        granted: false,
-        reason: 'content_acl_denied',
-      })
-      throw new ForbiddenException('Acces refuse pour ce contenu')
     }
 
     await this.logAccess({
