@@ -34,6 +34,7 @@ dist/
 # Outillage agents (local, non versionné)
 .agents/
 .claude/
+skills-lock.json
 
 # Unit test reports
 TEST*.xml
