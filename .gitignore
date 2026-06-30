@@ -16,6 +16,11 @@ dist/
 # Log files
 *.log
 
+# P2 runtime secrets and generated media
+backend/secrets/
+backend/logs/
+media/hls/
+
 # Package files
 *.jar
 
@@ -51,4 +56,3 @@ Thumbs.db
 *.flv
 *.mov
 *.wmv
-
