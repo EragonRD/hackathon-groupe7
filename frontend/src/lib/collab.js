@@ -50,18 +50,23 @@ function broadcastTransport(session) {
   }
 }
 
-// --- Adapter 2 : socket.io (LAN) — branchable plus tard --------------------
-// Non connecté tant que mode !== 'socket'. Le serveur doit exposer une gateway
-// qui, sur `post`, fait socket.to(room).emit('msg', data) (pas de retour à l'envoyeur).
+// --- Adapter 2 : socket.io (LAN) — connecté au backend NestJS -------------
+// Le backend expose une gateway WebSocket qui relaye les messages aux membres
+// de la room `session`. L'authentification se fait via le JWT passé en query.
 function socketTransport(session, { url = 'http://localhost:3000' } = {}) {
   const listeners = new Set()
   let socket = null
 
-  // Import dynamique : aucun coût/connexion si ce mode n'est pas choisi.
   import('socket.io-client')
     .then(({ io }) => {
-      socket = io(url, { transports: ['websocket'], query: { session } })
-      socket.emit('join', { session })
+      const token = localStorage.getItem('hackathon_token')
+      socket = io(url, {
+        transports: ['websocket', 'polling'],
+        query: { session, token },
+      })
+      socket.on('connect', () => {
+        socket.emit('join', { session })
+      })
       socket.on('msg', (data) => {
         for (const fn of listeners) fn(data)
       })

@@ -44,9 +44,18 @@ export default function VideoReview({ source, session, user }) {
   const videoRef = useRef(null)
   const fileRef = useRef(null)
 
-  const { self, notes, peers, addNote, removeNote, replaceNotes, sendCursor } = useReview(
-    { session, user },
-  )
+  const {
+    self,
+    notes,
+    peers,
+    addNote,
+    removeNote,
+    replaceNotes,
+    sendCursor,
+    toggleLike,
+    addReply,
+    deleteReply,
+  } = useReview({ session, user })
 
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -366,11 +375,15 @@ export default function VideoReview({ source, session, user }) {
       </div>
 
       <CommentPanel
+        user={self}
         notes={notes}
         activeId={activeId}
         onSelect={selectNote}
         onDelete={(n) => removeNote(n.id)}
         canDelete={canDelete}
+        onToggleLike={toggleLike}
+        onAddReply={addReply}
+        onDeleteReply={deleteReply}
         peerCount={peers.length}
         composeTime={composeTime}
         draftCount={draftShapes.length}

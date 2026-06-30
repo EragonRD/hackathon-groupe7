@@ -4,6 +4,7 @@ import Login from './Login.jsx'
 import AppShell from './components/AppShell.jsx'
 import Catalogue from './components/Catalogue.jsx'
 import VideoReview from './components/VideoReview.jsx'
+import Documentation from './components/Documentation.jsx'
 import { getToken, logout, me } from './auth'
 
 export default function App() {
@@ -49,12 +50,15 @@ export default function App() {
   }
 
   const inReview = view.name === 'review'
+  const inDocs = view.name === 'docs'
 
   return (
     <AppShell
       user={user}
       onLogout={handleLogout}
       onBack={inReview ? () => setView({ name: 'catalogue' }) : undefined}
+      onHome={() => setView({ name: 'catalogue' })}
+      onOpenDocs={() => setView({ name: 'docs' })}
       title={inReview ? view.video.title : undefined}
     >
       {inReview ? (
@@ -64,6 +68,8 @@ export default function App() {
           session={view.video.session ?? view.video.id}
           user={user}
         />
+      ) : inDocs ? (
+        <Documentation onBack={() => setView({ name: 'catalogue' })} />
       ) : (
         <Catalogue onOpen={(video) => setView({ name: 'review', video })} />
       )}

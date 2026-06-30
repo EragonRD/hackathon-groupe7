@@ -1,4 +1,4 @@
-import { FilmSlate, SignOut, CaretLeft } from '@phosphor-icons/react'
+import { FilmSlate, SignOut, CaretLeft, BookOpen } from '@phosphor-icons/react'
 import { colorForUser, initials } from '../lib/format'
 
 // Barre supérieure + cadre de l'application.
@@ -7,9 +7,11 @@ export default function AppShell({
   user,
   onLogout,
   onBack,
+  onHome,
   title,
   center,
   right,
+  onOpenDocs,
   children,
 }) {
   return (
@@ -21,7 +23,7 @@ export default function AppShell({
             Catalogue
           </button>
         ) : (
-          <div className="brand">
+          <button className="brand" onClick={onHome} title="Accueil">
             <span className="brand-mark">
               <FilmSlate size={18} weight="fill" />
             </span>
@@ -29,7 +31,7 @@ export default function AppShell({
               Revue
               <small>Lecteur de revue augmenté</small>
             </span>
-          </div>
+          </button>
         )}
 
         {title && (
@@ -42,6 +44,15 @@ export default function AppShell({
 
         {center}
         {right}
+
+        <button
+          className="btn-icon"
+          onClick={onOpenDocs}
+          title="Documentation"
+          aria-label="Documentation"
+        >
+          <BookOpen size={18} />
+        </button>
 
         <div className="user-chip">
           <span
