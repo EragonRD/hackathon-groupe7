@@ -12,6 +12,8 @@ Detecter les abus en temps reel sans dupliquer l'identite : le meme JWT emis par
   de 5 minutes.
 - Nginx HLS miroir les acces `/hls/` vers `POST/GET /security/ingest` afin que
   le Core voie les lectures de segments servies par `:8080`.
+- `scrape-segments.sh` appelle aussi `/security/ingest` apres chaque segment pour
+  rester demonstrable avec une origine statique locale sans Nginx mirror.
 - Dashboard JSON : `GET /security/dashboard`.
 - Dashboard HTML : `http://localhost:3000/security.html`.
 

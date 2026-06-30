@@ -47,10 +47,18 @@ fi
 
 for i in $(seq 1 "$REQUESTS"); do
   index=$(( (i - 1) % ${#SEGMENTS[@]} ))
+  segment_url="${SEGMENTS[$index]}"
   curl -sS -o /dev/null \
     -H "Authorization: Bearer $TOKEN" \
     -H "X-Forwarded-For: $ATTACK_IP" \
-    "${SEGMENTS[$index]}"
+    "$segment_url"
+
+  curl -sS -o /dev/null \
+    -X POST \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "X-Forwarded-For: $ATTACK_IP" \
+    -H "X-Original-URI: $segment_url" \
+    "$CORE_URL/security/ingest"
 done
 
 sleep 1
