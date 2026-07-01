@@ -15,8 +15,16 @@ import { formatTime } from '../lib/format'
 // Résumé + chapitres + transcription cliquables (saut au timecode), mots-clés,
 // traduction. Se met à jour tout seul quand l'analyse passe de "processing" à
 // "done" (le hook re-poll le Core).
-export default function InsightsPanel({ contentId, onSeek, currentTime = 0 }) {
-  const meta = useMetadata(contentId)
+export default function InsightsPanel({
+  contentId,
+  onSeek,
+  currentTime = 0,
+  meta: metaProp,
+}) {
+  // Si le parent fournit déjà `meta` (VideoReview, pour partager avec les
+  // sous-titres), on l'utilise et on n'ouvre PAS un second polling.
+  const ownMeta = useMetadata(metaProp ? null : contentId)
+  const meta = metaProp ?? ownMeta
   const [open, setOpen] = useState(true)
   const [query, setQuery] = useState('')
 

@@ -1351,6 +1351,26 @@
   color: #ffb5b5;
 }
 
+/* ---- Sous-titres incrustes (transcription P3), synchronises a la lecture ---- */
+.video-captions {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: 88%;
+  padding: 6px 14px;
+  border-radius: var(--r-sm);
+  background: rgba(5, 7, 10, 0.72);
+  color: #fff;
+  font-size: clamp(14px, 2.2vw, 20px);
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
 /* ---- Capture Guard : watermark, occultation, indicateur de risque ---- */
 
 /* Watermark tuilé (identité + horloge) : couvre l'image, non interactif. */

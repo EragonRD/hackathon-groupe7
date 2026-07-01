@@ -19,6 +19,7 @@ import {
   Faders,
   Tag,
   CheckCircle,
+  ClosedCaptioning,
   X,
 } from '@phosphor-icons/react'
 import Hls from 'hls.js'
@@ -26,6 +27,7 @@ import { getToken } from '../auth'
 import DrawingCanvas from './DrawingCanvas'
 import CommentPanel from './CommentPanel'
 import InsightsPanel from './InsightsPanel'
+import { useMetadata } from '../lib/useMetadata'
 import { useReview } from '../lib/useReview'
 import { useCaptureDetection } from '../lib/useCaptureDetection'
 import { formatTime } from '../lib/format'
@@ -154,6 +156,22 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
 
   // Le calque affiche le brouillon en cours, sinon les dessins de la note active.
   const shapesToShow = draftShapes.length > 0 ? draftShapes : (activeNote?.shapes ?? [])
+
+  // --- Sous-titres (transcription P3) incrustés sur la vidéo ----------------
+  // Partagés avec InsightsPanel (meta passé en prop pour ne pas double-poller).
+  const meta = useMetadata(contentId)
+  const captionSegments = useMemo(
+    () => (meta.status === 'done' ? (meta.data?.segments ?? []) : []),
+    [meta],
+  )
+  const [captionsOn, setCaptionsOn] = useState(true)
+  const activeCaption = useMemo(() => {
+    if (!captionsOn || captionSegments.length === 0) return ''
+    const seg = captionSegments.find(
+      (s) => currentTime >= (s.start ?? 0) && currentTime < (s.end ?? Infinity),
+    )
+    return seg?.text ?? ''
+  }, [captionsOn, captionSegments, currentTime])
 
   // --- Réfs "fraîches" pour les handlers d'événements vidéo --------------
   const isPresenterRef = useRef(isPresenter)
@@ -793,6 +811,13 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
               onCursor={sendCursor}
               onBackgroundClick={togglePlay}
             />
+            {/* Sous-titres incrustés (transcription P3), synchronisés au temps
+               courant. pointer-events:none -> ne gêne ni le dessin ni le clic. */}
+            {activeCaption && (
+              <div className="video-captions" aria-hidden="true">
+                <span>{activeCaption}</span>
+              </div>
+            )}
             {/* Curseurs des autres participants (temps réel) */}
             {peers
               .filter((p) => p.cursor)
@@ -1006,6 +1031,20 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
               ))}
             </div>
 
+            {captionSegments.length > 0 && (
+              <button
+                className={`badge ${captionsOn ? 'badge-accent' : 'wt-badge'}`}
+                onClick={() => setCaptionsOn((v) => !v)}
+                aria-pressed={captionsOn}
+                title={
+                  captionsOn ? 'Masquer les sous-titres' : 'Afficher les sous-titres'
+                }
+                style={{ marginLeft: '8px', padding: '0 6px' }}
+              >
+                <ClosedCaptioning size={15} weight={captionsOn ? 'fill' : 'regular'} />
+              </button>
+            )}
+
             <div className="controls-spacer" />
 
             {/* Barre d'outils d'annotation */}
@@ -1172,7 +1211,12 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
             </div>
           </div>
         </div>
-        <InsightsPanel contentId={contentId} onSeek={seekTo} currentTime={currentTime} />
+        <InsightsPanel
+          contentId={contentId}
+          meta={meta}
+          onSeek={seekTo}
+          currentTime={currentTime}
+        />
       </div>
 
       <CommentPanel
