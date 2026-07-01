@@ -3889,3 +3889,13 @@
     max-height: 52vh;
   }
 }
+
+/* Login mobile : masquage du panneau gauche RÉAFFIRMÉ ici (après la règle de
+   base `.login-aside { display: flex }`). Le `display:none` du @media 860px situé
+   plus haut dans le fichier était neutralisé par le cascade (même spécificité,
+   règle de base plus tardive). Placé en fin de fichier, il gagne. */
+@media (max-width: 860px) {
+  .login-aside {
+    display: none;
+  }
+}
