@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { spawn } from 'child_process'
 import { randomBytes } from 'crypto'
 import { existsSync } from 'fs'
@@ -18,12 +18,28 @@ function resolveHlsDir(): string {
 }
 
 @Injectable()
-export class UploadService {
+export class UploadService implements OnModuleInit {
   private readonly logger = new Logger(UploadService.name)
   private readonly hlsDir = resolveHlsDir()
   private readonly secretsDir = backendPath('secrets')
 
   constructor(private readonly contents: ContentsService) {}
+
+  // Réconciliation au démarrage : un chiffrement interrompu par un arrêt du Core
+  // (jobs en mémoire, non repris) laisse le contenu bloqué en 'processing' pour
+  // toujours -> spinner infini côté front. On rattrape : si le HLS est complet
+  // (index.m3u8 écrit en dernier par ffmpeg) -> 'ready', sinon -> 'failed' (donc
+  // l'utilisateur voit l'échec et peut ré-uploader).
+  onModuleInit(): void {
+    for (const c of this.contents.list()) {
+      if (c.status !== 'processing') continue
+      const done = existsSync(join(this.hlsDir, c.id, 'index.m3u8'))
+      this.contents.setStatus(c.id, done ? 'ready' : 'failed')
+      this.logger.warn(
+        `Réconciliation démarrage : ${c.id} 'processing' -> '${done ? 'ready' : 'failed'}'`,
+      )
+    }
+  }
 
   // Lance le chiffrement en TÂCHE DE FOND (ne bloque pas la requête d'upload) :
   // met le contenu en `ready` / `failed` et nettoie le fichier temporaire.
