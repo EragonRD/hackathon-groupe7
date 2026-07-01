@@ -2,7 +2,9 @@
 // On réutilise `authFetch` (token + intercepteur 401) et on centralise ici le
 // mapping des codes d'erreur vers des messages clairs pour un public non
 // technique. Contrat des endpoints : voir docs/FRONTEND-INTEGRATION.md §9.3.
-import { authFetch } from './auth'
+import { authFetch, getToken } from './auth'
+
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
 // Messages par code HTTP. On privilégie le message serveur quand il est parlant
 // (NestJS renvoie { message } ou { message: string[] } sur les exceptions).
@@ -80,6 +82,64 @@ export const deleteUser = (username) =>
 // payload create : { title, companyId? } (companyId requis pour un superadmin)
 export const listContents = () => request('/admin/contents')
 export const createContent = (payload) => request('/admin/contents', post(payload))
+
+// Upload d'une vidéo (multipart) avec progression. Le Core la chiffre en HLS
+// AES-128 en tâche de fond → le contenu revient en `status: 'processing'`.
+// onProgress(percent) est appelé pendant le transfert.
+export function uploadContent({ file, title, onProgress }) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${API}/admin/contents/upload`)
+    const token = getToken()
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText))
+        } catch {
+          resolve(null)
+        }
+        return
+      }
+      let serverMsg = null
+      try {
+        const data = JSON.parse(xhr.responseText)
+        serverMsg = Array.isArray(data?.message) ? data.message.join(', ') : data?.message
+      } catch {
+        /* pas de corps JSON */
+      }
+      reject(new Error(mapError(xhr.status, serverMsg)))
+    }
+    xhr.onerror = () => reject(new Error('Upload échoué (réseau).'))
+    const form = new FormData()
+    form.append('file', file)
+    form.append('title', title)
+    xhr.send(form)
+  })
+}
+// Statut d'un contenu (processing/ready/failed) — pour suivre le chiffrement.
+export async function getContentStatus(id) {
+  const list = await listContents()
+  return (list || []).find((c) => c.id === id)?.status ?? null
+}
+
+// Poll jusqu'à `ready` (résout true) ou `failed`/timeout (résout false).
+export async function waitUntilReady(id, { intervalMs = 1500, timeoutMs = 300000 } = {}) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const status = await getContentStatus(id).catch(() => null)
+    if (status === 'ready') return true
+    if (status === 'failed') return false
+    await new Promise((r) => setTimeout(r, intervalMs))
+  }
+  return false
+}
+
 export const grantAccess = (id, username) =>
   request(`/admin/contents/${encodeURIComponent(id)}/access`, post({ username }))
 export const revokeAccess = (id, username) =>

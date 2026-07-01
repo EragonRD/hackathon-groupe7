@@ -15,8 +15,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
+# ffmpeg : requis pour chiffrer les vidéos uploadées en HLS AES-128.
+RUN apk add --no-cache ffmpeg
+
 COPY --from=build /app ./
-RUN mkdir -p /app/secrets /app/logs
+RUN mkdir -p /app/secrets /app/logs /app/media/hls
 
 EXPOSE 3000
 CMD ["node", "dist/main"]

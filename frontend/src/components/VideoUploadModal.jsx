@@ -8,6 +8,7 @@ import {
   HardDrive,
 } from '@phosphor-icons/react'
 import { authFetch } from '../auth'
+import { uploadContent, grantAccess, waitUntilReady } from '../admin'
 import { formatTime } from '../lib/format'
 
 const CATEGORIES = [
@@ -40,6 +41,8 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [phase, setPhase] = useState('uploading') // 'uploading' | 'encrypting'
+  const [error, setError] = useState(null)
   const [duration, setDuration] = useState(null)
   const [videoUrl, setVideoUrl] = useState(null)
   const [posterUrl, setPosterUrl] = useState(null)
@@ -149,26 +152,38 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
   }
 
   const handleConfirm = useCallback(() => {
+    if (!file) return
     setProcessing(true)
+    setPhase('uploading')
     setProgress(0)
-    const interval = setInterval(() => {
-      setProgress((p) => {
-        const next = p + Math.random() * 18
-        return next >= 100 ? 100 : next
-      })
-    }, 180)
-    async function finish() {
-      await new Promise((r) => setTimeout(r, 900))
-      clearInterval(interval)
-      setProgress(100)
-      await new Promise((r) => setTimeout(r, 300))
-      onConfirm({
-        title: title.trim() || nameFromFile(file),
-        category,
-        invited,
-      })
+    setError(null)
+    async function run() {
+      try {
+        // 1. Upload réel (barre = progression du transfert).
+        const content = await uploadContent({
+          file,
+          title: title.trim() || nameFromFile(file),
+          onProgress: setProgress,
+        })
+        // 2. Accès aux collaborateurs invités (même entreprise) — best effort.
+        await Promise.all(
+          invited.map((u) => grantAccess(content.id, u).catch(() => null)),
+        )
+        // 3. Attente du chiffrement HLS côté serveur (statut ready).
+        setPhase('encrypting')
+        const ready = await waitUntilReady(content.id)
+        if (!ready) {
+          setError('Le chiffrement de la vidéo a échoué. Réessayez.')
+          setProcessing(false)
+          return
+        }
+        onConfirm({ ...content, status: 'ready', category, invited })
+      } catch (e) {
+        setError(e.message || 'Upload échoué.')
+        setProcessing(false)
+      }
     }
-    finish()
+    run()
   }, [title, file, category, invited, onConfirm])
 
   if (processing) {
@@ -180,11 +195,23 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
             style={{ padding: 'var(--s-7)', textAlign: 'center' }}
           >
             <FilmSlate size={40} weight="fill" color="var(--accent-strong)" />
-            <p style={{ marginTop: 12, fontWeight: 600 }}>Préparation de la vidéo…</p>
-            <div className="progress-track">
-              <div className="progress-fill" style={{ width: `${progress}%` }} />
-            </div>
-            <span className="progress-label">{Math.round(progress)}%</span>
+            {phase === 'uploading' ? (
+              <>
+                <p style={{ marginTop: 12, fontWeight: 600 }}>Envoi de la vidéo…</p>
+                <div className="progress-track">
+                  <div className="progress-fill" style={{ width: `${progress}%` }} />
+                </div>
+                <span className="progress-label">{Math.round(progress)}%</span>
+              </>
+            ) : (
+              <>
+                <p style={{ marginTop: 12, fontWeight: 600 }}>Chiffrement en cours…</p>
+                <div className="progress-track">
+                  <div className="progress-fill progress-indeterminate" />
+                </div>
+                <span className="progress-label">Sécurisation Zero-Trust du flux</span>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -318,6 +345,16 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
           </div>
         </div>
 
+        {error && (
+          <p
+            className="upload-error"
+            role="alert"
+            style={{ color: 'var(--danger, #ff5b5b)' }}
+          >
+            {error}
+          </p>
+        )}
+
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onCancel}>
             Annuler
@@ -328,7 +365,7 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
             disabled={!title.trim()}
           >
             <CaretRight size={15} weight="bold" />
-            Ouvrir la revue
+            Chiffrer et publier
           </button>
         </div>
       </div>
