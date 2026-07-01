@@ -82,10 +82,12 @@ comportement si vidéo absente. Tu fais passer la checklist, tu notes les bugs p
 | A — Scénario de démo | `docs/P1-demo-scenario.md` | ✅ rédigé (à relire/ajuster timing) |
 | B — Schéma d'export | `docs/P1-export-schema.md` | ✅ rédigé (ancré dans le code) |
 | C — Protocole temps réel | `docs/P1-protocol.md` | ✅ rédigé (ancré dans le code) |
-| D — Lecture business | `docs/P1-business.md` | ❌ à faire (Amos) |
-| E — Trame de soutenance | `docs/P1-pitch.md` | ❌ à faire (deck `presentations/P1-Frontend-Soutenance.*` existe déjà partiellement) |
-| F — Checklist Bloc B | `docs/P1-integration-checklist.md` | ❌ à faire (Amos, coordination P2/P3) |
+| D — Lecture business | `docs/P1-business.md` | ✅ rédigé (brouillon, chiffres = hypothèses à valider) |
+| E — Trame de soutenance | `docs/P1-pitch.md` | ✅ rédigé (aligner le deck `presentations/P1-Frontend-Soutenance.*`) |
+| F — Checklist Bloc B | `docs/P1-integration-checklist.md` | ✅ rédigé (ancré sur FRONTEND-INTEGRATION.md) |
 | G — Matrice de test | `docs/P1-test-matrix.md` | ✅ rédigé |
 
-> A/B/C/G rédigés à partir du code (sources citées dans chaque doc). D/E/F restent à
-> Amos car ils relèvent du jugement produit/PM et de la coordination inter-pôles.
+> **7/7 livrables rédigés.** A/B/C/F/G ancrés dans le code (sources citées). D/E sont
+> des **brouillons** : Amos doit se les approprier (validation business, chiffres réels,
+> qui parle quand), et aligner le deck existant sur `P1-pitch.md`. Sans données mesurées,
+> aucun pourcentage n'a été inventé.
