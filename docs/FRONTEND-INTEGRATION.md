@@ -431,3 +431,41 @@ UI : table « Journal d'accès » dans le back-office (qui a lu quelle clé, qua
 | `POST` | `/auth/refresh` · `/auth/logout` | public (via le refresh token) |
 | `GET/POST/DELETE` | `/security/ban[s]` | admin |
 | `GET` | `/admin/audit/keys` | admin |
+
+---
+
+## 11. 🆕 Métadonnées IA (orchestration Core → Engine)
+
+Le Core est le **pont** vers l'Engine (Pôle 3) : le front raisonne **par `contentId`**,
+jamais par `job_id`. Mêmes droits que `/keys` (contenu de son entreprise + accès explicite).
+
+| Méthode | Endpoint | Codes | Retour |
+|---|---|---|---|
+| `GET` | `/contents/:id/metadata` | `200` / `202` / `404` / `409` | `VideoMetadata` (200) · `{status:'processing'}` (202) · `{status:'not_analyzed'}` (404) · `{status:'error',error}` (409) |
+| `POST` | `/contents/:id/search` | `200` / `409` | `{ query, hits:[{start,end,text,score}] }` — 409 si pas encore analysé |
+
+`VideoMetadata` (contrat P3-A) : `{ language, duration_sec, transcript, segments[],
+translations[], summary, chapters[], keywords[], generated_at }`.
+Usage front : `chapters` → marqueurs timeline · `translations[lang].segments` → sous-titres ·
+`summary` + `keywords` sous le titre · `search` → saut au timecode.
+
+### Poll côté front (comme l'upload)
+L'analyse démarre **à l'upload** (sur la vidéo en clair) et dure quelques minutes.
+Le front poll le **metadata** jusqu'à `200` :
+```js
+async function loadMetadata(id) {
+  const res = await authFetch(`/contents/${id}/metadata`)
+  if (res.status === 200) return res.json()          // prêt → afficher
+  if (res.status === 202) { await sleep(3000); return loadMetadata(id) } // en cours
+  if (res.status === 404) return null                // pas analysé
+  throw new Error('Analyse en échec')                // 409
+}
+// recherche sémantique (une fois prêt)
+await authFetch(`/contents/${id}/search`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ query: 'sécurité', k: 3 }),
+})
+```
+
+> ⚙️ Prérequis : le service **Engine** doit tourner (`ENGINE_URL`, défaut `http://engine:8000`
+> en Docker). Sans lui, `metadata` renvoie `409 {status:'error'}` (dégradation propre).

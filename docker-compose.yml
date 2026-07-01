@@ -15,6 +15,8 @@ services:
       # restreindre au seul sous-réseau du reverse-proxy.
       TRUST_PROXY: ${TRUST_PROXY:-loopback, uniquelocal}
       APP_URL: ${APP_URL:-http://localhost:5173}
+      # Engine IA (Pôle 3). Dans le compose, le service s'appelle `engine`.
+      ENGINE_URL: ${ENGINE_URL:-http://engine:8000}
       # Mailjet (envoi des invitations). Vide -> simulation (log).
       MAILJET_API_KEY: ${MAILJET_API_KEY:-}
       MAILJET_SECRET_KEY: ${MAILJET_SECRET_KEY:-}

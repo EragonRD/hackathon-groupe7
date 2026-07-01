@@ -20,6 +20,7 @@ import { AdminGuard } from '../auth/admin.guard'
 import { PasswordChangedGuard } from '../auth/password-changed.guard'
 import { CompaniesService } from '../companies/companies.service'
 import { ContentsService } from '../contents/contents.service'
+import { AnalysisService } from '../engine/analysis.service'
 import type { RequestWithUser } from '../common/request-context'
 import { UploadService } from './upload.service'
 
@@ -42,6 +43,7 @@ export class UploadController {
     private readonly contents: ContentsService,
     private readonly companies: CompaniesService,
     private readonly upload: UploadService,
+    private readonly analysis: AnalysisService,
   ) {}
 
   @Post('upload')
@@ -91,7 +93,11 @@ export class UploadController {
       companyId,
       ownerUsername: me.username,
     })
-    // Chiffrement en tâche de fond : la réponse revient tout de suite.
+    // Analyse IA (Engine) déclenchée sur la vidéo EN CLAIR, à l'ingestion — AVANT
+    // que le chiffrement ne consomme/supprime le fichier temporaire. (POSIX : le
+    // unlink après ouverture ne casse pas la lecture déjà en cours.)
+    this.analysis.startFromFile(content.id, file.path)
+    // Chiffrement HLS en tâche de fond : la réponse revient tout de suite.
     this.upload.encryptInBackground(content.id, file.path)
 
     return {
