@@ -88,6 +88,7 @@ export class GuestUploadController {
       title,
       companyId: me.companyId,
       ownerUsername: owner,
+      guestUpload: true,
     })
     // Accès OBLIGATOIRE aux admins de l'entreprise (en plus de l'invitant).
     for (const u of this.users.listByCompany(me.companyId)) {
@@ -182,6 +183,7 @@ export class GuestUploadController {
           title,
           companyId: me.companyId,
           ownerUsername: owner,
+          guestUpload: true,
         })
         // Accès OBLIGATOIRE aux admins de l'entreprise (en plus de l'invitant).
         for (const u of this.users.listByCompany(me.companyId)) {

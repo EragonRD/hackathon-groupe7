@@ -12,6 +12,7 @@ export interface Content {
   allowedUsernames: string[]
   revoked: boolean
   status: ContentStatus // 'processing' pendant le chiffrement de l'upload
+  guestUpload?: boolean // vidéo déposée par un invité (badge côté UI)
 }
 
 const STORE = 'contents.json'
@@ -83,6 +84,7 @@ export class ContentsService {
     title: string
     companyId: string
     ownerUsername: string
+    guestUpload?: boolean
   }): Content {
     const id = randomUUID().slice(0, 8)
     const content: Content = {
@@ -92,6 +94,7 @@ export class ContentsService {
       allowedUsernames: [input.ownerUsername],
       revoked: false,
       status: 'processing',
+      guestUpload: input.guestUpload ?? false,
     }
     this.contents.set(id, content)
     this.persist()
