@@ -9,8 +9,10 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   CaretLeft, Play, Pause, ChatText, Cursor, PencilSimple, ArrowUpRight, Rectangle,
-  Circle, TextT, Eraser, Broadcast, DownloadSimple, UploadSimple, Trash, PaperPlaneRight,
+  CircleIcon, TextT, Eraser, Broadcast, DownloadSimple, UploadSimple, Trash, PaperPlaneRight,
 } from 'phosphor-react-native';
+// NB: phosphor-react-native 3.x n'exporte pas l'alias simple `Circle`
+// (seulement `CircleIcon`), contrairement aux autres icônes.
 import { useReview } from '../../src/lib/useReview';
 import { useAuth } from '../../src/lib/auth-context';
 import SecureVideo from '../../src/components/SecureVideo';
@@ -23,7 +25,7 @@ const TOOLS = [
   { id: 'pen', Icon: PencilSimple },
   { id: 'arrow', Icon: ArrowUpRight },
   { id: 'rect', Icon: Rectangle },
-  { id: 'ellipse', Icon: Circle },
+  { id: 'ellipse', Icon: CircleIcon },
   { id: 'text', Icon: TextT },
   { id: 'eraser', Icon: Eraser },
 ];
@@ -65,6 +67,11 @@ export default function ReviewScreen() {
   // Réception des commandes de lecture du présentateur.
   useEffect(() => {
     const unsub = subscribePlayback((evt) => {
+      // wt:playback porte `action` (play/pause/seek) ; wt:state et wt:heartbeat
+      // portent `paused`. On applique les deux sans les confondre (seek ne
+      // change pas l'état de lecture).
+      if (evt.action === 'play') setPaused(false);
+      else if (evt.action === 'pause') setPaused(true);
       if (evt.paused !== undefined) setPaused(evt.paused);
       if (evt.position !== undefined && videoRef.current) {
         if (evt.kind === 'heartbeat') {
@@ -229,12 +236,15 @@ export default function ReviewScreen() {
           onRequestText={(x, y) => setPendingText({ x, y })}
           onCursor={sendCursor}
         />
-        {peers.filter((p) => p.cursor).map((p) => (
-          <View key={p.id} pointerEvents="none" style={[styles.cursor, { left: `${p.cursor.x * 100}%`, top: `${p.cursor.y * 100}%` }]}>
-            <View style={[styles.cursorDot, { backgroundColor: p.color }]} />
-            <Text style={[styles.cursorLabel, { backgroundColor: p.color }]}>{p.name}</Text>
-          </View>
-        ))}
+        {peers.filter((p) => p.cursor).map((p) => {
+          const cColor = p.color ?? p.cursor.color ?? theme.accent;
+          return (
+            <View key={p.id} pointerEvents="none" style={[styles.cursor, { left: `${p.cursor.x * 100}%`, top: `${p.cursor.y * 100}%` }]}>
+              <View style={[styles.cursorDot, { backgroundColor: cColor }]} />
+              <Text style={[styles.cursorLabel, { backgroundColor: cColor }]}>{p.name ?? p.cursor.name ?? ''}</Text>
+            </View>
+          );
+        })}
         <Text style={styles.watermark} pointerEvents="none">{user.username} · Poulpium</Text>
         {locked && (
           <View style={styles.lockBanner} pointerEvents="none">
@@ -322,12 +332,12 @@ export default function ReviewScreen() {
             ListEmptyComponent={<Text style={styles.empty}>Aucun commentaire pour l’instant.</Text>}
             renderItem={({ item }) => (
               <Pressable onPress={() => seekTo(item.time)} onLongPress={() => removeNote(item.id)} style={styles.commentItem}>
-                <View style={[styles.commentAvatar, { backgroundColor: item.author.color }]}>
-                  <Text style={styles.avatarText}>{initials(item.author.name)}</Text>
+                <View style={[styles.commentAvatar, { backgroundColor: item.author?.color ?? theme.accent }]}>
+                  <Text style={styles.avatarText}>{initials(item.author?.name)}</Text>
                 </View>
                 <View style={styles.commentBody}>
                   <View style={styles.commentHeader}>
-                    <Text style={styles.commentAuthor}>{item.author.name}</Text>
+                    <Text style={styles.commentAuthor}>{item.author?.name ?? 'inconnu'}</Text>
                     <Text style={[globalStyles.textMono, styles.commentTime]}>{formatTime(item.time)}</Text>
                   </View>
                   {item.text ? <Text style={styles.commentText}>{item.text}</Text> : null}
