@@ -6,12 +6,25 @@ import PoulpiumMark from './PoulpiumMark'
 // Il choisit un nom d'affichage, puis rejoint la revue. Le token (déjà stocké)
 // borne son accès dans le temps.
 export default function GuestJoin({ onJoin }) {
-  const [name, setName] = useState('')
+  // Nom mémorisé (rechargement de page) : l'invité n'a qu'à confirmer.
+  const [name, setName] = useState(() => {
+    try {
+      return sessionStorage.getItem('poulpium_guest_name') || ''
+    } catch {
+      return ''
+    }
+  })
 
   function submit(e) {
     e.preventDefault()
     const n = name.trim()
-    if (n) onJoin(n)
+    if (!n) return
+    try {
+      sessionStorage.setItem('poulpium_guest_name', n)
+    } catch {
+      /* mode privé / quota : sans persistance, on redemandera le nom */
+    }
+    onJoin(n)
   }
 
   return (

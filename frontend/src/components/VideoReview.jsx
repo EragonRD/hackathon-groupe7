@@ -63,8 +63,10 @@ const SWATCHES = [
   { name: 'Blanc', value: '#f4f6fa' },
 ]
 
-// Seuil de recalage (s) : en dessous on ne touche à rien (éviter le saccadé).
-const DRIFT_THRESHOLD = 0.4
+// Seuil de recalage (s) : en dessous on ne touche à rien. Tolérant car sur un
+// flux HLS chiffré un seek coûte cher (fetch + déchiffrement du segment) ; un
+// seuil trop serré provoquerait des re-seeks en boucle (bégaiement).
+const DRIFT_THRESHOLD = 1.5
 const HEARTBEAT_MS = 2000
 
 export default function VideoReview({ source, session, user, contentId, onPeersUpdate }) {
@@ -93,6 +95,7 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
     releasePresenter,
     sendPlayback,
     sendHeartbeat,
+    sendRate,
     subscribePlayback,
   } = useReview({ session, user })
 
@@ -431,7 +434,12 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
     if (!isPresenter) return
     const id = setInterval(() => {
       const v = videoRef.current
-      if (v) sendHeartbeat({ position: v.currentTime, paused: v.paused })
+      if (v)
+        sendHeartbeat({
+          position: v.currentTime,
+          paused: v.paused,
+          rate: v.playbackRate,
+        })
     }, HEARTBEAT_MS)
     return () => clearInterval(id)
   }, [isPresenter, sendHeartbeat])
@@ -447,6 +455,14 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
       if (isPresenterRef.current) return // le présentateur ne s'applique pas à lui-même
       const v = videoRef.current
       if (!v) return
+
+      // Vitesse de lecture imposée par le présentateur (portée aussi par les
+      // heartbeats / la resync retardataire).
+      if (typeof evt.rate === 'number' && v.playbackRate !== evt.rate) {
+        v.playbackRate = evt.rate
+        setPlaybackRate(evt.rate)
+      }
+      if (evt.kind === 'rate') return // rien d'autre à appliquer
 
       if (evt.kind === 'playback') {
         beginApplyingRemote()
@@ -502,8 +518,11 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
         beginApplyingRemote()
         v.play().catch(() => {})
       }
-      // Recalage de position seulement en lecture.
-      if (!d.paused) {
+      // Recalage de position seulement en lecture, ET si la vidéo n'est pas déjà
+      // en train de chercher/bufferiser (readyState >= HAVE_FUTURE_DATA). Sinon,
+      // sur du HLS chiffré, on empilerait les seeks pendant le buffering -> le
+      // player n'arrive jamais à reprendre. On laisse le buffering se terminer.
+      if (!d.paused && !v.seeking && v.readyState >= 3) {
         const expected = d.position + (Date.now() - d.receivedAt) / 1000
         if (Math.abs(v.currentTime - expected) > DRIFT_THRESHOLD) {
           beginApplyingRemote()
@@ -625,6 +644,10 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
       return
     }
     const hls = new Hls({
+      // Garde ~5 min de segments déjà lus en mémoire : un seek ARRIÈRE retombe
+      // sur du buffer au lieu de re-télécharger + re-déchiffrer le segment (ce
+      // qui rendait le retour en arrière lent/impossible sur le flux chiffré).
+      backBufferLength: 300,
       xhrSetup: (xhr, url) => {
         if (url.includes('/keys/')) {
           const token = getToken()
@@ -632,24 +655,44 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
         }
       },
     })
-    let mediaRecover = 0
-    const clear = () => setVideoError(false)
+    let lastRecover = 0
+    let netRetry = 0
+    // Sur un chargement/segment réussi : on efface l'erreur ET on remet à zéro le
+    // compteur de retries réseau (les erreurs transitoires passées sont oubliées).
+    const clear = () => {
+      setVideoError(false)
+      netRetry = 0
+    }
     hls.on(Hls.Events.MANIFEST_PARSED, clear)
     hls.on(Hls.Events.FRAG_BUFFERED, clear)
     hls.on(Hls.Events.ERROR, (_evt, data) => {
       if (!data.fatal) return
       if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-        // stall / append error : on récupère (jusqu'à 3 fois) au lieu d'abandonner.
-        if (mediaRecover < 3) {
-          mediaRecover += 1
+        // stall / append error (fréquent au seek sur HLS ré-encodé) : on récupère
+        // SANS JAMAIS détruire le player. Garde-fou anti-boucle serrée : on ne
+        // relance une récupération que si la précédente date de > 2 s.
+        const now = Date.now()
+        if (now - lastRecover > 2000) {
+          lastRecover = now
           hls.recoverMediaError()
-        } else {
-          hls.destroy()
         }
       } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-        // clé/segment : on retente (utile si l'utilisateur vient de se connecter).
-        hls.startLoad()
+        const code = data.response?.code
+        // 404 = flux non provisionné (contenu sans HLS) ; 401/403 = accès refusé
+        // ou lien invité expiré : erreurs PERMANENTES -> on affiche l'erreur au
+        // lieu de retenter à l'infini (ce qui laissait « Chargement… » sans fin).
+        if (code === 404 || code === 401 || code === 403) {
+          setVideoError(true)
+        } else if (netRetry < 3) {
+          // Réseau transitoire : quelques retries.
+          netRetry += 1
+          hls.startLoad()
+        } else {
+          setVideoError(true)
+        }
       } else {
+        // Erreur vraiment irrécupérable (ex. manifest) : on signale, on arrête.
+        setVideoError(true)
         hls.destroy()
       }
     })
@@ -663,6 +706,8 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
     if (!videoRef.current) return
     videoRef.current.playbackRate = rate
     setPlaybackRate(rate)
+    // Présentateur : propager la vitesse aux invités (watch-together).
+    if (isPresenterRef.current) sendRate(rate)
   }
 
   // Nom du présentateur courant (pour le badge).
@@ -935,8 +980,15 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
                   key={rate}
                   className={`badge ${playbackRate === rate ? 'badge-accent' : 'wt-badge'}`}
                   onClick={() => setRate(rate)}
-                  title={`Vitesse ${rate}x`}
-                  style={{ cursor: 'pointer', padding: '0 6px' }}
+                  disabled={following}
+                  title={
+                    following ? 'Vitesse pilotée par le présentateur' : `Vitesse ${rate}x`
+                  }
+                  style={{
+                    cursor: following ? 'not-allowed' : 'pointer',
+                    padding: '0 6px',
+                    opacity: following ? 0.5 : 1,
+                  }}
                 >
                   {rate}x
                 </button>

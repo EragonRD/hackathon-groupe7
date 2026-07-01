@@ -7,6 +7,7 @@ import { AuthGuard } from './auth.guard'
 import { AdminGuard } from './admin.guard'
 import { SuperAdminGuard } from './superadmin.guard'
 import { PasswordChangedGuard } from './password-changed.guard'
+import { SessionService } from './session.service'
 import { UsersService } from './users.service'
 
 const WEAK_DEFAULT_SECRET = 'dev-secret-change-me'
@@ -54,6 +55,7 @@ function resolveJwtSecret(): string {
   providers: [
     AuthService,
     UsersService,
+    SessionService,
     AuthGuard,
     AdminGuard,
     SuperAdminGuard,
@@ -65,6 +67,7 @@ function resolveJwtSecret(): string {
     SuperAdminGuard,
     PasswordChangedGuard,
     UsersService,
+    SessionService,
     JwtModule,
   ],
 })

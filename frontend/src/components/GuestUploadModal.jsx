@@ -118,7 +118,20 @@ export default function GuestUploadModal({ onClose }) {
               )}
 
               {phase === 'sending' ? (
-                <p style={{ fontWeight: 600 }}>Envoi… {progress}%</p>
+                <>
+                  <p style={{ fontWeight: 600 }}>
+                    {progress < 100 ? 'Envoi de la vidéo…' : 'Traitement côté serveur…'}
+                  </p>
+                  <div className="progress-track">
+                    <div
+                      className={`progress-fill${progress >= 100 ? ' progress-indeterminate' : ''}`}
+                      style={progress < 100 ? { width: `${progress}%` } : undefined}
+                    />
+                  </div>
+                  <span className="progress-label">
+                    {progress < 100 ? `${progress}%` : 'Finalisation…'}
+                  </span>
+                </>
               ) : (
                 <button
                   className="btn btn-primary invite-gen"

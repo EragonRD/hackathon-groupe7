@@ -27,7 +27,7 @@ const DEMO_ACCOUNTS = [
   { name: 'carol', role: 'member' },
 ]
 
-export default function Login({ onAuthed }) {
+export default function Login({ onAuthed, notice = null }) {
   const [username, setUsername] = useState('alice')
   const [password, setPassword] = useState('password')
   const [error, setError] = useState(null)
@@ -207,6 +207,13 @@ export default function Login({ onAuthed }) {
 
           <h2 className="login-title">Connexion</h2>
           <p className="sub">Accédez à votre espace de revue.</p>
+
+          {notice && (
+            <div className="login-notice" role="status">
+              <Warning size={16} weight="fill" />
+              {notice}
+            </div>
+          )}
 
           <div className="field">
             <label className="field-label" htmlFor="login-user">

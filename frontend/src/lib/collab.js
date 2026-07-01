@@ -73,6 +73,15 @@ function socketTransport(session, { url } = {}) {
 
   const listeners = new Set()
   let socket = null
+  // File d'attente des messages émis AVANT que le socket ne soit connecté
+  // (l'import dynamique + la connexion sont asynchrones). Sans ça, le premier
+  // `join` applicatif — qui déclenche l'échange des notes existantes via
+  // `sync:state` — serait perdu, et les commentaires/dessins déjà présents ne
+  // se synchroniseraient jamais chez un nouvel arrivant.
+  const outbox = []
+  const flush = () => {
+    while (outbox.length) socket.emit('msg', { ...outbox.shift(), session })
+  }
 
   // Import dynamique : aucun coût/connexion tant que ce mode n'est pas choisi.
   import('socket.io-client')
@@ -83,8 +92,12 @@ function socketTransport(session, { url } = {}) {
         auth: { token },
         query: { session },
       })
-      // (Re)joindre la room à chaque connexion (couvre la reconnexion auto).
-      socket.on('connect', () => socket.emit('join', { session }))
+      // (Re)joindre la room à chaque connexion (couvre la reconnexion auto),
+      // PUIS rejouer les messages mis en file avant la connexion.
+      socket.on('connect', () => {
+        socket.emit('join', { session })
+        flush()
+      })
       socket.on('msg', (data) => {
         for (const fn of listeners) fn(data)
       })
@@ -99,7 +112,9 @@ function socketTransport(session, { url } = {}) {
   return {
     mode: 'socket',
     post(msg) {
-      if (socket) socket.emit('msg', { ...msg, session })
+      // Connecté -> envoi direct ; sinon on met en file (rejoué au `connect`).
+      if (socket && socket.connected) socket.emit('msg', { ...msg, session })
+      else outbox.push(msg)
     },
     subscribe(fn) {
       listeners.add(fn)

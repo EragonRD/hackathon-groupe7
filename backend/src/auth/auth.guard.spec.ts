@@ -1,6 +1,7 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { AuthGuard } from './auth.guard'
+import { SessionService } from './session.service'
 
 const JWT_SECRET = 'test-secret-with-enough-length'
 
@@ -24,7 +25,7 @@ describe('AuthGuard', () => {
       secret: JWT_SECRET,
       signOptions: { algorithm: 'HS256', expiresIn: '15m' },
     })
-    guard = new AuthGuard(jwt)
+    guard = new AuthGuard(jwt, new SessionService(false))
   })
 
   it('rejects a missing authorization header', async () => {
@@ -83,5 +84,56 @@ describe('AuthGuard', () => {
     await expect(
       guard.canActivate(httpContext({ headers: { authorization: `Bearer ${token}` } })),
     ).rejects.toBeInstanceOf(UnauthorizedException)
+  })
+
+  // Mono-session (le dernier login gagne) : quand l'enforcement est actif, un token
+  // dont le `sid` n'est plus la session courante du compte est refusé.
+  describe('mono-session enforcement', () => {
+    it('rejects a token whose session has been superseded', async () => {
+      const sessions = new SessionService(true)
+      const g = new AuthGuard(jwt, sessions)
+      sessions.setActive(1, 'NEW-SESSION')
+      const token = await jwt.signAsync({
+        sub: 1,
+        username: 'alice',
+        role: 'admin',
+        sid: 'OLD-SESSION',
+      })
+
+      await expect(
+        g.canActivate(httpContext({ headers: { authorization: `Bearer ${token}` } })),
+      ).rejects.toBeInstanceOf(UnauthorizedException)
+    })
+
+    it('accepts the token of the current session', async () => {
+      const sessions = new SessionService(true)
+      const g = new AuthGuard(jwt, sessions)
+      sessions.setActive(1, 'CURRENT')
+      const token = await jwt.signAsync({
+        sub: 1,
+        username: 'alice',
+        role: 'admin',
+        sid: 'CURRENT',
+      })
+
+      await expect(
+        g.canActivate(httpContext({ headers: { authorization: `Bearer ${token}` } })),
+      ).resolves.toBe(true)
+    })
+
+    it('fail-open when no session is recorded yet (e.g. after a restart)', async () => {
+      const sessions = new SessionService(true)
+      const g = new AuthGuard(jwt, sessions)
+      const token = await jwt.signAsync({
+        sub: 1,
+        username: 'alice',
+        role: 'admin',
+        sid: 'ANY',
+      })
+
+      await expect(
+        g.canActivate(httpContext({ headers: { authorization: `Bearer ${token}` } })),
+      ).resolves.toBe(true)
+    })
   })
 })

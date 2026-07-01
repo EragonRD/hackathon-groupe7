@@ -204,6 +204,12 @@ export function useReview({ session, user, mode }) {
             emitPlayback({ kind: 'heartbeat', ...msg.payload })
           }
           break
+        case 'wt:rate':
+          // Vitesse de lecture imposée par le présentateur.
+          if (msg.from === presenterIdRef.current) {
+            emitPlayback({ kind: 'rate', rate: msg.payload?.rate })
+          }
+          break
         default:
           break
       }
@@ -485,15 +491,25 @@ export function useReview({ session, user, mode }) {
     [self.id],
   )
 
-  // Battement régulier (anti-dérive) émis par le présentateur.
+  // Battement régulier (anti-dérive) émis par le présentateur. Porte aussi la
+  // vitesse de lecture pour la resynchroniser (retardataire / robustesse).
   const sendHeartbeat = useCallback(
-    ({ position, paused }) => {
-      lastPlaybackRef.current = { paused, position, at: Date.now() }
+    ({ position, paused, rate }) => {
+      lastPlaybackRef.current = { paused, position, rate, at: Date.now() }
       transportRef.current?.post({
         type: 'wt:heartbeat',
         from: self.id,
-        payload: { position, paused, at: Date.now() },
+        payload: { position, paused, rate, at: Date.now() },
       })
+    },
+    [self.id],
+  )
+
+  // Changement de vitesse de lecture par le présentateur (appliqué chez les invités).
+  const sendRate = useCallback(
+    (rate) => {
+      lastPlaybackRef.current = { ...(lastPlaybackRef.current || {}), rate }
+      transportRef.current?.post({ type: 'wt:rate', from: self.id, payload: { rate } })
     },
     [self.id],
   )
@@ -528,6 +544,7 @@ export function useReview({ session, user, mode }) {
     releasePresenter,
     sendPlayback,
     sendHeartbeat,
+    sendRate,
     subscribePlayback,
   }
 }

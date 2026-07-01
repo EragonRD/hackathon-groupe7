@@ -21,12 +21,24 @@ const AdminPanel = lazy(() => import('./components/admin/AdminPanel.jsx'))
 // nettoie l'URL. Retourne { contentId, session } ou null.
 function parseGuestLink() {
   try {
-    const token = new URLSearchParams(window.location.search).get('guest')
+    // 1. Lien fraîchement ouvert : ?guest=<token> dans l'URL -> on le stocke et
+    //    on nettoie l'URL.
+    const fromUrl = new URLSearchParams(window.location.search).get('guest')
+    if (fromUrl) {
+      localStorage.setItem('hackathon_token', fromUrl)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    // 2. Rechargement : on retombe sur le token invité déjà stocké -> l'invité
+    //    revient dans sa session sans avoir à rouvrir le lien.
+    const token = fromUrl ?? localStorage.getItem('hackathon_token')
     if (!token) return null
-    localStorage.setItem('hackathon_token', token)
     const claims = JSON.parse(atob(token.split('.')[1]))
-    window.history.replaceState({}, '', window.location.pathname)
     if (claims?.role !== 'guest' || !claims.contentId) return null
+    // Token invité périmé : on le nettoie -> retour à l'accueil normal.
+    if (claims.exp && Date.now() / 1000 > claims.exp) {
+      localStorage.removeItem('hackathon_token')
+      return null
+    }
     return { contentId: claims.contentId, session: claims.session ?? claims.contentId }
   } catch {
     return null
@@ -55,6 +67,8 @@ export default function App() {
   const [reviewPeers, setReviewPeers] = useState([])
   const [inviteContent, setInviteContent] = useState(null)
   const [guestUploadOpen, setGuestUploadOpen] = useState(false)
+  // Message affiché sur l'écran de connexion après une expulsion mono-session.
+  const [authNotice, setAuthNotice] = useState(null)
 
   // Réhydrate la session si un token est déjà présent (rechargement de page).
   // En mode invité, on saute la réhydratation (pas de compte à récupérer).
@@ -74,15 +88,33 @@ export default function App() {
     }
   }, [guestMode])
 
-  // Token expiré (intercepteur 401 d'authFetch) -> retour à l'écran de connexion.
+  // Token expiré ou session supersédée (intercepteur 401 d'authFetch) -> retour à
+  // l'écran de connexion. Le motif `session_superseded` (mono-session : le compte a
+  // été rouvert ailleurs) affiche un message dédié.
   useEffect(() => {
-    function onExpired() {
+    function onExpired(e) {
       setUser(null)
       setView({ name: 'catalogue' })
+      setAuthNotice(
+        e?.detail?.reason === 'session_superseded'
+          ? 'Vous avez été déconnecté par une autre session.'
+          : null,
+      )
     }
     window.addEventListener('auth:expired', onExpired)
     return () => window.removeEventListener('auth:expired', onExpired)
   }, [])
+
+  // Mono-session : battement léger pour détecter l'expulsion même si l'utilisateur
+  // est inactif. `me()` déclenche l'intercepteur 401 -> `auth:expired` si supersédé.
+  // Pas de battement en mode invité (pas de compte mono-session).
+  useEffect(() => {
+    if (!user || user.role === 'guest') return undefined
+    const id = setInterval(() => {
+      me()
+    }, 15000)
+    return () => clearInterval(id)
+  }, [user])
 
   function handleLogout() {
     logout()
@@ -122,7 +154,15 @@ export default function App() {
   }
 
   if (!user) {
-    return <Login onAuthed={setUser} />
+    return (
+      <Login
+        notice={authNotice}
+        onAuthed={(u) => {
+          setAuthNotice(null)
+          setUser(u)
+        }}
+      />
+    )
   }
 
   // Admin invité : tant que le mot de passe temporaire n'est pas remplacé, le
@@ -191,7 +231,7 @@ export default function App() {
       user={user}
       onLogout={handleLogout}
       onBack={showBack ? goToCatalogue : undefined}
-      onHome={goToCatalogue}
+      onHome={isGuest ? undefined : goToCatalogue}
       onOpenDocs={() => setView({ name: 'docs' })}
       title={titles[view.name]}
       right={
