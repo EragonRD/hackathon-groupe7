@@ -3318,7 +3318,7 @@
 }
 .copy-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--s-2);
 }
 .copy-row-label {
@@ -3328,14 +3328,18 @@
 }
 .copy-row-value {
   flex: 1;
+  min-width: 0; /* autorise le rétrécissement sous la taille du contenu (flexbox) */
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--text);
   background: var(--bg-inset);
   padding: 6px 10px;
   border-radius: var(--r-sm);
-  overflow-x: auto;
-  white-space: nowrap;
+  /* URL longue (JWT) : on l'enveloppe DANS le cadre au lieu de déborder */
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  max-height: 96px;
+  overflow-y: auto;
 }
 
 @media (max-width: 720px) {
