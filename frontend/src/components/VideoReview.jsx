@@ -616,6 +616,10 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
       return
     }
     const hls = new Hls({
+      // Garde ~5 min de segments déjà lus en mémoire : un seek ARRIÈRE retombe
+      // sur du buffer au lieu de re-télécharger + re-déchiffrer le segment (ce
+      // qui rendait le retour en arrière lent/impossible sur le flux chiffré).
+      backBufferLength: 300,
       xhrSetup: (xhr, url) => {
         if (url.includes('/keys/')) {
           const token = getToken()
@@ -623,24 +627,27 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
         }
       },
     })
-    let mediaRecover = 0
+    let lastRecover = 0
     const clear = () => setVideoError(false)
     hls.on(Hls.Events.MANIFEST_PARSED, clear)
     hls.on(Hls.Events.FRAG_BUFFERED, clear)
     hls.on(Hls.Events.ERROR, (_evt, data) => {
       if (!data.fatal) return
       if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-        // stall / append error : on récupère (jusqu'à 3 fois) au lieu d'abandonner.
-        if (mediaRecover < 3) {
-          mediaRecover += 1
+        // stall / append error (fréquent au seek sur HLS ré-encodé) : on récupère
+        // SANS JAMAIS détruire le player. Garde-fou anti-boucle serrée : on ne
+        // relance une récupération que si la précédente date de > 2 s.
+        const now = Date.now()
+        if (now - lastRecover > 2000) {
+          lastRecover = now
           hls.recoverMediaError()
-        } else {
-          hls.destroy()
         }
       } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
         // clé/segment : on retente (utile si l'utilisateur vient de se connecter).
         hls.startLoad()
       } else {
+        // Erreur vraiment irrécupérable (ex. manifest) : on signale, on arrête.
+        setVideoError(true)
         hls.destroy()
       }
     })
