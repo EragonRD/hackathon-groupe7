@@ -20,7 +20,13 @@ function resolveHlsDir(): string {
 // Chiffrement HLS = ré-encodage libx264 (très CPU). On borne le nombre de jobs
 // ffmpeg SIMULTANÉS : sans ça, N uploads en parallèle lancent N ffmpeg et
 // saturent le CPU (voire l'OOM), ralentissant tout le service. File d'attente FIFO.
-const MAX_CONCURRENT_ENCODES = Number(process.env.MAX_CONCURRENT_ENCODES ?? 1)
+// Validation stricte : une valeur absente/invalide/<=0 (ex: "0", "abc", NaN)
+// retomberait sur 0 ou NaN et gèlerait TOUS les encodages à vie. On plancher à 1.
+function parseMaxEncodes(raw: string | undefined): number {
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 1 ? n : 1
+}
+const MAX_CONCURRENT_ENCODES = parseMaxEncodes(process.env.MAX_CONCURRENT_ENCODES)
 
 @Injectable()
 export class UploadService {
@@ -51,9 +57,11 @@ export class UploadService {
   }
 
   // Lance le chiffrement en TÂCHE DE FOND (ne bloque pas la requête d'upload) :
-  // met le contenu en `ready` / `failed` et nettoie le fichier temporaire.
-  encryptInBackground(contentId: string, inputPath: string): void {
-    void this.encrypt(contentId, inputPath)
+  // met le contenu en `ready` / `failed`. La suppression du fichier temporaire
+  // clair est coordonnée par l'appelant (contrôleur), APRÈS que l'Engine l'a aussi
+  // lu — d'où la promesse renvoyée. On n'efface donc PAS le fichier ici.
+  encryptInBackground(contentId: string, inputPath: string): Promise<void> {
+    return this.encrypt(contentId, inputPath)
       .then(() => {
         this.contents.setStatus(contentId, 'ready')
         this.logger.log(`Contenu ${contentId} chiffré → prêt`)
@@ -61,9 +69,6 @@ export class UploadService {
       .catch((e: unknown) => {
         this.contents.setStatus(contentId, 'failed')
         this.logger.error(`Échec chiffrement ${contentId} : ${(e as Error).message}`)
-      })
-      .finally(() => {
-        void rm(inputPath, { force: true }).catch(() => {})
       })
   }
 

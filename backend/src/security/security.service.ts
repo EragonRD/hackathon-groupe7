@@ -13,8 +13,24 @@ const SEGMENT_ALERT_THRESHOLD = 8
 const SEGMENT_BLOCK_THRESHOLD = 20
 const ALERT_DEDUPE_MS = 30 * 1000
 const MAX_TRAFFIC_EVENTS = 2_000
+// Capture d'écran (heuristique client) : plancher sous lequel on ignore le signal
+// (bruit), et seuil au-dessus duquel l'alerte passe en action 'block' (visuel).
+const CAPTURE_MIN_RISK = 40
+const CAPTURE_BLOCK_RISK = 80
 
-export type SecurityAlertType = 'multi_session' | 'proxy_ip' | 'segment_scrape'
+export type SecurityAlertType =
+  'multi_session' | 'proxy_ip' | 'segment_scrape' | 'screen_capture'
+
+// Signaux de risque de capture d'écran remontés par le client (heuristiques).
+export interface CaptureSignalInput {
+  account?: string | number
+  username?: string
+  ip: string
+  contentId?: string
+  session?: string
+  risk: number // 0..100 (score calculé côté client, revalidé/borné ici)
+  signals: string[] // ex: ['page_inactive', 'extended_display', 'devtools']
+}
 
 export interface SecurityRequestInput {
   account?: string | number
@@ -309,6 +325,29 @@ export class SecurityService implements OnModuleInit {
         event.tsMs >= cutoff &&
         this.isSegmentRequest(event.path),
     )
+  }
+
+  // Enregistre un signal de RISQUE de capture d'écran (heuristique remontée par le
+  // client) comme alerte de sécurité — visible dans le dashboard de surveillance et
+  // journalisée. Ce n'est PAS une preuve de capture (le navigateur n'en expose
+  // aucune) : c'est un score de risque agrégé, à valeur dissuasive et de traçabilité.
+  async recordCaptureSignal(
+    input: CaptureSignalInput,
+  ): Promise<SecurityAlert | undefined> {
+    const now = Date.now()
+    const risk = Math.max(0, Math.min(100, Math.round(Number(input.risk) || 0)))
+    // Sous le plancher : bruit, on ignore pour ne pas inonder le dashboard.
+    if (risk < CAPTURE_MIN_RISK) return undefined
+    const signals = (input.signals ?? []).slice(0, 8).map((s) => String(s).slice(0, 40))
+    const where = input.contentId ? ` sur "${String(input.contentId).slice(0, 60)}"` : ''
+    return this.createAlert(now, {
+      type: 'screen_capture',
+      account: input.account !== undefined ? String(input.account) : undefined,
+      username: input.username,
+      ip: input.ip,
+      detail: `Risque capture ${risk}/100${where} [${signals.join(', ') || 'n/a'}]`,
+      action: risk >= CAPTURE_BLOCK_RISK ? 'block' : 'flag',
+    })
   }
 
   private async createAlert(

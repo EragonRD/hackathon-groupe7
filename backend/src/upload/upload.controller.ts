@@ -12,6 +12,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express'
 import { randomBytes } from 'crypto'
 import { existsSync, mkdirSync } from 'fs'
+import { rm } from 'fs/promises'
 import { diskStorage } from 'multer'
 import { tmpdir } from 'os'
 import { extname, join } from 'path'
@@ -93,12 +94,17 @@ export class UploadController {
       companyId,
       ownerUsername: me.username,
     })
-    // Analyse IA (Engine) déclenchée sur la vidéo EN CLAIR, à l'ingestion — AVANT
-    // que le chiffrement ne consomme/supprime le fichier temporaire. (POSIX : le
-    // unlink après ouverture ne casse pas la lecture déjà en cours.)
-    this.analysis.startFromFile(content.id, file.path)
-    // Chiffrement HLS en tâche de fond : la réponse revient tout de suite.
-    this.upload.encryptInBackground(content.id, file.path)
+    // Deux consommateurs lisent le MÊME fichier temporaire clair, en parallèle :
+    //  - l'Engine (analyse IA), qui streame le fichier (openAsBlob, lecture paresseuse) ;
+    //  - le chiffrement HLS, qui le ré-encode.
+    // Le fichier ne doit être SUPPRIMÉ qu'une fois que LES DEUX ont fini de le lire :
+    // sinon un rm prématuré (chiffrement rapide) casse le stream de l'Engine
+    // (ENOENT) et l'analyse échoue silencieusement. On coordonne donc la suppression.
+    const analysisSent = this.analysis.startFromFile(content.id, file.path)
+    const encoded = this.upload.encryptInBackground(content.id, file.path)
+    void Promise.allSettled([analysisSent, encoded]).finally(() => {
+      void rm(file.path, { force: true }).catch(() => {})
+    })
 
     return {
       ...content,

@@ -26,6 +26,7 @@ import { getToken } from '../auth'
 import DrawingCanvas from './DrawingCanvas'
 import CommentPanel from './CommentPanel'
 import { useReview } from '../lib/useReview'
+import { useCaptureDetection } from '../lib/useCaptureDetection'
 import { formatTime } from '../lib/format'
 
 // ============================================================================
@@ -100,6 +101,32 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
   const [ready, setReady] = useState(false)
   const [videoError, setVideoError] = useState(false)
   const [playbackRate, setPlaybackRate] = useState(1)
+
+  // Protection capture ("Capture Guard") : agrège des signaux de risque, occulte
+  // le flux quand la page n'est plus active, et remonte le risque au Core pour le
+  // dashboard de surveillance (voir lib/useCaptureDetection). Filet complémentaire :
+  // watermark dynamique (identité + horloge) incrusté en permanence.
+  const { guarded, risk: captureRisk } = useCaptureDetection({
+    session,
+    contentId: source,
+    playing,
+  })
+  const [wmClock, setWmClock] = useState('')
+  useEffect(() => {
+    const tick = () =>
+      setWmClock(
+        new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'medium' }),
+      )
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
+  // Quand la page est masquée, on met AUSSI la lecture en pause (coupe le son et
+  // gèle l'image sous l'overlay).
+  useEffect(() => {
+    if (guarded) videoRef.current?.pause()
+  }, [guarded])
+  const watermark = `${user?.username ?? 'invité'} · ${session ?? ''} · ${wmClock}`
 
   const [tool, setTool] = useState('cursor')
   const [color, setColor] = useState('#f5a623')
@@ -664,6 +691,38 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
             {videoError && (
               <div className="video-state error" role="alert">
                 Source vidéo illisible.
+              </div>
+            )}
+            {/* Watermark dynamique : identité + horloge, incrusté en tuiles.
+               aria-hidden + pointer-events:none pour ne pas gêner l'usage.
+               Plus le risque de capture est élevé, plus il est visible. */}
+            <div
+              className={`wm-layer${captureRisk >= 40 ? ' wm-strong' : ''}`}
+              aria-hidden="true"
+            >
+              {Array.from({ length: 6 }).map((_, i) => (
+                <span key={i} className="wm-tile">
+                  {watermark}
+                </span>
+              ))}
+            </div>
+            {/* Indicateur discret de risque de capture (hors occultation). */}
+            {!guarded && captureRisk >= 40 && (
+              <div
+                className="capture-risk"
+                role="status"
+                title="Signaux de risque de capture"
+              >
+                Risque capture {captureRisk}/100
+              </div>
+            )}
+            {/* Occultation "vidéo noir" quand la page n'est plus active/visible. */}
+            {guarded && (
+              <div className="capture-shield" role="status">
+                <div className="capture-shield-mark">Lecture masquée</div>
+                <div className="capture-shield-sub">
+                  Revenez sur la fenêtre pour reprendre.
+                </div>
               </div>
             )}
             <DrawingCanvas

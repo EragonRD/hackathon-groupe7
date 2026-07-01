@@ -49,9 +49,13 @@ export function getToken() {
   return localStorage.getItem(TOKEN_KEY)
 }
 
-// Tente de renouveler l'access token via le refresh token (rotation côté serveur).
-// Renvoie true si un nouveau token a été stocké, false sinon (refresh absent/expiré).
-async function tryRefresh() {
+// Le refresh token est à USAGE UNIQUE (rotaté côté serveur). Si plusieurs requêtes
+// tombent en 401 en même temps, elles doivent partager UN SEUL appel /auth/refresh :
+// sinon la 1re consomme le token et les suivantes échouent → déconnexion parasite.
+// On mémorise donc la promesse de refresh en cours et tout le monde l'attend.
+let refreshInFlight = null
+
+async function doRefresh() {
   const refreshToken = localStorage.getItem(REFRESH_KEY)
   if (!refreshToken) return false
   try {
@@ -67,6 +71,17 @@ async function tryRefresh() {
   } catch {
     return false
   }
+}
+
+// Tente de renouveler l'access token, en coalisant les appels concurrents.
+// Renvoie true si un nouveau token a été stocké, false sinon (refresh absent/expiré).
+function tryRefresh() {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh().finally(() => {
+      refreshInFlight = null
+    })
+  }
+  return refreshInFlight
 }
 
 // Claims du JWT décodés depuis le payload (sans appel réseau, sans vérif de

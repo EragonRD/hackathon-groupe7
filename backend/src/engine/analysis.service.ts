@@ -50,23 +50,25 @@ export class AnalysisService {
 
   // Déclenche l'analyse depuis le fichier CLAIR (à l'ingestion — la vidéo n'est pas
   // encore chiffrée). Idempotent : ne relance pas si déjà `done`/`processing`.
-  startFromFile(contentId: string, filePath: string): void {
+  // La promesse renvoyée se résout dès que l'Engine a REÇU le fichier (upload
+  // terminé) — pas à la fin de l'analyse : le polling se poursuit en arrière-plan.
+  // Elle permet à l'appelant de savoir quand le fichier temporaire clair peut être
+  // supprimé sans casser le stream d'upload (cf. upload.controller).
+  async startFromFile(contentId: string, filePath: string): Promise<void> {
     const existing = this.records.get(contentId)
     if (existing && (existing.status === 'done' || existing.status === 'processing'))
       return
     this.set(contentId, { status: 'processing' })
-    void this.engine
-      .analyzeFile(filePath)
-      .then((jobId) => {
-        this.set(contentId, { status: 'processing', jobId })
-        this.poll(contentId, jobId, Date.now())
+    try {
+      const jobId = await this.engine.analyzeFile(filePath)
+      this.set(contentId, { status: 'processing', jobId })
+      this.poll(contentId, jobId, Date.now())
+    } catch (e: unknown) {
+      this.set(contentId, {
+        status: 'error',
+        error: `Engine indisponible : ${(e as Error).message}`,
       })
-      .catch((e: unknown) => {
-        this.set(contentId, {
-          status: 'error',
-          error: `Engine indisponible : ${(e as Error).message}`,
-        })
-      })
+    }
   }
 
   async search(contentId: string, query: string, k: number): Promise<unknown> {

@@ -3,6 +3,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
@@ -18,12 +19,14 @@ const LOCK_MS = 5 * 60 * 1000
 // Borne mémoire : au-delà, on purge les entrées expirées (anti-OOM si spray d'usernames).
 const MAX_ATTEMPT_ENTRIES = 10_000
 
-// Verrou AGRÉGÉ par compte (toutes IP confondues) : bloque le brute-force
-// DISTRIBUÉ (botnet, rotation d'IP) que le verrou par couple (IP, compte) laisse
-// passer. Seuil plus haut pour ne pas permettre un déni de service trivial d'un
-// compte tiers ; verrou plus court. Un login réussi remet ce compteur à zéro.
-const ACCOUNT_MAX_FAILS = 25
-const ACCOUNT_LOCK_MS = 15 * 60 * 1000
+// Détection (NON bloquante) du brute-force DISTRIBUÉ : au-delà de ce seuil
+// d'échecs agrégés par compte (toutes IP confondues) dans la fenêtre, on émet une
+// ALERTE de sécurité. On NE verrouille surtout PAS le compte : un lockout par
+// compte serait un vecteur de déni de service (un tiers pourrait bloquer une
+// victime depuis d'autres IP, même avec le bon mot de passe). La vraie protection
+// reste le hachage Argon2 + le rate-limit par IP (couche anti-abus / middleware).
+const ACCOUNT_ALERT_THRESHOLD = 50
+const ACCOUNT_ALERT_WINDOW_MS = 15 * 60 * 1000
 
 // Refresh tokens : durée de vie et store révocable (vrai logout).
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -41,11 +44,11 @@ export class AuthService {
     { fails: number; lockedUntil: number; ts: number }
   >()
 
-  // Compteur agrégé par compte (clé = username) pour le brute-force distribué.
-  private readonly accountAttempts = new Map<
-    string,
-    { fails: number; lockedUntil: number; ts: number }
-  >()
+  private readonly logger = new Logger(AuthService.name)
+
+  // Compteur agrégé par compte (clé = username), SANS verrou : sert uniquement à
+  // détecter/alerter sur un brute-force distribué (jamais à bloquer — anti-DoS).
+  private readonly accountFails = new Map<string, { fails: number; ts: number }>()
 
   // Store des refresh tokens (révocables) : token opaque -> session.
   private readonly refreshTokens = new Map<
@@ -64,14 +67,11 @@ export class AuthService {
     const now = Date.now()
     const key = `${ip}|${username}`
     const record = this.attempts.get(key)
-    const accountRecord = this.accountAttempts.get(username)
 
-    // Couple (IP, compte) OU compte (toutes IP) verrouillé : on refuse sans même
-    // tester le mot de passe. Le 2e verrou attrape le brute-force distribué.
-    if (
-      (record && record.lockedUntil > now) ||
-      (accountRecord && accountRecord.lockedUntil > now)
-    ) {
+    // Couple (IP, compte) verrouillé : on refuse sans même tester le mot de passe.
+    // On ne verrouille QUE ce couple (pas le compte global) pour ne pas permettre
+    // à un tiers de bloquer une victime depuis d'autres IP.
+    if (record && record.lockedUntil > now) {
       throw new HttpException(
         'Trop de tentatives, reessayez plus tard',
         HttpStatus.TOO_MANY_REQUESTS,
@@ -84,7 +84,7 @@ export class AuthService {
     const passwordOk = await argon2.verify(user?.passwordHash ?? DUMMY_HASH, password)
     if (!user || !passwordOk) {
       this.registerFailure(key, now)
-      this.registerAccountFailure(username, now)
+      this.noteAccountFailure(username, now)
       throw new UnauthorizedException('Identifiants invalides')
     }
 
@@ -97,7 +97,7 @@ export class AuthService {
 
     // Succès : on remet les compteurs à zéro (couple ET compte).
     this.attempts.delete(key)
-    this.accountAttempts.delete(username)
+    this.accountFails.delete(username)
     return this.issueSession(user)
   }
 
@@ -197,21 +197,32 @@ export class AuthService {
     this.attempts.set(key, record)
   }
 
-  // Incrémente le compteur AGRÉGÉ par compte (anti-brute-force distribué).
-  private registerAccountFailure(username: string, now: number): void {
-    this.pruneAccountAttempts(now)
-    const record = this.accountAttempts.get(username) ?? {
-      fails: 0,
-      lockedUntil: 0,
-      ts: now,
+  // Compte les échecs AGRÉGÉS par compte (fenêtre glissante) et émet une ALERTE
+  // si le seuil est franchi. NE bloque jamais (anti-DoS) : simple visibilité sur
+  // un éventuel brute-force distribué (rotation d'IP).
+  private noteAccountFailure(username: string, now: number): void {
+    // Borne mémoire : purge opportuniste des entrées hors fenêtre.
+    if (this.accountFails.size > MAX_ATTEMPT_ENTRIES) {
+      for (const [k, r] of this.accountFails) {
+        if (now - r.ts > ACCOUNT_ALERT_WINDOW_MS) this.accountFails.delete(k)
+      }
     }
-    record.fails += 1
-    record.ts = now
-    if (record.fails >= ACCOUNT_MAX_FAILS) {
-      record.lockedUntil = now + ACCOUNT_LOCK_MS
-      record.fails = 0
+    const rec = this.accountFails.get(username)
+    // Hors fenêtre (ou 1re fois) : on repart de zéro.
+    if (!rec || now - rec.ts > ACCOUNT_ALERT_WINDOW_MS) {
+      this.accountFails.set(username, { fails: 1, ts: now })
+      return
     }
-    this.accountAttempts.set(username, record)
+    rec.fails += 1
+    rec.ts = now
+    if (rec.fails >= ACCOUNT_ALERT_THRESHOLD) {
+      this.logger.warn(
+        `Brute-force distribué suspecté sur le compte "${username}" : ` +
+          `${rec.fails} échecs agrégés (multi-IP) en ${ACCOUNT_ALERT_WINDOW_MS / 60000} min. ` +
+          `Aucune action bloquante (protection anti-DoS).`,
+      )
+      rec.fails = 0
+    }
   }
 
   // Borne la mémoire : purge les entrées dont le verrou et l'activité sont expirés.
@@ -219,14 +230,6 @@ export class AuthService {
     if (this.attempts.size < MAX_ATTEMPT_ENTRIES) return
     for (const [k, r] of this.attempts) {
       if (r.lockedUntil < now && now - r.ts > LOCK_MS) this.attempts.delete(k)
-    }
-  }
-
-  private pruneAccountAttempts(now: number): void {
-    if (this.accountAttempts.size < MAX_ATTEMPT_ENTRIES) return
-    for (const [k, r] of this.accountAttempts) {
-      if (r.lockedUntil < now && now - r.ts > ACCOUNT_LOCK_MS)
-        this.accountAttempts.delete(k)
     }
   }
 }
