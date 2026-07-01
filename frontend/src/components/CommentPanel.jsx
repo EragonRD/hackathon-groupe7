@@ -348,6 +348,11 @@ export default function CommentPanel({
             </>
           )}
         </div>
+        {draftCount > 0 && (
+          <p className="composer-hint">
+            Le dessin sera partagé avec les participants une fois le commentaire publié.
+          </p>
+        )}
         <textarea
           placeholder="Écrire un commentaire à cet instant…"
           value={text}

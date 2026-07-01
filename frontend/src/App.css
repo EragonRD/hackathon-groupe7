@@ -1878,6 +1878,12 @@
   font-family: var(--font-mono);
   color: var(--accent-strong);
 }
+.composer-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
 .composer textarea {
   width: 100%;
   resize: none;
