@@ -945,6 +945,27 @@
   margin-top: 6px;
 }
 
+/* Titre de section du catalogue (Vos contenus / Vidéos locales) */
+.cat-section {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin: var(--s-6) 0 var(--s-3);
+}
+.cat-section:first-of-type {
+  margin-top: var(--s-4);
+}
+/* Squelette de chargement d'une carte contenu (réutilise admin-pulse) */
+.vid-card-skeleton {
+  aspect-ratio: 16 / 9;
+  min-height: 150px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .vid-card-skeleton {
+    animation: admin-pulse 1.4s var(--ease) infinite;
+  }
+}
+
 .cat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));

@@ -160,7 +160,8 @@ export default function App() {
       {view.name === 'catalogue' && (
         <Catalogue
           onOpen={(video) => setView({ name: 'secure', video })}
-          onOpenSecure={() => setView({ name: 'secure', contentId: 'poc' })}
+          onOpenSecure={(contentId) => setView({ name: 'secure', contentId })}
+          onOpenAdmin={() => setView({ name: 'admin' })}
         />
       )}
     </AppShell>
