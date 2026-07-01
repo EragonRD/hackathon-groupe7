@@ -73,11 +73,11 @@ Deux sujets sont menés en parallèle :
 - [x] ✅ Recherche sémantique + traduction multilingue (Izlene) — `app/nlp/search.py` + `translate.py` (NLLB-200)
 - [x] ✅ Pipeline testé (11 tests, cf. `todo/context-state.md`) ; corpus `tests/examples/`
 
-### Phase 2 — Squad Data (3B) — 🔴 À FAIRE (aucun code)
-- [ ] ❌ Courbe de rétention + détection zones d'ennui + mesure vs corrigé (Otman)
-- [ ] ❌ Modèle prédictif scikit-learn, features sans fuite, MAE/R² (Amina)
-- [ ] ❌ Dashboard Streamlit + comparaison vidéos (Faycal) — *`dashboard/app.py` = placeholder*
-- [ ] ❌ Lecture business + doc reproductible (Hassane)
+### Phase 2 — Squad Data (3B)
+- [x] ✅ Courbe de rétention + détection zones d'ennui + mesure vs corrigé (Otman) — P=0.69 R=0.86 F1=0.77
+- [x] ✅ Modèle prédictif scikit-learn, features sans fuite, MAE/R² (Amina) — Ridge, MAE 0.069, R² 0.56 (LOO-CV)
+- [x] ✅ Dashboard Streamlit + comparaison vidéos (Faycal) — `dashboard/app.py`, 4 onglets
+- [x] ✅ Lecture business + doc reproductible (Hassane) — `engine/docs/business-3b.md`
 
 ### Phase 3 — Intégration (Bloc B)
 - [x] ✅ **Core appelle l'Engine** (P2↔P3 : orchestration par `contentId`, service Docker)
@@ -113,7 +113,7 @@ Deux sujets sont menés en parallèle :
 | 2026-06-30 | Plan de tests + benchmark perf chiffré (`tests/`) | ✅ |
 | 2026-06-30 | **Tâche 10 — API Engine** (endpoints, auth JWT, jobs async, orchestration) | ✅ testé E2E |
 | 2026-06-30 | Tâches 20/21/22 (transcription, résumé/chapitres/mots-clés, recherche/traduction) | ✅ implémentées |
-| 2026-07-01 | Tâches 30→33 (Data 3B) | ❌ non commencées (aucun code) |
+| 2026-07-01 | **Tâches 30-33 — Squad Data (3B)** : rétention, détection, modèle, dashboard, business doc (`app/data/`, `dashboard/app.py`, `docs/business-3b.md`) + API JSON bonus (`app/data/api/`) | ✅ |
 | 2026-07-01 | Bloc B : P2↔P3 ✅ · P1↔P3 (View) ❌ | ⏳ partiel |
 
 ## 9. Résumé Non-Technique

@@ -13,12 +13,12 @@ Transformer les logs en **courbe de rétention** par vidéo et **détecter les z
 - Alimente : 31 (features dérivées éventuelles), 32 (dashboard), 33 (business).
 
 ## Étapes (checklist)
-- [ ] ❌ Lire `DATA_SCHEMA.md` : comprendre colonnes + définition de la cible
-- [ ] ❌ Construire la courbe de rétention par position (% audience encore présente)
-- [ ] ❌ Détecter les zones d'ennui : chutes de rétention / pics pauses / retours arrière
-- [ ] ❌ Charger `ground_truth_hotspots.csv` **uniquement pour mesurer**
-- [ ] ❌ Calculer **précision / rappel** détection vs corrigé
-- [ ] ❌ Module `app/data/retention.py` : fonctions réutilisables par le dashboard
+- [x] ✅ Lire `DATA_SCHEMA.md` : comprendre colonnes + définition de la cible
+- [x] ✅ Construire la courbe de rétention par position (% audience encore présente)
+- [x] ✅ Détecter les zones d'ennui : chutes de rétention / pics pauses / retours arrière
+- [x] ✅ Charger `ground_truth_hotspots.csv` **uniquement pour mesurer**
+- [x] ✅ Calculer **précision / rappel** détection vs corrigé — P=0.69 R=0.86 F1=0.77
+- [x] ✅ Module `app/data/retention.py` : fonctions réutilisables par le dashboard (+ `app/data/hotspots.py`, `app/data/data_loader.py`)
 
 ## Critères « fait »
 - Courbe de rétention correcte par vidéo.
