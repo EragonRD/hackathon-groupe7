@@ -221,7 +221,7 @@ function ContentCard({ content, onOpenSecure }) {
   }
 
   return (
-    <button className="vid-card" onClick={() => onOpenSecure(content.id)}>
+    <button className="vid-card" onClick={() => onOpenSecure(content)}>
       <div className="vid-thumb">
         <ShieldCheck size={34} weight="light" color="var(--accent-strong)" />
         <div className="play-badge">
@@ -235,7 +235,7 @@ function ContentCard({ content, onOpenSecure }) {
             <LockSimple size={12} weight="bold" />
             Protégé
           </span>
-          Lecture en streaming
+          Revue sur flux protégé
         </div>
       </div>
     </button>

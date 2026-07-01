@@ -9,8 +9,7 @@ import VideoReview from './components/VideoReview.jsx'
 import Documentation from './components/Documentation.jsx'
 import { getToken, logout, me, isAdmin, mustChangePwd } from './auth'
 
-// Chargés à la demande : SecureVideo embarque hls.js (lourd) -> hors du bundle initial.
-const SecureVideo = lazy(() => import('./components/SecureVideo.jsx'))
+// Chargés à la demande (hors bundle initial).
 const SecurityDashboard = lazy(() => import('./components/SecurityDashboard.jsx'))
 const AdminPanel = lazy(() => import('./components/admin/AdminPanel.jsx'))
 
@@ -26,7 +25,9 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [checking, setChecking] = useState(Boolean(getToken()))
   // view : { name: 'catalogue' } | { name: 'review', video } | { name: 'docs' }
-  //      | { name: 'secure', contentId } | { name: 'dashboard' }
+  //      | { name: 'dashboard' } | { name: 'admin' }
+  //   review.video.src peut être une vidéo locale (blob) OU un flux HLS chiffré
+  //   (/videos/:id/index.m3u8) : VideoReview gère les deux (annotation dans les deux cas).
   const [view, setView] = useState({ name: 'catalogue' })
   const [reviewPeers, setReviewPeers] = useState([])
 
@@ -90,11 +91,10 @@ export default function App() {
   }
   const titles = {
     review: view.video?.title,
-    secure: view.video?.title ?? 'Lecture protégée',
     dashboard: 'Surveillance',
     admin: 'Administration',
   }
-  const showBack = ['review', 'secure', 'dashboard', 'admin'].includes(view.name)
+  const showBack = ['review', 'dashboard', 'admin'].includes(view.name)
 
   // Accès réservés (les non-admins ne les voient jamais). isAdmin() inclut le
   // superadmin ; le panel adapte ensuite ses onglets au rôle exact.
@@ -135,17 +135,6 @@ export default function App() {
           onPeersUpdate={setReviewPeers}
         />
       )}
-      {view.name === 'secure' && (
-        <Suspense fallback={<Loading />}>
-          <SecureVideo
-            contentId={view.contentId}
-            src={view.video?.src}
-            title={view.video?.title}
-            category={view.video?.category}
-            invited={view.video?.invited}
-          />
-        </Suspense>
-      )}
       {view.name === 'dashboard' && (
         <Suspense fallback={<Loading />}>
           <SecurityDashboard />
@@ -159,8 +148,20 @@ export default function App() {
       {view.name === 'docs' && <Documentation onBack={goToCatalogue} />}
       {view.name === 'catalogue' && (
         <Catalogue
-          onOpen={(video) => setView({ name: 'secure', video })}
-          onOpenSecure={(contentId) => setView({ name: 'secure', contentId })}
+          onOpen={(video) => setView({ name: 'review', video })}
+          onOpenSecure={(content) =>
+            setView({
+              name: 'review',
+              video: {
+                id: content.id,
+                title: content.title,
+                // Flux HLS chiffré servi par le Core (même origine via le proxy).
+                // La clé n'est délivrée que sur token autorisé (Zero-Trust).
+                src: `/videos/${content.id}/index.m3u8`,
+                session: content.id,
+              },
+            })
+          }
           onOpenAdmin={() => setView({ name: 'admin' })}
         />
       )}
