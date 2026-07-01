@@ -24,9 +24,11 @@ sacremoses
 pandas
 numpy
 scikit-learn
+joblib
 
 # === Data 3B — dashboard ===
 streamlit
+plotly
 
 # === API auth (JWT du Core) + tests ===
 PyJWT

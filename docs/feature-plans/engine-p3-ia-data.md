@@ -73,10 +73,10 @@ Deux sujets sont menés en parallèle :
 - [ ] ❌ Démo bout-en-bout sur 1 vidéo (`media/`)
 
 ### Phase 2 — Squad Data (3B)
-- [ ] ❌ Courbe de rétention + détection zones d'ennui + mesure vs corrigé (Otman)
-- [ ] ❌ Modèle prédictif scikit-learn, features sans fuite, MAE/R² (Amina)
-- [ ] ❌ Dashboard Streamlit + comparaison vidéos (Faycal)
-- [ ] ❌ Lecture business + doc reproductible (Hassane)
+- [x] ✅ Courbe de rétention + détection zones d'ennui + mesure vs corrigé (Otman) — P=0.69 R=0.86 F1=0.77
+- [x] ✅ Modèle prédictif scikit-learn, features sans fuite, MAE/R² (Amina) — Ridge, MAE 0.069, R² 0.56 (LOO-CV)
+- [x] ✅ Dashboard Streamlit + comparaison vidéos (Faycal) — `dashboard/app.py`, 4 onglets
+- [x] ✅ Lecture business + doc reproductible (Hassane) — `engine/docs/business-3b.md`
 
 ### Phase 3 — Intégration (Bloc B)
 - [ ] ❌ Core appelle l'Engine, résultats affichés dans la View
@@ -110,7 +110,8 @@ Deux sujets sont menés en parallèle :
 | 2026-06-30 | Téléchargement GGUF Qwen2.5-1.5B Q4_K_M → `engine/models/` | ✅ |
 | 2026-06-30 | Plan de tests + benchmark perf chiffré (`tests/`) | ✅ |
 | 2026-06-30 | **Tâche 10 — API Engine** (endpoints, auth JWT, jobs async, orchestration) | ✅ testé E2E |
-| — | Tâches 20→33 (NLP fin + Data) | ❌ à venir (autres membres) |
+| 2026-07-01 | **Tâches 30-33 — Squad Data (3B)** : rétention, détection, modèle, dashboard, business doc (`app/data/`, `dashboard/app.py`, `docs/business-3b.md`) + API JSON bonus (`app/data/api/`) | ✅ |
+| — | Tâches 20→22 (affinage NLP) | ❌ à venir (autres membres) |
 
 ## 9. Résumé Non-Technique
 
