@@ -16,7 +16,13 @@ import {
   TrashSimple,
   ArrowsOutSimple,
   ArrowsInSimple,
+  Faders,
+  Tag,
+  CheckCircle,
+  X,
 } from '@phosphor-icons/react'
+import Hls from 'hls.js'
+import { getToken } from '../auth'
 import DrawingCanvas from './DrawingCanvas'
 import CommentPanel from './CommentPanel'
 import { useReview } from '../lib/useReview'
@@ -93,6 +99,7 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
   const [duration, setDuration] = useState(0)
   const [ready, setReady] = useState(false)
   const [videoError, setVideoError] = useState(false)
+  const [playbackRate, setPlaybackRate] = useState(1)
 
   const [tool, setTool] = useState('cursor')
   const [color, setColor] = useState('#f5a623')
@@ -548,6 +555,88 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
     return () => document.removeEventListener('fullscreenchange', onFs)
   }, [])
 
+  // --- Catégorisation sidebar --------------------------------------------
+  const [showCategorizer, setShowCategorizer] = useState(false)
+
+  const noteCategories = useMemo(() => {
+    const cats = {}
+    for (const n of notes) {
+      const key = n.category || n.color || n.author.id
+      if (!cats[key]) {
+        cats[key] = {
+          label: n.category || n.author.name,
+          color: n.color || n.author.color,
+          count: 0,
+        }
+      }
+      cats[key].count++
+    }
+    return Object.entries(cats)
+  }, [notes])
+
+  const catStats = useMemo(
+    () => ({
+      total: notes.length,
+      open: notes.filter((n) => !n.resolved).length,
+      resolved: notes.filter((n) => n.resolved).length,
+      withDrawing: notes.filter((n) => n.shapes?.length > 0).length,
+    }),
+    [notes],
+  )
+
+  // 🔐 Lecture du flux HLS CHIFFRÉ (Zero-Trust) : hls.js alimente l'élément vidéo
+  // et joint le JWT UNIQUEMENT sur la requête de clé (/keys/…). Un fichier direct
+  // (.mp4) reste géré par l'attribut src. Récupération d'erreur robuste (le HLS
+  // en `-c copy` peut générer des erreurs média non fatales à récupérer).
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !source || !source.endsWith('.m3u8')) return
+    if (!Hls.isSupported()) {
+      // Safari : HLS natif (la clé ne peut pas porter le token → utiliser Chrome).
+      if (v.canPlayType('application/vnd.apple.mpegurl')) v.src = source
+      return
+    }
+    const hls = new Hls({
+      xhrSetup: (xhr, url) => {
+        if (url.includes('/keys/')) {
+          const token = getToken()
+          if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+        }
+      },
+    })
+    let mediaRecover = 0
+    const clear = () => setVideoError(false)
+    hls.on(Hls.Events.MANIFEST_PARSED, clear)
+    hls.on(Hls.Events.FRAG_BUFFERED, clear)
+    hls.on(Hls.Events.ERROR, (_evt, data) => {
+      if (!data.fatal) return
+      if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        // stall / append error : on récupère (jusqu'à 3 fois) au lieu d'abandonner.
+        if (mediaRecover < 3) {
+          mediaRecover += 1
+          hls.recoverMediaError()
+        } else {
+          hls.destroy()
+        }
+      } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        // clé/segment : on retente (utile si l'utilisateur vient de se connecter).
+        hls.startLoad()
+      } else {
+        hls.destroy()
+      }
+    })
+    hls.loadSource(source)
+    hls.attachMedia(v)
+    return () => hls.destroy()
+  }, [source])
+
+  // --- Vitesse de lecture -------------------------------------------------
+  function setRate(rate) {
+    if (!videoRef.current) return
+    videoRef.current.playbackRate = rate
+    setPlaybackRate(rate)
+  }
+
   // Nom du présentateur courant (pour le badge).
   const presenterName = isPresenter
     ? self.name
@@ -561,7 +650,9 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
             <video
               ref={videoRef}
               className="video-el"
-              src={source}
+              /* Pour le HLS (.m3u8) c'est hls.js qui alimente l'élément (voir effet
+                 ci-dessus) ; pour un fichier direct on garde l'attribut src. */
+              src={source && source.endsWith('.m3u8') ? undefined : source}
               playsInline
               preload="metadata"
             />
@@ -778,6 +869,20 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
               </button>
             )}
 
+            <div style={{ display: 'flex', gap: '4px', marginLeft: '12px' }}>
+              {[0.5, 1, 1.5, 2].map((rate) => (
+                <button
+                  key={rate}
+                  className={`badge ${playbackRate === rate ? 'badge-accent' : 'wt-badge'}`}
+                  onClick={() => setRate(rate)}
+                  title={`Vitesse ${rate}x`}
+                  style={{ cursor: 'pointer', padding: '0 6px' }}
+                >
+                  {rate}x
+                </button>
+              ))}
+            </div>
+
             <div className="controls-spacer" />
 
             {/* Barre d'outils d'annotation */}
@@ -834,6 +939,15 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
             />
             <span className="toolbar-sep" />
             <button
+              className={`btn-icon${showCategorizer ? ' active' : ''}`}
+              onClick={() => setShowCategorizer((v) => !v)}
+              title="Catégorisation"
+              aria-label="Ouvrir la catégorisation"
+            >
+              <Faders size={18} />
+            </button>
+            <span className="toolbar-sep" />
+            <button
               className="btn-icon"
               onClick={() => {
                 if (activeId) {
@@ -856,6 +970,83 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
             >
               {fullscreen ? <ArrowsInSimple size={18} /> : <ArrowsOutSimple size={18} />}
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Catégorisation sidebar (glissante) */}
+      <div className={`categorizer${showCategorizer ? ' open' : ''}`}>
+        <div className="categorizer-head">
+          <Faders size={15} weight="bold" />
+          <span>Catégorisation</span>
+          <button
+            className="btn-icon categorizer-close"
+            onClick={() => setShowCategorizer(false)}
+          >
+            <X size={14} weight="bold" />
+          </button>
+        </div>
+
+        <div className="categorizer-body">
+          <div className="categorizer-stats">
+            <div className="categorizer-stat">
+              <span className="categorizer-stat-num">{catStats.total}</span>
+              <span className="categorizer-stat-label">Total</span>
+            </div>
+            <div className="categorizer-stat">
+              <span className="categorizer-stat-num">{catStats.open}</span>
+              <span className="categorizer-stat-label">Ouverts</span>
+            </div>
+            <div className="categorizer-stat">
+              <span className="categorizer-stat-num">{catStats.resolved}</span>
+              <span className="categorizer-stat-label">Résolus</span>
+            </div>
+            <div className="categorizer-stat">
+              <span className="categorizer-stat-num">{catStats.withDrawing}</span>
+              <span className="categorizer-stat-label">Dessins</span>
+            </div>
+          </div>
+
+          <div className="categorizer-section">
+            <div className="categorizer-section-head">
+              <Tag size={13} weight="bold" />
+              Par catégorie
+            </div>
+            {noteCategories.length === 0 ? (
+              <div className="categorizer-empty">Aucune annotation catégorisée</div>
+            ) : (
+              <div className="categorizer-tags">
+                {noteCategories.map(([key, cat]) => (
+                  <div key={key} className="categorizer-tag-row">
+                    <span
+                      className="categorizer-tag-dot"
+                      style={{ background: cat.color }}
+                    />
+                    <span className="categorizer-tag-label">{cat.label}</span>
+                    <span className="categorizer-tag-count">{cat.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="categorizer-section">
+            <div className="categorizer-section-head">
+              <CheckCircle size={13} weight="bold" />
+              Par statut
+            </div>
+            <div className="categorizer-status">
+              <div className="categorizer-status-row">
+                <Circle size={12} weight="fill" color="var(--accent-strong)" />
+                <span>Ouvert</span>
+                <span className="categorizer-tag-count">{catStats.open}</span>
+              </div>
+              <div className="categorizer-status-row">
+                <CheckCircle size={12} weight="fill" color="var(--ok)" />
+                <span>Résolu</span>
+                <span className="categorizer-tag-count">{catStats.resolved}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

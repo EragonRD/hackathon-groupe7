@@ -7,7 +7,7 @@ services:
       # Secret OBLIGATOIRE et fort (le conteneur tourne en NODE_ENV=production et
       # refuse de démarrer avec un secret faible). Ex :
       #   export JWT_SECRET=$(openssl rand -hex 32) && docker compose up
-      JWT_SECRET: ${JWT_SECRET:?Definis un JWT_SECRET fort, ex: export JWT_SECRET=$(openssl rand -hex 32)}
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET requis - lance: export JWT_SECRET=$(openssl rand -hex 32)}"
       JWT_TTL: ${JWT_TTL:-15m}
       PORT: 3000
       # Proxies de confiance pour X-Forwarded-For : loopback + réseaux privés
@@ -21,11 +21,27 @@ services:
       MAILJET_FROM_EMAIL: ${MAILJET_FROM_EMAIL:-}
       MAILJET_FROM_NAME: ${MAILJET_FROM_NAME:-Plateforme Vidéo}
       MAILJET_SANDBOX: ${MAILJET_SANDBOX:-false}
+      # Dossier des rendus HLS chiffrés servis par le Core (/videos/:id).
+      HLS_DIR: /app/media/hls
     volumes:
-      - ./backend/secrets:/app/secrets:ro
-      - ./backend/logs:/app/logs
+      # Clés AES des vidéos chiffrées — volume nommé (survit aux rebuilds ; docker cp pour injecter)
+      - poulpium_secrets:/app/secrets
+      # Logs d'audit (key-access.log, security-alerts.log)
+      - poulpium_logs:/app/logs
+      # Persistance métier (users, companies, contents) + liste IP proxy.
+      # RW : le Core y écrit les JSON au runtime (users/companies/contents).
+      - ./backend/data:/app/data
+      # Vidéos HLS chiffrées (générées par scripts/encrypt-hls.sh) servies par le Core
+      - ./media/hls:/app/media/hls:ro
     depends_on:
       - hls
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5174:80"
+    depends_on:
+      - core
 
   hls:
     image: nginx:alpine
@@ -34,3 +50,8 @@ services:
     volumes:
       - ./media/hls:/usr/share/nginx/html/hls:ro
       - ./nginx/hls.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  poulpium_secrets:
+    # Stocker les clés AES : docker cp <fichier>.key <container>:/app/secrets/
+  poulpium_logs:

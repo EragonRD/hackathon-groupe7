@@ -1,9 +1,15 @@
 import {
   All,
+  BadRequestException,
+  Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
+  Param,
+  Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common'
@@ -32,6 +38,45 @@ export class SecurityController {
   @Get('dashboard')
   dashboard() {
     return this.security.getDashboard()
+  }
+
+  // Surveillance incrémentale : ne renvoie QUE les changements depuis les curseurs.
+  //   GET /security/changes?afterEvent=<seq>&afterAlert=<id>
+  @SkipThrottle()
+  @UseGuards(AuthGuard, AdminGuard)
+  @Get('changes')
+  changes(
+    @Query('afterEvent') afterEvent?: string,
+    @Query('afterAlert') afterAlert?: string,
+  ) {
+    const seq = Number(afterEvent)
+    const alertId = Number(afterAlert)
+    return this.security.getChanges(
+      Number.isFinite(seq) ? seq : 0,
+      Number.isFinite(alertId) ? alertId : 0,
+    )
+  }
+
+  // --- Bans d'IP (admin) ---
+  @SkipThrottle()
+  @UseGuards(AuthGuard, AdminGuard)
+  @Get('bans')
+  listBans() {
+    return this.security.listBans()
+  }
+
+  @UseGuards(AuthGuard, AdminGuard)
+  @Post('ban')
+  banIp(@Body() body: { ip?: string; reason?: string }) {
+    const ip = body?.ip?.trim()
+    if (!ip) throw new BadRequestException('ip requise')
+    return this.security.banIp(ip, body.reason ?? '', new Date().toISOString())
+  }
+
+  @UseGuards(AuthGuard, AdminGuard)
+  @Delete('ban/:ip')
+  unbanIp(@Param('ip') ip: string) {
+    return { ip, removed: this.security.unbanIp(ip) }
   }
 
   @UseGuards(AuthGuard)

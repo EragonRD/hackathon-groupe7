@@ -12,6 +12,11 @@ import { SecurityService } from './security.service'
 })
 export class SecurityModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(SecurityMiddleware).forRoutes({ path: '*', method: RequestMethod.ALL })
+    consumer
+      .apply(SecurityMiddleware)
+      // /security/ingest est déjà comptabilisé par le contrôleur (auth_request nginx) :
+      // on l'exclut du middleware pour ne pas compter chaque segment deux fois.
+      .exclude({ path: 'security/ingest', method: RequestMethod.ALL })
+      .forRoutes({ path: '*', method: RequestMethod.ALL })
   }
 }

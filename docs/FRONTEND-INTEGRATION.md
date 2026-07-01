@@ -355,3 +355,79 @@ Côté UX : si `mustChangePwd()` est vrai après login, **rediriger vers un écr
 - [ ] Vues **super-admin** (entreprises + invitations) et **admin** (users + contenus)
 - [ ] Adapter le menu/navigation au `role`
 - [ ] Gérer `409`/`400` dans les formulaires (messages clairs)
+
+---
+
+## 10. 🆕 Dernières nouveautés (streaming, refresh tokens, bans, audit)
+
+### 10.1 ⭐ Streaming HLS servi par le Core (same-origin → tunnel OK)
+Le Core sert maintenant la vidéo chiffrée, avec l'**URI de clé réécrite en relatif**.
+Plus besoin de viser `:8080` : tout passe par la même origine (donc le tunnel).
+
+| Méthode | Endpoint | Auth | Retour |
+|---|---|---|---|
+| `GET` | `/videos/:contentId/index.m3u8` | non* | playlist (clé pointée sur `/keys/:id`) |
+| `GET` | `/videos/:contentId/:segment.ts` | non* | segment chiffré (+ détection scraping) |
+
+\* le flux est chiffré ; **seule la clé** (`/keys/:id`) exige le token.
+
+**Le composant `<SecureVideo>` doit désormais pointer sur `/videos/…` (relatif)** :
+```jsx
+const src = `/videos/${contentId}/index.m3u8`   // même origine → marche via le tunnel
+const hls = new Hls({
+  xhrSetup: (xhr, url) => {
+    if (url.includes('/keys/')) xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`)
+  },
+})
+hls.loadSource(src); hls.attachMedia(video)
+```
+> ⚠️ **Prérequis infra (P2)** : le nginx du front doit proxifier `location /videos/ → core:3000`,
+> et le conteneur `core` doit voir `media/hls` (`HLS_DIR`). Sans ça, `/videos/…` renvoie l'index SPA.
+
+### 10.2 Refresh tokens + vrai logout
+`login` et `change-password` renvoient désormais **`refreshToken`** en plus de `accessToken`.
+
+| Méthode | Endpoint | Corps | Effet |
+|---|---|---|---|
+| `POST` | `/auth/refresh` | `{ refreshToken }` | nouvel `accessToken` (+ **rotation** : l'ancien refresh est invalidé) |
+| `POST` | `/auth/logout` | `{ refreshToken }` | **révoque** le refresh (vrai logout, 204) |
+
+Reco front : stocker `refreshToken` (localStorage), et sur un **401** d'`authFetch`,
+tenter `/auth/refresh` → si OK rejouer la requête, sinon `logout()` + retour login.
+```js
+// auth.js — remplacer le logout local par un vrai logout serveur
+export async function logout() {
+  const rt = localStorage.getItem('hackathon_refresh')
+  if (rt) await fetch(`${API}/auth/logout`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken: rt }),
+  }).catch(() => {})
+  localStorage.removeItem('hackathon_token')
+  localStorage.removeItem('hackathon_refresh')
+}
+```
+
+### 10.3 Bans d'IP (admin) — action depuis le dashboard sécu
+| Méthode | Endpoint | Corps |
+|---|---|---|
+| `GET` | `/security/bans` | — |
+| `POST` | `/security/ban` | `{ ip, reason? }` |
+| `DELETE` | `/security/ban/:ip` | — |
+
+Une IP bannie reçoit **403** sur toutes les routes (appliqué par le middleware).
+UI : bouton « Bannir » à côté de chaque IP suspecte du dashboard.
+
+### 10.4 Journal d'accès aux clés (audit)
+| Méthode | Endpoint | Auth | Retour |
+|---|---|---|---|
+| `GET` | `/admin/audit/keys` | Bearer **admin** | `[{ ts, username, sub, contentId, ip, result, reason }]` (récents d'abord, scoppé entreprise) |
+
+UI : table « Journal d'accès » dans le back-office (qui a lu quelle clé, quand, depuis quelle IP, accordé/refusé).
+
+### 10.5 Récap des nouvelles routes
+| Méthode | Endpoint | Auth |
+|---|---|---|
+| `GET` | `/videos/:id/index.m3u8` · `/videos/:id/:seg.ts` | public (chiffré) |
+| `POST` | `/auth/refresh` · `/auth/logout` | public (via le refresh token) |
+| `GET/POST/DELETE` | `/security/ban[s]` | admin |
+| `GET` | `/admin/audit/keys` | admin |

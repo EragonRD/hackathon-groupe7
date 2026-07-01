@@ -9,7 +9,10 @@
     "format": "prettier --write \"src/**/*.{js,jsx,css}\"",
     "lint": "eslint . --fix",
     "lint:oxlint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

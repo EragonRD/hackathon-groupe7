@@ -60,16 +60,13 @@ export class ReviewGateway implements OnGatewayConnection {
     @ConnectedSocket() client: Socket,
     @MessageBody() body: { session?: string },
   ): void {
-    if (body?.session) client.join(room(body.session))
+    if (body?.session) void client.join(room(body.session))
   }
 
   // Relai pur : renvoie le message à tous les autres membres de la room.
   // `client.to(room)` exclut l'émetteur -> pas de boucle d'écho côté serveur.
   @SubscribeMessage('msg')
-  onMsg(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: RelayMessage,
-  ): void {
+  onMsg(@ConnectedSocket() client: Socket, @MessageBody() data: RelayMessage): void {
     if (!data?.session) return
     client.to(room(data.session)).emit('msg', data)
   }

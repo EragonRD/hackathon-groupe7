@@ -9,8 +9,20 @@ import { ContentsService } from '../contents/contents.service'
 // (ex. "../../secret") dans la construction du chemin de la clé.
 const CONTENT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/
 
+const MAX_RECENT_ACCESS = 500
+
 interface KeyAccessContext {
   ip: string
+}
+
+export interface KeyAccessRecord {
+  ts: string
+  username: string
+  sub: string | number
+  contentId: string
+  ip: string
+  result: 'granted' | 'denied'
+  reason: string
 }
 
 @Injectable()
@@ -18,6 +30,9 @@ export class KeysService {
   private readonly logger = new Logger(KeysService.name)
   private readonly secretsDir = backendPath('secrets')
   private readonly logPath = backendPath('logs', 'key-access.log')
+  private logDirReady = false
+  // Journal des accès clé en mémoire (pour le back-office). Borné.
+  private readonly recent: KeyAccessRecord[] = []
 
   constructor(private readonly contents: ContentsService) {}
 
@@ -51,8 +66,9 @@ export class KeysService {
       throw new NotFoundException('Cle de contenu introuvable')
     }
     // Isolation entreprise : on ne révèle pas l'existence d'un contenu d'un autre
-    // tenant (404, pas 403) — sauf superadmin.
-    if (user.role !== 'superadmin' && content.companyId !== user.companyId) {
+    // tenant (404, pas 403). Le superadmin (companyId null) n'a aucun accès au
+    // contenu : il est soumis au même contrôle et tombe donc en cross_tenant.
+    if (content.companyId !== user.companyId) {
       await this.logAccess({
         user,
         contentId,
@@ -127,6 +143,19 @@ export class KeysService {
       reason: entry.reason,
     }
 
+    // Journal en mémoire (borné) pour le back-office.
+    const rec: KeyAccessRecord = {
+      ts: record.ts,
+      username: entry.user.username,
+      sub: entry.user.sub,
+      contentId: entry.contentId,
+      ip: entry.ip,
+      result: entry.granted ? 'granted' : 'denied',
+      reason: entry.reason,
+    }
+    this.recent.push(rec)
+    if (this.recent.length > MAX_RECENT_ACCESS) this.recent.shift()
+
     const line = JSON.stringify(record)
     if (entry.granted) {
       this.logger.log(line)
@@ -134,7 +163,18 @@ export class KeysService {
       this.logger.warn(line)
     }
 
-    await mkdir(dirname(this.logPath), { recursive: true })
+    if (!this.logDirReady) {
+      await mkdir(dirname(this.logPath), { recursive: true })
+      this.logDirReady = true
+    }
     await appendFile(this.logPath, `${line}\n`, 'utf8')
+  }
+
+  // Accès clé récents (les plus récents d'abord). Filtre optionnel par contenus.
+  listRecentAccess(contentIds?: Set<string>): KeyAccessRecord[] {
+    const items = contentIds
+      ? this.recent.filter((r) => contentIds.has(r.contentId))
+      : this.recent
+    return [...items].reverse()
   }
 }

@@ -34,6 +34,34 @@ export default function Login({ onAuthed }) {
   // 'idle' | 'busy' | 'done' — pilote le retour visuel du bouton
   const [status, setStatus] = useState('idle')
   const [showPassword, setShowPassword] = useState(false)
+  const [bubblesState, setBubblesState] = useState([
+    { v: 0, popped: false },
+    { v: 0, popped: false },
+    { v: 0, popped: false },
+    { v: 0, popped: false },
+    { v: 0, popped: false },
+    { v: 0, popped: false },
+  ])
+  const [score, setScore] = useState(0)
+
+  function popBubble(idx) {
+    if (bubblesState[idx].popped) return
+    setBubblesState((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], popped: true }
+      return next
+    })
+    setScore((s) => s + 1)
+    
+    // Après l'explosion, on remonte la bulle en changeant sa clé (remount = repart du bas)
+    setTimeout(() => {
+      setBubblesState((prev) => {
+        const next = [...prev]
+        next[idx] = { popped: false, v: next[idx].v + 1 }
+        return next
+      })
+    }, 600)
+  }
 
   const asideRef = useRef(null)
 
@@ -70,14 +98,27 @@ export default function Login({ onAuthed }) {
   return (
     <div className="login-screen">
       <aside className="login-aside" ref={asideRef} onPointerMove={handleAsideMove}>
+        {score > 0 && (
+          <div className="bubble-score" style={{ position: 'absolute', top: '24px', right: '24px', fontSize: '13px', color: 'rgba(255,255,255,0.3)', zIndex: 10, userSelect: 'none' }}>
+            Score : {score}
+          </div>
+        )}
         <span className="login-spotlight" aria-hidden="true" />
-        <div className="login-bubbles" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
+        <div className="login-bubbles" aria-hidden="true" style={{ pointerEvents: 'none' }}>
+          {bubblesState.map((b, i) => (
+            <span
+              key={`${i}-${b.v}`}
+              className={b.popped ? 'popped' : ''}
+              onClick={(e) => {
+                e.stopPropagation()
+                popBubble(i)
+              }}
+              style={{
+                pointerEvents: b.popped ? 'none' : 'auto',
+                cursor: 'pointer'
+              }}
+            />
+          ))}
         </div>
 
         <div className="login-hero">

@@ -306,12 +306,22 @@ rattacher chaque requête à un **compte** (sessions simultanées, blocage…). 
 starter-hackathon-estiam/
 ├── frontend/   → application React (Vite) + démo d'authentification
 ├── backend/    → API NestJS (Core) + authentification
+├── engine/     → Engine (Pôle 3 · IA & Data) — pipeline NLP (3A) + analyse audience (3B)
 ├── data/       → jeu de logs de visionnage (Pôle 3-B) + DATA_SCHEMA.md
-├── docs/       → format JSON P3-A + mise en place Python (Pôle 3)
+├── docs/       → format JSON P3-A + mise en place Python + plans de feature
 ├── media/      → vidéo d'exemple libre de droits (P1 / P2-A / P3-A) — voir media/README.md
 ├── scripts/    → prefetch + récupération de la vidéo (coup de pouce)
 └── README.md
 ```
+
+> 🤖 **Groupe 7 — branche `feat/intelligence-artificielle-data` (Pôle 3).** Le **microservice
+> Engine** (`engine/`, Python/FastAPI, 100 % local CPU) est **opérationnel** : transcription
+> Whisper, résumé/chapitres via **llama.cpp** (Qwen2.5-1.5B), mots-clés KeyBERT, recherche
+> sémantique, et **sous-titres multilingues** (fr/en/es/ar, extensible) via **NLLB-200**.
+> Sortie = JSON contrat P3-A + `translations[]`. API REST sécurisée par le JWT du Core.
+> 📖 [`engine/README.md`](engine/README.md) · 📐 [`engine/docs/architecture.png`](engine/docs/architecture.png)
+> · 🔌 [`engine/docs/api-contract.md`](engine/docs/api-contract.md) · 🗺️ [`docs/PROJECT_MAP.md`](docs/PROJECT_MAP.md)
+> **Scope de cette branche : strictement le Pôle 3 (Engine).**
 
 > Le **barème détaillé** est fourni séparément par l'organisation. Ce README décrit le
 > **périmètre et les attendus** de chaque sujet — **la solution reste entièrement à
