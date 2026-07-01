@@ -17,8 +17,15 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY app/ app/
 COPY models/ models/
 
-# Modèles HF (Whisper, MiniLM, NLLB) téléchargés au 1er appel.
-# Si rate-limit de téléchargement : passer -e HF_TOKEN=hf_xxx
+# LLM (Qwen2.5-1.5B Q4_K_M, ~1 Go) : models/ est gitignoré, donc le COPY ci-dessus
+# n'apporte le GGUF que si le poste de build l'a déjà. On le télécharge sinon, au
+# BUILD, pour que l'image soit autosuffisante (sans lui, l'analyse échoue à l'étape
+# résumé/chapitres). Les autres modèles (Whisper/MiniLM/NLLB) se téléchargent au 1er
+# appel. Si rate-limit HuggingFace : passer -e HF_TOKEN=hf_xxx.
+RUN python -c "import os; from huggingface_hub import hf_hub_download; \
+p='models/qwen2.5-1.5b-instruct-q4_k_m.gguf'; \
+os.path.exists(p) or hf_hub_download('Qwen/Qwen2.5-1.5B-Instruct-GGUF','qwen2.5-1.5b-instruct-q4_k_m.gguf', local_dir='models')"
+
 ENV ENGINE_OUTPUT_DIR=/engine/outputs
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

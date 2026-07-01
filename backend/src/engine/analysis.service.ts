@@ -66,7 +66,7 @@ export class AnalysisService {
     } catch (e: unknown) {
       this.set(contentId, {
         status: 'error',
-        error: `Engine indisponible : ${(e as Error).message}`,
+        error: (e as Error).message,
       })
     }
   }

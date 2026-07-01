@@ -25,7 +25,7 @@ export default function InsightsPanel({
   // sous-titres), on l'utilise et on n'ouvre PAS un second polling.
   const ownMeta = useMetadata(metaProp ? null : contentId)
   const meta = metaProp ?? ownMeta
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
 
   const data = meta.status === 'done' ? meta.data : null
@@ -51,7 +51,9 @@ export default function InsightsPanel({
       : meta.status === 'done'
         ? `${segments.length} segments`
         : meta.status === 'error'
-          ? 'Erreur'
+          ? meta.error?.includes('hors ligne')
+            ? 'Hors ligne'
+            : 'Indisponible'
           : meta.status === 'loading'
             ? '…'
             : 'Aucune analyse'
@@ -87,9 +89,12 @@ export default function InsightsPanel({
             </p>
           )}
           {meta.status === 'error' && (
-            <p className="insights-muted insights-error">
-              Analyse indisponible : {meta.error}
-            </p>
+            <div className="insights-block">
+              <p className="insights-error">
+                <strong>Analyse IA indisponible</strong>
+              </p>
+              <p className="insights-muted">{meta.error}</p>
+            </div>
           )}
 
           {data && (
