@@ -25,6 +25,7 @@ import Hls from 'hls.js'
 import { getToken } from '../auth'
 import DrawingCanvas from './DrawingCanvas'
 import CommentPanel from './CommentPanel'
+import InsightsPanel from './InsightsPanel'
 import { useReview } from '../lib/useReview'
 import { useCaptureDetection } from '../lib/useCaptureDetection'
 import { formatTime } from '../lib/format'
@@ -66,7 +67,7 @@ const SWATCHES = [
 const DRIFT_THRESHOLD = 0.4
 const HEARTBEAT_MS = 2000
 
-export default function VideoReview({ source, session, user, onPeersUpdate }) {
+export default function VideoReview({ source, session, user, contentId, onPeersUpdate }) {
   const videoRef = useRef(null)
   const fileRef = useRef(null)
   const stageRef = useRef(null)
@@ -1108,6 +1109,7 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
             </div>
           </div>
         </div>
+        <InsightsPanel contentId={contentId} onSeek={seekTo} currentTime={currentTime} />
       </div>
 
       <CommentPanel

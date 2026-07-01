@@ -208,6 +208,7 @@ export default function App() {
           key={view.video.id}
           source={view.video.src}
           session={view.video.session ?? view.video.id}
+          contentId={view.video.id}
           user={user}
           onPeersUpdate={setReviewPeers}
         />

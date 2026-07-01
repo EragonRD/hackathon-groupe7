@@ -16,6 +16,24 @@ export async function listMyContents() {
   throw new Error('Impossible de charger vos contenus.')
 }
 
+// Métadonnées IA d'un contenu (contrat P3-A). Le Core répond par un statut :
+//   200 -> analyse prête (données)   202 -> en cours   404 -> pas d'analyse
+//   409 -> erreur d'analyse
+// On normalise en { status, data?, error? } pour simplifier le rendu côté UI.
+export async function getMetadata(contentId) {
+  const res = await authFetch(`/contents/${encodeURIComponent(contentId)}/metadata`)
+  if (res.status === 200) return { status: 'done', data: await res.json() }
+  if (res.status === 202) return { status: 'processing' }
+  if (res.status === 404) return { status: 'not_analyzed' }
+  if (res.status === 409) {
+    const body = await res.json().catch(() => ({}))
+    return { status: 'error', error: body?.error ?? 'Analyse en erreur' }
+  }
+  if (res.status === 401) throw new Error('Session expirée. Reconnectez-vous.')
+  if (res.status === 403) return { status: 'not_analyzed' } // pas d'accès -> on masque
+  return { status: 'error', error: `Réponse inattendue (${res.status})` }
+}
+
 // Génère un lien d'invité temporaire pour un contenu. ttl ∈ '15m' | '1h' | '24h'.
 // Renvoie { token, shareUrl, expiresAt }.
 export async function inviteGuest(contentId, ttl) {
