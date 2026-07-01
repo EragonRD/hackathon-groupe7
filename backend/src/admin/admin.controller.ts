@@ -203,10 +203,7 @@ export class AdminController {
 
   @UseGuards(CompanyAdminGuard)
   @Post('contents')
-  createContent(
-    @Req() req: RequestWithUser,
-    @Body() body: { title?: string },
-  ) {
+  createContent(@Req() req: RequestWithUser, @Body() body: { title?: string }) {
     if (!body?.title) throw new BadRequestException('title requis')
     const companyId = req.user!.companyId
     if (!companyId) throw new ForbiddenException('Aucune entreprise associee')

@@ -15,9 +15,7 @@ export class CompanyAdminGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<RequestWithUser>()
     if (req.user?.role !== 'admin') {
-      throw new ForbiddenException(
-        "Acces reserve aux administrateurs d'entreprise",
-      )
+      throw new ForbiddenException("Acces reserve aux administrateurs d'entreprise")
     }
     return true
   }
