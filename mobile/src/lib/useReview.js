@@ -46,7 +46,9 @@ export function useReview({ session, user, mode }) {
       if (raw) {
         try {
           setNotes(JSON.parse(raw));
-        } catch(e) {}
+        } catch {
+          // JSON corrompu en cache : on ignore, la synchro live reste la source
+        }
       }
     });
   }, [session]);
@@ -207,7 +209,10 @@ export function useReview({ session, user, mode }) {
       subscription.remove();
       t.close();
     };
-  }, [session, mode, self.id, upsertNotes, emitPlayback]);
+    // self/notes lus via refs "toujours fraîches" ; seuls session/mode/self.id
+    // doivent (re)connecter le transport.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, mode, self.id]);
 
   const addNote = useCallback(
     ({ time, text, shapes, color }) => {

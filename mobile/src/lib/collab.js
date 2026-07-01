@@ -1,8 +1,6 @@
 import { io } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
 
-const PREFIX = 'review:';
-
 function socketTransport(session, { url } = {}) {
   const API = url ?? process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
   

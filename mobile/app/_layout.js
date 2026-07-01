@@ -2,8 +2,13 @@ import { Stack } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
-import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { theme } from '../src/theme';
+import { AuthProvider } from '../src/lib/auth-context';
+
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -21,16 +26,26 @@ export default function RootLayout() {
   }
 
   return (
-    <View style={styles.container}>
-      <Stack screenOptions={{ 
-        headerShown: false,
-        contentStyle: { backgroundColor: theme.bg }
-      }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="catalogue" />
-        <Stack.Screen name="review/[session]" />
-      </Stack>
-    </View>
+    <GestureHandlerRootView style={styles.container}>
+      <SafeAreaProvider>
+        <AuthProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: theme.bg },
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="catalogue" />
+            <Stack.Screen name="review/[session]" />
+            <Stack.Screen name="change-password" />
+            <Stack.Screen name="admin" />
+            <Stack.Screen name="dashboard" />
+            <Stack.Screen name="docs" />
+          </Stack>
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

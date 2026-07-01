@@ -60,7 +60,7 @@ export async function getClaims() {
         .join('')
     );
     return JSON.parse(jsonPayload);
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -70,7 +70,7 @@ const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=
 function atob(input) {
   let str = input.replace(/=+$/, '');
   let output = '';
-  if (str.length % 4 == 1) {
+  if (str.length % 4 === 1) {
     throw new Error("'atob' failed: The string to be decoded is not correctly encoded.");
   }
   for (let bc = 0, bs = 0, buffer, i = 0;
@@ -181,7 +181,9 @@ export async function authFetch(path, options = {}) {
             },
           });
         }
-      } catch (e) {}
+      } catch {
+        // échec du refresh : on retombe sur le 401 traité ci-dessous
+      }
     }
     
     if (res.status === 401) {
