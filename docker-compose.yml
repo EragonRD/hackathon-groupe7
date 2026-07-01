@@ -21,6 +21,8 @@ services:
       MAILJET_FROM_EMAIL: ${MAILJET_FROM_EMAIL:-}
       MAILJET_FROM_NAME: ${MAILJET_FROM_NAME:-Plateforme Vidéo}
       MAILJET_SANDBOX: ${MAILJET_SANDBOX:-false}
+      # Dossier des rendus HLS chiffrés servis par le Core (/videos/:id).
+      HLS_DIR: /app/media/hls
     volumes:
       # Clés AES des vidéos chiffrées — survivent aux mises à jour de l'image
       - poulpium_secrets:/app/secrets
@@ -28,6 +30,8 @@ services:
       - poulpium_logs:/app/logs
       # Liste IP proxy — bind mount : modifiable sans rebuild
       - ./backend/data:/app/data:ro
+      # Vidéos HLS chiffrées (générées par scripts/encrypt-hls.sh) servies par le Core
+      - ./media/hls:/app/media/hls:ro
     depends_on:
       - hls
 

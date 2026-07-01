@@ -7,11 +7,13 @@
 //   fichier vidéo correspondant n'est pas fourni (pas de faux contenu jouable).
 
 export const SAMPLE = {
-  id: 'demo-42c',
-  title: 'Séquence de démonstration',
+  id: 'poc',
+  title: 'Séquence de démonstration (chiffrée · Zero-Trust)',
   category: 'Présentation',
   duration_sec: null, // lu directement depuis la vidéo au chargement
-  src: '/sample.mp4',
+  // Flux HLS CHIFFRÉ servi par le Core (même origine → tunnel). La clé AES n'est
+  // délivrée que si l'utilisateur est authentifié et autorisé (Pôle 2).
+  src: '/videos/poc/index.m3u8',
   session: 'demo-42c',
   playable: true,
 }
