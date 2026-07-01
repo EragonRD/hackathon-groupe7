@@ -93,6 +93,7 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
     isPresenter,
     claimPresenter,
     releasePresenter,
+    sendSelect,
     sendPlayback,
     sendHeartbeat,
     sendRate,
@@ -191,6 +192,7 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
   }, [])
 
   const seekTo = useCallback((t) => {
+    if (followingRef.current) return // invité : navigation pilotée par le présentateur
     const v = videoRef.current
     if (v) v.currentTime = Math.max(0, Math.min(t, v.duration || t))
   }, [])
@@ -312,10 +314,14 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
     setPinnedTime(null)
     setText('')
     setEditingId(null)
-    if (!following) {
-      seekTo(note.time)
-      pause()
-    }
+    // Invité en suivi (souvent un client) : sélection LOCALE pour consulter la
+    // remarque et ses dessins, SANS toucher à la lecture (pilotée par le
+    // présentateur) ni rediffuser. Le présentateur peut réaligner via wt:select.
+    if (following) return
+    seekTo(note.time)
+    pause()
+    // Présentateur : les invités affichent la même note active (mêmes dessins).
+    if (isPresenter) sendSelect(note.id)
   }
 
   function editNote(note) {
@@ -453,6 +459,11 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
   useEffect(() => {
     const off = subscribePlayback((evt) => {
       if (isPresenterRef.current) return // le présentateur ne s'applique pas à lui-même
+      // Sélection de commentaire pilotée par le présentateur (mêmes dessins affichés).
+      if (evt.kind === 'select') {
+        setActiveId(evt.noteId ?? null)
+        return
+      }
       const v = videoRef.current
       if (!v) return
 

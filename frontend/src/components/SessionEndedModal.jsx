@@ -1,10 +1,22 @@
+import { useState } from 'react'
 import { WarningCircle, ArrowClockwise, SignOut } from '@phosphor-icons/react'
 
 // Alerte mono-session : le compte vient d'être ouvert ailleurs (le dernier login
 // gagne). S'affiche EN OVERLAY par-dessus la page courante, sans y toucher.
-//   onReconnect : repart proprement vers l'écran de connexion.
-//   onDismiss   : ferme l'alerte et laisse l'utilisateur sur sa page (déconnecté).
+//   onReconnect : reprise sans identifiants (refresh token / token valide) ; async.
+//   onDismiss   : vrai logout -> écran de connexion.
 export default function SessionEndedModal({ onReconnect, onDismiss }) {
+  const [busy, setBusy] = useState(false)
+
+  async function handleReconnect() {
+    setBusy(true)
+    try {
+      await onReconnect()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="modal-overlay">
       <div
@@ -25,12 +37,16 @@ export default function SessionEndedModal({ onReconnect, onDismiss }) {
           </p>
         </div>
         <div className="modal-actions">
-          <button className="btn btn-ghost" onClick={onDismiss}>
+          <button className="btn btn-ghost" onClick={onDismiss} disabled={busy}>
             <SignOut size={16} weight="bold" />
             Laisser la déconnexion
           </button>
-          <button className="btn btn-primary" onClick={onReconnect}>
-            <ArrowClockwise size={16} weight="bold" />
+          <button className="btn btn-primary" onClick={handleReconnect} disabled={busy}>
+            {busy ? (
+              <span className="spinner" aria-hidden="true" />
+            ) : (
+              <ArrowClockwise size={16} weight="bold" />
+            )}
             Se reconnecter
           </button>
         </div>

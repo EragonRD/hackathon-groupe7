@@ -170,7 +170,10 @@ describe('SecurityService', () => {
     const firstTs = 20_000 + SEGMENT_ALERT_THRESHOLD + 1
     const first = await request(service, { path: '/dup-a.ts', tsMs: firstTs })
     const duplicate = await request(service, { path: '/dup-b.ts', tsMs: firstTs + 1 })
-    const afterWindow = await request(service, { path: '/dup-c.ts', tsMs: firstTs + 30_001 })
+    const afterWindow = await request(service, {
+      path: '/dup-c.ts',
+      tsMs: firstTs + 30_001,
+    })
 
     expect(first.alerts).toHaveLength(1)
     expect(duplicate.alerts).toHaveLength(0)

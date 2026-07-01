@@ -1,9 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { spawn } from 'child_process'
 import { randomBytes } from 'crypto'
-import { existsSync } from 'fs'
-import { mkdir, rm, writeFile } from 'fs/promises'
-import { join } from 'path'
+import { existsSync, createReadStream, createWriteStream } from 'fs'
+import { mkdir, rm, writeFile, readdir, rename } from 'fs/promises'
+import { extname, join } from 'path'
+import { tmpdir } from 'os'
 import { backendPath } from '../common/runtime-paths'
 import { ContentsService } from '../contents/contents.service'
 
@@ -27,6 +28,7 @@ function parseMaxEncodes(raw: string | undefined): number {
   return Number.isInteger(n) && n >= 1 ? n : 1
 }
 const MAX_CONCURRENT_ENCODES = parseMaxEncodes(process.env.MAX_CONCURRENT_ENCODES)
+const UPLOAD_TMP = join(tmpdir(), 'poulpium-uploads')
 
 @Injectable()
 export class UploadService implements OnModuleInit {
@@ -37,6 +39,7 @@ export class UploadService implements OnModuleInit {
   // Sémaphore de concurrence ffmpeg : jetons disponibles + file de réveils en attente.
   private encodeSlots = MAX_CONCURRENT_ENCODES
   private readonly encodeQueue: Array<() => void> = []
+  private readonly activeMerges = new Set<string>()
 
   constructor(private readonly contents: ContentsService) {}
 
@@ -145,6 +148,67 @@ export class UploadService implements OnModuleInit {
       this.releaseEncodeSlot()
       await rm(keyInfoPath, { force: true }).catch(() => {})
     }
+  }
+
+  // Stocke temporairement un morceau (chunk) de vidéo, puis le fusionne si tous sont là.
+  async handleChunk(
+    tempFilePath: string,
+    chunkIndex: number,
+    totalChunks: number,
+    uploadId: string,
+    originalname: string,
+  ): Promise<{ completed: boolean; path?: string }> {
+    if (!uploadId || !/^[a-zA-Z0-9_-]+$/.test(uploadId)) {
+      throw new Error('uploadId invalide')
+    }
+
+    const chunkDir = join(UPLOAD_TMP, 'chunks', uploadId)
+    await mkdir(chunkDir, { recursive: true })
+
+    const chunkPath = join(chunkDir, `${chunkIndex}.part`)
+    await rename(tempFilePath, chunkPath)
+
+    const files = await readdir(chunkDir)
+    if (files.length === totalChunks) {
+      if (this.activeMerges.has(uploadId)) {
+        return { completed: false }
+      }
+      const expectedPaths = Array.from({ length: totalChunks }, (_, i) =>
+        join(chunkDir, `${i}.part`),
+      )
+      const allExist = expectedPaths.every((p) => existsSync(p))
+      if (allExist) {
+        this.activeMerges.add(uploadId)
+        try {
+          const ext = extname(originalname) || '.mp4'
+          const finalPath = join(UPLOAD_TMP, `${uploadId}${ext}`)
+          const writeStream = createWriteStream(finalPath)
+
+          for (const partPath of expectedPaths) {
+            await new Promise<void>((resolve, reject) => {
+              const readStream = createReadStream(partPath)
+              readStream.pipe(writeStream, { end: false })
+              readStream.on('end', resolve)
+              readStream.on('error', reject)
+            })
+          }
+          writeStream.end()
+
+          await new Promise<void>((resolve, reject) => {
+            writeStream.on('finish', resolve)
+            writeStream.on('error', reject)
+          })
+
+          await rm(chunkDir, { recursive: true, force: true }).catch(() => {})
+
+          return { completed: true, path: finalPath }
+        } finally {
+          this.activeMerges.delete(uploadId)
+        }
+      }
+    }
+
+    return { completed: false }
   }
 
   private runFfmpeg(args: string[]): Promise<void> {

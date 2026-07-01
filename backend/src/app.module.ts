@@ -11,6 +11,7 @@ import { AdminModule } from './admin/admin.module'
 import { StreamModule } from './stream/stream.module'
 import { UploadModule } from './upload/upload.module'
 import { EngineModule } from './engine/engine.module'
+import { NotesModule } from './notes/notes.module'
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { EngineModule } from './engine/engine.module'
     StreamModule,
     UploadModule,
     EngineModule,
+    NotesModule,
   ],
   controllers: [AppController],
   providers: [
