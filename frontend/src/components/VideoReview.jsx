@@ -628,7 +628,13 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
       },
     })
     let lastRecover = 0
-    const clear = () => setVideoError(false)
+    let netRetry = 0
+    // Sur un chargement/segment réussi : on efface l'erreur ET on remet à zéro le
+    // compteur de retries réseau (les erreurs transitoires passées sont oubliées).
+    const clear = () => {
+      setVideoError(false)
+      netRetry = 0
+    }
     hls.on(Hls.Events.MANIFEST_PARSED, clear)
     hls.on(Hls.Events.FRAG_BUFFERED, clear)
     hls.on(Hls.Events.ERROR, (_evt, data) => {
@@ -643,8 +649,19 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
           hls.recoverMediaError()
         }
       } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-        // clé/segment : on retente (utile si l'utilisateur vient de se connecter).
-        hls.startLoad()
+        const code = data.response?.code
+        // 404 = flux non provisionné (contenu sans HLS) ; 401/403 = accès refusé
+        // ou lien invité expiré : erreurs PERMANENTES -> on affiche l'erreur au
+        // lieu de retenter à l'infini (ce qui laissait « Chargement… » sans fin).
+        if (code === 404 || code === 401 || code === 403) {
+          setVideoError(true)
+        } else if (netRetry < 3) {
+          // Réseau transitoire : quelques retries.
+          netRetry += 1
+          hls.startLoad()
+        } else {
+          setVideoError(true)
+        }
       } else {
         // Erreur vraiment irrécupérable (ex. manifest) : on signale, on arrête.
         setVideoError(true)
