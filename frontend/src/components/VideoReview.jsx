@@ -93,6 +93,7 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
     releasePresenter,
     sendPlayback,
     sendHeartbeat,
+    sendRate,
     subscribePlayback,
   } = useReview({ session, user })
 
@@ -405,7 +406,12 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
     if (!isPresenter) return
     const id = setInterval(() => {
       const v = videoRef.current
-      if (v) sendHeartbeat({ position: v.currentTime, paused: v.paused })
+      if (v)
+        sendHeartbeat({
+          position: v.currentTime,
+          paused: v.paused,
+          rate: v.playbackRate,
+        })
     }, HEARTBEAT_MS)
     return () => clearInterval(id)
   }, [isPresenter, sendHeartbeat])
@@ -421,6 +427,14 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
       if (isPresenterRef.current) return // le présentateur ne s'applique pas à lui-même
       const v = videoRef.current
       if (!v) return
+
+      // Vitesse de lecture imposée par le présentateur (portée aussi par les
+      // heartbeats / la resync retardataire).
+      if (typeof evt.rate === 'number' && v.playbackRate !== evt.rate) {
+        v.playbackRate = evt.rate
+        setPlaybackRate(evt.rate)
+      }
+      if (evt.kind === 'rate') return // rien d'autre à appliquer
 
       if (evt.kind === 'playback') {
         beginApplyingRemote()
@@ -640,6 +654,8 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
     if (!videoRef.current) return
     videoRef.current.playbackRate = rate
     setPlaybackRate(rate)
+    // Présentateur : propager la vitesse aux invités (watch-together).
+    if (isPresenterRef.current) sendRate(rate)
   }
 
   // Nom du présentateur courant (pour le badge).
@@ -880,8 +896,15 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
                   key={rate}
                   className={`badge ${playbackRate === rate ? 'badge-accent' : 'wt-badge'}`}
                   onClick={() => setRate(rate)}
-                  title={`Vitesse ${rate}x`}
-                  style={{ cursor: 'pointer', padding: '0 6px' }}
+                  disabled={following}
+                  title={
+                    following ? 'Vitesse pilotée par le présentateur' : `Vitesse ${rate}x`
+                  }
+                  style={{
+                    cursor: following ? 'not-allowed' : 'pointer',
+                    padding: '0 6px',
+                    opacity: following ? 0.5 : 1,
+                  }}
                 >
                   {rate}x
                 </button>
