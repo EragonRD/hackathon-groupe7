@@ -16,6 +16,7 @@ export default defineConfig({
       '/keys': process.env.VITE_CORE_PROXY || 'http://localhost:3000',
       '/admin': process.env.VITE_CORE_PROXY || 'http://localhost:3000',
       '/security': process.env.VITE_CORE_PROXY || 'http://localhost:3000',
+      '/contents': process.env.VITE_CORE_PROXY || 'http://localhost:3000',
       '/videos': process.env.VITE_CORE_PROXY || 'http://localhost:3000',
     },
   },

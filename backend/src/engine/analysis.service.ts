@@ -28,10 +28,19 @@ export class AnalysisService {
   constructor(private readonly engine: EngineService) {
     const stored = loadJson<AnalysisRecord[] | null>(STORE, null) ?? []
     for (const r of stored) this.records.set(r.contentId, r)
-    // Reprend le polling des analyses restées « processing » après un redémarrage.
+    // Reprise après redémarrage :
+    // - « processing » AVEC jobId : le job existe côté Engine, on reprend le polling.
+    // - « processing » SANS jobId : l'appel à analyzeFile n'a jamais abouti avant le
+    //   crash (le fichier clair a disparu depuis). On ne peut plus reprendre : on
+    //   marque en erreur pour ne pas laisser le contenu bloqué à vie en « processing ».
     for (const r of this.records.values()) {
-      if (r.status === 'processing' && r.jobId)
-        this.poll(r.contentId, r.jobId, Date.now())
+      if (r.status !== 'processing') continue
+      if (r.jobId) this.poll(r.contentId, r.jobId, Date.now())
+      else
+        this.set(r.contentId, {
+          status: 'error',
+          error: 'analyse interrompue par un redémarrage (source indisponible)',
+        })
     }
   }
 

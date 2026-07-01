@@ -26,6 +26,9 @@ media/hls/
 backend/data/users.json
 backend/data/companies.json
 backend/data/contents.json
+backend/data/analysis.json
+backend/data/bans.json
+backend/data/.*.tmp
 
 # Package files
 *.jar

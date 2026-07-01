@@ -2,7 +2,9 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { appendFile, mkdir, readFile } from 'fs/promises'
 import { dirname } from 'path'
 import { backendPath } from '../common/runtime-paths'
+import { loadJson, saveJson } from '../common/json-store'
 
+const BANS_STORE = 'bans.json'
 const WINDOW_MS = 5 * 60 * 1000
 const ALERT_TTL_MS = 10 * 60 * 1000
 const MULTI_SESSION_IP_THRESHOLD = 3
@@ -74,6 +76,12 @@ export class SecurityService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.loadProxyList()
+    // Recharge les bans persistés (survivent aux redémarrages).
+    const stored = loadJson<Array<{ ip: string; reason: string; at: string }> | null>(
+      BANS_STORE,
+      null,
+    )
+    for (const b of stored ?? []) this.bans.set(b.ip, { reason: b.reason, at: b.at })
   }
 
   async recordRequest(input: SecurityRequestInput): Promise<{
@@ -247,16 +255,23 @@ export class SecurityService implements OnModuleInit {
   ): { ip: string; reason: string; at: string } {
     const entry = { reason: reason || 'Banni manuellement', at: nowIso }
     this.bans.set(ip, entry)
+    this.persistBans()
     this.logger.warn(`IP bannie: ${ip} (${entry.reason})`)
     return { ip, ...entry }
   }
 
   unbanIp(ip: string): boolean {
-    return this.bans.delete(ip)
+    const removed = this.bans.delete(ip)
+    if (removed) this.persistBans()
+    return removed
   }
 
   listBans(): Array<{ ip: string; reason: string; at: string }> {
     return [...this.bans.entries()].map(([ip, e]) => ({ ip, ...e }))
+  }
+
+  private persistBans(): void {
+    saveJson(BANS_STORE, this.listBans())
   }
 
   private async loadProxyList(): Promise<void> {

@@ -18,6 +18,13 @@ const LOCK_MS = 5 * 60 * 1000
 // Borne mémoire : au-delà, on purge les entrées expirées (anti-OOM si spray d'usernames).
 const MAX_ATTEMPT_ENTRIES = 10_000
 
+// Verrou AGRÉGÉ par compte (toutes IP confondues) : bloque le brute-force
+// DISTRIBUÉ (botnet, rotation d'IP) que le verrou par couple (IP, compte) laisse
+// passer. Seuil plus haut pour ne pas permettre un déni de service trivial d'un
+// compte tiers ; verrou plus court. Un login réussi remet ce compteur à zéro.
+const ACCOUNT_MAX_FAILS = 25
+const ACCOUNT_LOCK_MS = 15 * 60 * 1000
+
 // Refresh tokens : durée de vie et store révocable (vrai logout).
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -30,6 +37,12 @@ const DUMMY_HASH =
 export class AuthService {
   // Suivi en mémoire des tentatives échouées par couple (IP, compte).
   private readonly attempts = new Map<
+    string,
+    { fails: number; lockedUntil: number; ts: number }
+  >()
+
+  // Compteur agrégé par compte (clé = username) pour le brute-force distribué.
+  private readonly accountAttempts = new Map<
     string,
     { fails: number; lockedUntil: number; ts: number }
   >()
@@ -51,9 +64,14 @@ export class AuthService {
     const now = Date.now()
     const key = `${ip}|${username}`
     const record = this.attempts.get(key)
+    const accountRecord = this.accountAttempts.get(username)
 
-    // Couple (IP, compte) verrouillé : on refuse sans même tester le mot de passe.
-    if (record && record.lockedUntil > now) {
+    // Couple (IP, compte) OU compte (toutes IP) verrouillé : on refuse sans même
+    // tester le mot de passe. Le 2e verrou attrape le brute-force distribué.
+    if (
+      (record && record.lockedUntil > now) ||
+      (accountRecord && accountRecord.lockedUntil > now)
+    ) {
       throw new HttpException(
         'Trop de tentatives, reessayez plus tard',
         HttpStatus.TOO_MANY_REQUESTS,
@@ -66,6 +84,7 @@ export class AuthService {
     const passwordOk = await argon2.verify(user?.passwordHash ?? DUMMY_HASH, password)
     if (!user || !passwordOk) {
       this.registerFailure(key, now)
+      this.registerAccountFailure(username, now)
       throw new UnauthorizedException('Identifiants invalides')
     }
 
@@ -76,8 +95,9 @@ export class AuthService {
       )
     }
 
-    // Succès : on remet le compteur à zéro pour ce couple.
+    // Succès : on remet les compteurs à zéro (couple ET compte).
     this.attempts.delete(key)
+    this.accountAttempts.delete(username)
     return this.issueSession(user)
   }
 
@@ -177,11 +197,36 @@ export class AuthService {
     this.attempts.set(key, record)
   }
 
+  // Incrémente le compteur AGRÉGÉ par compte (anti-brute-force distribué).
+  private registerAccountFailure(username: string, now: number): void {
+    this.pruneAccountAttempts(now)
+    const record = this.accountAttempts.get(username) ?? {
+      fails: 0,
+      lockedUntil: 0,
+      ts: now,
+    }
+    record.fails += 1
+    record.ts = now
+    if (record.fails >= ACCOUNT_MAX_FAILS) {
+      record.lockedUntil = now + ACCOUNT_LOCK_MS
+      record.fails = 0
+    }
+    this.accountAttempts.set(username, record)
+  }
+
   // Borne la mémoire : purge les entrées dont le verrou et l'activité sont expirés.
   private pruneAttempts(now: number): void {
     if (this.attempts.size < MAX_ATTEMPT_ENTRIES) return
     for (const [k, r] of this.attempts) {
       if (r.lockedUntil < now && now - r.ts > LOCK_MS) this.attempts.delete(k)
+    }
+  }
+
+  private pruneAccountAttempts(now: number): void {
+    if (this.accountAttempts.size < MAX_ATTEMPT_ENTRIES) return
+    for (const [k, r] of this.accountAttempts) {
+      if (r.lockedUntil < now && now - r.ts > ACCOUNT_LOCK_MS)
+        this.accountAttempts.delete(k)
     }
   }
 }

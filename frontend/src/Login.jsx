@@ -52,7 +52,7 @@ export default function Login({ onAuthed }) {
       return next
     })
     setScore((s) => s + 1)
-    
+
     // Après l'explosion, on remonte la bulle en changeant sa clé (remount = repart du bas)
     setTimeout(() => {
       setBubblesState((prev) => {
@@ -99,12 +99,27 @@ export default function Login({ onAuthed }) {
     <div className="login-screen">
       <aside className="login-aside" ref={asideRef} onPointerMove={handleAsideMove}>
         {score > 0 && (
-          <div className="bubble-score" style={{ position: 'absolute', top: '24px', right: '24px', fontSize: '13px', color: 'rgba(255,255,255,0.3)', zIndex: 10, userSelect: 'none' }}>
+          <div
+            className="bubble-score"
+            style={{
+              position: 'absolute',
+              top: '24px',
+              right: '24px',
+              fontSize: '13px',
+              color: 'rgba(255,255,255,0.3)',
+              zIndex: 10,
+              userSelect: 'none',
+            }}
+          >
             Score : {score}
           </div>
         )}
         <span className="login-spotlight" aria-hidden="true" />
-        <div className="login-bubbles" aria-hidden="true" style={{ pointerEvents: 'none' }}>
+        <div
+          className="login-bubbles"
+          aria-hidden="true"
+          style={{ pointerEvents: 'none' }}
+        >
           {bubblesState.map((b, i) => (
             <span
               key={`${i}-${b.v}`}
@@ -115,7 +130,7 @@ export default function Login({ onAuthed }) {
               }}
               style={{
                 pointerEvents: b.popped ? 'none' : 'auto',
-                cursor: 'pointer'
+                cursor: 'pointer',
               }}
             />
           ))}

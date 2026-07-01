@@ -3,6 +3,15 @@
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const TOKEN_KEY = 'hackathon_token'
+const REFRESH_KEY = 'hackathon_refresh'
+
+// Stocke le couple access + refresh renvoyé par le Core (login / change-password /
+// refresh). Le refresh token permet de renouveler l'access token expiré sans
+// redemander les identifiants.
+function storeSession(data) {
+  if (data?.accessToken) localStorage.setItem(TOKEN_KEY, data.accessToken)
+  if (data?.refreshToken) localStorage.setItem(REFRESH_KEY, data.refreshToken)
+}
 
 export async function login(username, password) {
   const res = await fetch(`${API}/auth/login`, {
@@ -18,16 +27,46 @@ export async function login(username, password) {
     throw new Error('Identifiant ou mot de passe incorrect.')
   }
   const data = await res.json()
-  localStorage.setItem(TOKEN_KEY, data.accessToken)
+  storeSession(data)
   return data.user
 }
 
 export function logout() {
+  // Révoque le refresh token côté serveur (vrai logout), au mieux (fire-and-forget).
+  const refreshToken = localStorage.getItem(REFRESH_KEY)
+  if (refreshToken) {
+    fetch(`${API}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    }).catch(() => {})
+  }
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_KEY)
 }
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY)
+}
+
+// Tente de renouveler l'access token via le refresh token (rotation côté serveur).
+// Renvoie true si un nouveau token a été stocké, false sinon (refresh absent/expiré).
+async function tryRefresh() {
+  const refreshToken = localStorage.getItem(REFRESH_KEY)
+  if (!refreshToken) return false
+  try {
+    const res = await fetch(`${API}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+    if (!res.ok) return false
+    const data = await res.json()
+    storeSession(data)
+    return Boolean(data?.accessToken)
+  } catch {
+    return false
+  }
 }
 
 // Claims du JWT décodés depuis le payload (sans appel réseau, sans vérif de
@@ -103,15 +142,15 @@ export async function changePassword(currentPassword, newPassword) {
     throw new Error(serverMsg || 'Impossible de changer le mot de passe.')
   }
   const data = await res.json()
-  localStorage.setItem(TOKEN_KEY, data.accessToken)
+  storeSession(data)
   return data.user
 }
 
 // fetch authentifié : ajoute `Authorization: Bearer <token>` + intercepteur 401.
-// Sur 401 (token absent/expiré/invalide), on déconnecte et on émet `auth:expired`
-// pour que l'app retourne à l'écran de connexion. Le code appelant reçoit quand
-// même la réponse et peut la traiter.
-export async function authFetch(path, options = {}) {
+// Sur 401 (token expiré), on tente UNE FOIS un refresh silencieux puis on rejoue
+// la requête. Si le refresh échoue, on déconnecte et on émet `auth:expired` pour
+// que l'app retourne à l'écran de connexion. Le code appelant reçoit la réponse.
+export async function authFetch(path, options = {}, _retried = false) {
   const token = getToken()
   const res = await fetch(`${API}${path}`, {
     ...options,
@@ -121,6 +160,10 @@ export async function authFetch(path, options = {}) {
     },
   })
   if (res.status === 401 && token) {
+    // Une seule tentative de refresh pour éviter toute boucle infinie.
+    if (!_retried && (await tryRefresh())) {
+      return authFetch(path, options, true)
+    }
     logout()
     window.dispatchEvent(new Event('auth:expired'))
   }
