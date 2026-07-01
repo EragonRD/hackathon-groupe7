@@ -78,6 +78,14 @@ export class SecurityService implements OnModuleInit {
     blocked: boolean
     alerts: SecurityAlert[]
   }> {
+    // Anti-bruit : on ne compte PAS les endpoints de surveillance eux-mêmes
+    // (le dashboard se poll toutes les 2 s) — sinon l'« activité récente » et les
+    // compteurs se remplissent de leurs propres appels. Le contrôle de ban, lui,
+    // a déjà eu lieu en amont (middleware), donc rien n'est affaibli.
+    if (this.isMonitoringPath(input.path)) {
+      return { blocked: false, alerts: [] }
+    }
+
     const now = input.tsMs ?? Date.now()
     this.trim(now)
 
@@ -298,6 +306,16 @@ export class SecurityService implements OnModuleInit {
 
   private isSegmentRequest(path: string): boolean {
     return /\.ts(?:[?#]|$)/.test(path)
+  }
+
+  // Endpoints de surveillance/admin pollés régulièrement : exclus de l'activité.
+  private isMonitoringPath(path: string): boolean {
+    return (
+      path.startsWith('/security/dashboard') ||
+      path.startsWith('/security/watermark') ||
+      path.startsWith('/security/bans') ||
+      path.startsWith('/admin/audit')
+    )
   }
 
   private findProxyMatch(ip: string): string | undefined {
