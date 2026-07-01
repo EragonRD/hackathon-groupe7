@@ -64,4 +64,8 @@ Thumbs.db
 *.mov
 *.wmv
 
+docs/SUJETS-CHOIX.md
+
+# Fichier de travail (body de PR) — non versionné
+PR_BODY.md
 .env
