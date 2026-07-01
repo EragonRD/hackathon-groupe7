@@ -1,5 +1,8 @@
 import { Injectable, OnModuleInit } from '@nestjs/common'
 import * as argon2 from 'argon2'
+import { loadJson, saveJson } from '../common/json-store'
+
+const STORE = 'users.json'
 
 // 3 niveaux : superadmin (global) · admin (lié à une entreprise) · user (lié à une entreprise).
 export type Role = 'superadmin' | 'admin' | 'user'
@@ -43,18 +46,53 @@ export class UsersService implements OnModuleInit {
   private nextId = 1
 
   async onModuleInit(): Promise<void> {
-    this.users = await Promise.all(
-      SEED.map(async (u) => ({
-        id: this.nextId++,
-        username: u.username,
-        email: null,
-        role: u.role,
-        companyId: u.companyId,
-        passwordHash: await argon2.hash(u.password),
-        mustChangePassword: false,
-        passwordExpiresAt: null,
-      })),
-    )
+    // Charge le disque (backend/data/users.json) s'il existe : les comptes créés
+    // et les mots de passe changés survivent au redémarrage. Sinon (premier
+    // lancement), on sème les comptes de démo (mots de passe hachés) et on persiste.
+    const stored = loadJson<User[] | null>(STORE, null)
+    if (stored && stored.length > 0) {
+      this.users = stored
+      this.nextId = Math.max(...stored.map((u) => u.id)) + 1
+    } else {
+      this.users = await Promise.all(
+        SEED.map(async (u) => ({
+          id: this.nextId++,
+          username: u.username,
+          email: null,
+          role: u.role,
+          companyId: u.companyId,
+          passwordHash: await argon2.hash(u.password),
+          mustChangePassword: false,
+          passwordExpiresAt: null,
+        })),
+      )
+      this.persist()
+    }
+    // Garantie anti-verrouillage : le superadmin 'root' doit TOUJOURS exister,
+    // même si le fichier sur disque l'a perdu (suppression manuelle, etc.).
+    await this.ensureRoot()
+  }
+
+  // Recrée 'root' (superadmin, mot de passe 'password') s'il a disparu du disque.
+  private async ensureRoot(): Promise<void> {
+    if (this.users.some((u) => u.username === 'root' && u.role === 'superadmin')) {
+      return
+    }
+    this.users.push({
+      id: this.nextId++,
+      username: 'root',
+      email: null,
+      role: 'superadmin',
+      companyId: null,
+      passwordHash: await argon2.hash('password'),
+      mustChangePassword: false,
+      passwordExpiresAt: null,
+    })
+    this.persist()
+  }
+
+  private persist(): void {
+    saveJson(STORE, this.users)
   }
 
   findByUsername(username: string): Promise<User | undefined> {
@@ -83,6 +121,7 @@ export class UsersService implements OnModuleInit {
       passwordExpiresAt: null,
     }
     this.users.push(user)
+    this.persist()
     return this.toPublic(user)
   }
 
@@ -104,6 +143,7 @@ export class UsersService implements OnModuleInit {
       passwordExpiresAt: input.expiresAt,
     }
     this.users.push(user)
+    this.persist()
     return this.toPublic(user)
   }
 
@@ -114,6 +154,35 @@ export class UsersService implements OnModuleInit {
     user.passwordHash = await argon2.hash(newPassword)
     user.mustChangePassword = false
     user.passwordExpiresAt = null
+    this.persist()
+  }
+
+  // Change le rôle d'un compte entre 'admin' et 'user' (jamais 'superadmin').
+  // Réservé au superadmin. Retourne le compte public à jour, ou undefined.
+  setRole(username: string, role: 'admin' | 'user'): PublicUser | undefined {
+    const user = this.users.find((u) => u.username === username)
+    if (!user) return undefined
+    user.role = role
+    this.persist()
+    return this.toPublic(user)
+  }
+
+  // Supprime un compte par identifiant. Retourne true si un compte a été retiré.
+  deleteUser(username: string): boolean {
+    const before = this.users.length
+    this.users = this.users.filter((u) => u.username !== username)
+    const removed = this.users.length < before
+    if (removed) this.persist()
+    return removed
+  }
+
+  // Supprime tous les comptes d'une entreprise (cascade à la suppression d'orga).
+  deleteByCompany(companyId: string): number {
+    const before = this.users.length
+    this.users = this.users.filter((u) => u.companyId !== companyId)
+    const removed = before - this.users.length
+    if (removed) this.persist()
+    return removed
   }
 
   listAll(): PublicUser[] {

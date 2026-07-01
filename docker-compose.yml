@@ -24,6 +24,8 @@ services:
     volumes:
       - ./backend/secrets:/app/secrets:ro
       - ./backend/logs:/app/logs
+      # Persistance metier (users, companies, contents) : survit au redemarrage.
+      - ./backend/data:/app/data
     depends_on:
       - hls
 

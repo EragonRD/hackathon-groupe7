@@ -8,6 +8,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -15,6 +16,7 @@ import {
 import { randomBytes } from 'crypto'
 import { AuthGuard } from '../auth/auth.guard'
 import { AdminGuard } from '../auth/admin.guard'
+import { CompanyAdminGuard } from '../auth/company-admin.guard'
 import { SuperAdminGuard } from '../auth/superadmin.guard'
 import { PasswordChangedGuard } from '../auth/password-changed.guard'
 import { UsersService } from '../auth/users.service'
@@ -102,6 +104,24 @@ export class AdminController {
     }
   }
 
+  // Supprimer une entreprise : CASCADE (ses utilisateurs et ses contenus sont
+  // aussi supprimés) pour ne laisser aucun compte/contenu orphelin.
+  @UseGuards(SuperAdminGuard)
+  @Delete('companies/:id')
+  deleteCompany(@Param('id') id: string) {
+    const company = this.companies.find(id)
+    if (!company) throw new NotFoundException('Entreprise inconnue')
+    const usersRemoved = this.users.deleteByCompany(id)
+    const contentsRemoved = this.contents.deleteByCompany(id)
+    this.companies.delete(id)
+    return {
+      deleted: company,
+      usersRemoved,
+      contentsRemoved,
+      message: 'Entreprise supprimee (comptes et contenus associes retires)',
+    }
+  }
+
   // ───────────────────────── ADMIN D'ENTREPRISE ─────────────────────────
 
   // Utilisateurs : superadmin = tous ; admin = ceux de SON entreprise.
@@ -133,28 +153,67 @@ export class AdminController {
     })
   }
 
-  // Contenus : superadmin = tous ; admin = ceux de SON entreprise.
-  @UseGuards(AdminGuard)
-  @Get('contents')
-  listContents(@Req() req: RequestWithUser) {
-    const me = req.user!
-    return me.role === 'superadmin'
-      ? this.contents.list()
-      : this.contents.listByCompany(me.companyId ?? null)
+  // Changer le rôle d'un compte entre 'admin' et 'user' (jamais 'superadmin').
+  // Réservé au superadmin ; la cible doit appartenir à une entreprise.
+  @UseGuards(SuperAdminGuard)
+  @Patch('users/:username/role')
+  async setUserRole(
+    @Param('username') username: string,
+    @Body() body: { role?: string },
+  ) {
+    if (body?.role !== 'admin' && body?.role !== 'user') {
+      throw new BadRequestException("role doit valoir 'admin' ou 'user'")
+    }
+    const target = await this.users.findByUsername(username)
+    if (!target) throw new NotFoundException('Utilisateur inconnu')
+    if (target.role === 'superadmin' || !target.companyId) {
+      throw new ForbiddenException("Ce compte n'est pas rattache a une entreprise")
+    }
+    return this.users.setRole(username, body.role)
   }
 
+  // Supprimer un compte : superadmin = n'importe qui (sauf lui-même) ;
+  // admin = uniquement les comptes de SON entreprise (sauf lui-même).
   @UseGuards(AdminGuard)
+  @Delete('users/:username')
+  async deleteUser(@Req() req: RequestWithUser, @Param('username') username: string) {
+    const me = req.user!
+    if (username === me.username) {
+      throw new ForbiddenException('Vous ne pouvez pas supprimer votre propre compte')
+    }
+    const target = await this.users.findByUsername(username)
+    if (!target) throw new NotFoundException('Utilisateur inconnu')
+    if (me.role !== 'superadmin') {
+      // Un admin d'entreprise ne peut agir que dans SA société, jamais sur un superadmin.
+      if (target.role === 'superadmin' || target.companyId !== me.companyId) {
+        throw new NotFoundException('Utilisateur inconnu')
+      }
+    }
+    this.users.deleteUser(username)
+    return { deleted: username }
+  }
+
+  // Contenus : réservés aux ADMINS D'ENTREPRISE. Le superadmin n'y a AUCUN accès
+  // (CompanyAdminGuard le refuse) ; chaque admin ne voit que SON entreprise.
+  @UseGuards(CompanyAdminGuard)
+  @Get('contents')
+  listContents(@Req() req: RequestWithUser) {
+    return this.contents.listByCompany(req.user!.companyId ?? null)
+  }
+
+  @UseGuards(CompanyAdminGuard)
   @Post('contents')
   createContent(
     @Req() req: RequestWithUser,
-    @Body() body: { title?: string; companyId?: string },
+    @Body() body: { title?: string },
   ) {
     if (!body?.title) throw new BadRequestException('title requis')
-    const companyId = this.resolveCompanyId(req.user!, body.companyId)
+    const companyId = req.user!.companyId
+    if (!companyId) throw new ForbiddenException('Aucune entreprise associee')
     return this.contents.create({ title: body.title, companyId })
   }
 
-  @UseGuards(AdminGuard)
+  @UseGuards(CompanyAdminGuard)
   @Post('contents/:id/access')
   async grantAccess(
     @Req() req: RequestWithUser,
@@ -172,7 +231,7 @@ export class AdminController {
     return this.contents.grantAccess(id, body.username)
   }
 
-  @UseGuards(AdminGuard)
+  @UseGuards(CompanyAdminGuard)
   @Delete('contents/:id/access/:username')
   revokeAccess(
     @Req() req: RequestWithUser,
@@ -183,7 +242,7 @@ export class AdminController {
     return this.contents.revokeAccess(id, username)
   }
 
-  @UseGuards(AdminGuard)
+  @UseGuards(CompanyAdminGuard)
   @Post('contents/:id/revoke')
   revokeKey(@Req() req: RequestWithUser, @Param('id') id: string) {
     this.scopedContent(id, req.user!)
@@ -191,7 +250,7 @@ export class AdminController {
     return { ...content, message: 'Cle revoquee : delivrance bloquee' }
   }
 
-  @UseGuards(AdminGuard)
+  @UseGuards(CompanyAdminGuard)
   @Post('contents/:id/restore')
   restoreKey(@Req() req: RequestWithUser, @Param('id') id: string) {
     this.scopedContent(id, req.user!)
@@ -222,10 +281,11 @@ export class AdminController {
   }
 
   // Récupère un contenu en appliquant l'isolation tenant (404 si autre entreprise).
+  // Appelé uniquement par des admins d'entreprise (CompanyAdminGuard).
   private scopedContent(id: string, me: JwtUser): Content {
     const content = this.contents.find(id)
     if (!content) throw new NotFoundException('Contenu inconnu')
-    if (me.role !== 'superadmin' && content.companyId !== me.companyId) {
+    if (content.companyId !== me.companyId) {
       throw new NotFoundException('Contenu inconnu')
     }
     return content

@@ -52,8 +52,9 @@ export class KeysService {
       throw new NotFoundException('Cle de contenu introuvable')
     }
     // Isolation entreprise : on ne révèle pas l'existence d'un contenu d'un autre
-    // tenant (404, pas 403) — sauf superadmin.
-    if (user.role !== 'superadmin' && content.companyId !== user.companyId) {
+    // tenant (404, pas 403). Le superadmin (companyId null) n'a aucun accès au
+    // contenu : il est soumis au même contrôle et tombe donc en cross_tenant.
+    if (content.companyId !== user.companyId) {
       await this.logAccess({
         user,
         contentId,

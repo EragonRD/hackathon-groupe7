@@ -21,6 +21,12 @@ backend/secrets/
 backend/logs/
 media/hls/
 
+# Persistance metier generee au runtime (users.json contient des hachages de
+# mots de passe) : jamais commite. proxy-ips.txt, lui, reste suivi.
+backend/data/users.json
+backend/data/companies.json
+backend/data/contents.json
+
 # Package files
 *.jar
 

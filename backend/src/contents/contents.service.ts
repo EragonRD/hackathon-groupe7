@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { randomUUID } from 'crypto'
 import type { JwtUser } from '../common/request-context'
+import { loadJson, saveJson } from '../common/json-store'
 
 export interface Content {
   id: string
@@ -10,22 +11,32 @@ export interface Content {
   revoked: boolean
 }
 
-// Catalogue + droits d'accès EN MÉMOIRE, isolé PAR ENTREPRISE (multi-tenant).
-// Partagé entre KeysService (vérif d'accès à la clé) et le back-office admin.
+const STORE = 'contents.json'
+// Contenu de démo semé au tout premier lancement (fichier absent).
+const SEED: Content[] = [
+  {
+    id: 'poc',
+    title: 'POC Parc des Princes',
+    companyId: 'demo',
+    allowedUsernames: ['alice', 'bob', 'carol'],
+    revoked: false,
+  },
+]
+
+// Catalogue + droits d'accès, isolé PAR ENTREPRISE (multi-tenant). Persisté sur
+// disque (backend/data) : survit au redémarrage. Partagé entre KeysService
+// (vérif d'accès à la clé) et le back-office admin.
 @Injectable()
 export class ContentsService {
-  private readonly contents = new Map<string, Content>([
-    [
-      'poc',
-      {
-        id: 'poc',
-        title: 'POC Parc des Princes',
-        companyId: 'demo',
-        allowedUsernames: ['alice', 'bob', 'carol'],
-        revoked: false,
-      },
-    ],
-  ])
+  private readonly contents = new Map<string, Content>()
+
+  constructor() {
+    // Charge le disque ; à défaut (premier lancement), sème et persiste.
+    const stored = loadJson<Content[] | null>(STORE, null)
+    const initial = stored ?? SEED
+    for (const c of initial) this.contents.set(c.id, this.clone(c))
+    if (!stored) this.persist()
+  }
 
   list(): Content[] {
     return [...this.contents.values()].map((c) => this.clone(c))
@@ -49,22 +60,38 @@ export class ContentsService {
       revoked: false,
     }
     this.contents.set(id, content)
+    this.persist()
     return this.clone(content)
   }
 
-  // Accès à la clé : même entreprise (ou superadmin), non révoqué, et autorisé.
+  // Accès à la clé : même entreprise, non révoqué, et explicitement autorisé.
+  // Le superadmin n'a AUCUN accès au contenu (companyId null => jamais autorisé) :
+  // séparation stricte entre gestion de plateforme et accès aux médias.
   isAllowed(contentId: string, user: JwtUser): boolean {
     const c = this.contents.get(contentId)
     if (!c || c.revoked) return false
-    if (user.role === 'superadmin') return true
     if (c.companyId !== user.companyId) return false
     return c.allowedUsernames.includes(user.username)
+  }
+
+  // Supprime tous les contenus d'une entreprise (cascade à la suppression d'orga).
+  deleteByCompany(companyId: string): number {
+    let removed = 0
+    for (const [id, c] of this.contents) {
+      if (c.companyId === companyId) {
+        this.contents.delete(id)
+        removed++
+      }
+    }
+    if (removed) this.persist()
+    return removed
   }
 
   grantAccess(id: string, username: string): Content | undefined {
     const c = this.contents.get(id)
     if (!c) return undefined
     if (!c.allowedUsernames.includes(username)) c.allowedUsernames.push(username)
+    this.persist()
     return this.clone(c)
   }
 
@@ -72,6 +99,7 @@ export class ContentsService {
     const c = this.contents.get(id)
     if (!c) return undefined
     c.allowedUsernames = c.allowedUsernames.filter((u) => u !== username)
+    this.persist()
     return this.clone(c)
   }
 
@@ -79,7 +107,12 @@ export class ContentsService {
     const c = this.contents.get(id)
     if (!c) return undefined
     c.revoked = revoked
+    this.persist()
     return this.clone(c)
+  }
+
+  private persist(): void {
+    saveJson(STORE, [...this.contents.values()])
   }
 
   private clone(c: Content): Content {

@@ -117,19 +117,21 @@ describe('KeysService', () => {
     })
   })
 
-  // Le superadmin franchit la barriere de tenant : contenu d'un autre tenant,
-  // mais acces accorde si isAllowed le confirme.
-  it('lets a superadmin bypass the tenant boundary', async () => {
-    const key = Buffer.from('superadmin-key')
+  // Le superadmin n'a AUCUN accès au contenu : il n'a pas d'entreprise
+  // (companyId null), donc il tombe sur la barrière de tenant (404 cross_tenant)
+  // et aucune clé n'est lue. Séparation stricte gestion plateforme / contenu.
+  it('denies a superadmin (no content access) at the tenant boundary', async () => {
     contents.find.mockReturnValue(content({ companyId: 'demo' }))
-    contents.isAllowed.mockReturnValue(true)
-    fsMock.readFile.mockResolvedValueOnce(key)
 
-    await expect(service.getKey('poc', root, context)).resolves.toBe(key)
+    await expect(service.getKey('poc', root, context)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
 
+    expect(contents.isAllowed).not.toHaveBeenCalled()
+    expect(fsMock.readFile).not.toHaveBeenCalled()
     expect(lastAuditRecord()).toMatchObject({
-      result: 'granted',
-      reason: 'content_acl_granted',
+      result: 'denied',
+      reason: 'cross_tenant',
     })
   })
 
