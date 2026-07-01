@@ -22,7 +22,11 @@ function socketTransport(session, { url } = {}) {
 
   SecureStore.getItemAsync('hackathon_token').then(token => {
     socket = io(API, {
-      transports: ['websocket'], // Use websocket only for React Native
+      // websocket d'abord, mais fallback polling si l'upgrade WS est bloqué
+      // (certains Wi-Fi/proxies) ; timeout borné pour ne pas pendre.
+      transports: ['websocket', 'polling'],
+      timeout: 8000,
+      reconnectionAttempts: 5,
       auth: { token },
       query: { session },
     });

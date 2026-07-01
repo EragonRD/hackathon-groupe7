@@ -29,6 +29,7 @@ export function AuthProvider({ children }) {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
     // Réhydratation initiale : le setState se fait APRÈS l'await de me() (asynchrone),
     // pas pendant le render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     const sub = DeviceEventEmitter.addListener('auth:expired', () => setUser(null));
     return () => sub.remove();

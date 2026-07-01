@@ -3,14 +3,30 @@ import { DeviceEventEmitter } from 'react-native';
 
 const API = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const TOKEN_KEY = 'hackathon_token';
+const REQUEST_TIMEOUT_MS = 8000;
+
+// fetch avec timeout : évite que l'app "pende" quand le serveur est injoignable
+// (Core éteint / mauvais IP / Tailscale absent). Lève une erreur claire à la place.
+export async function tfetch(url, options = {}, ms = REQUEST_TIMEOUT_MS) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new Error('Serveur injoignable (délai dépassé). Vérifie le réseau / le Core.');
+    throw new Error('Serveur injoignable. Vérifie le réseau / le Core.');
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export async function login(username, password) {
-  const res = await fetch(`${API}/auth/login`, {
+  const res = await tfetch(`${API}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
   });
-  
+
   if (!res.ok) {
     if (res.status === 429) {
       throw new Error('Trop de tentatives. Réessayez dans quelques minutes.');
@@ -147,7 +163,7 @@ export async function changePassword(currentPassword, newPassword) {
 
 export async function authFetch(path, options = {}) {
   let token = await getToken();
-  let res = await fetch(`${API}${path}`, {
+  let res = await tfetch(`${API}${path}`, {
     ...options,
     headers: {
       ...(options.headers ?? {}),
