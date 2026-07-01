@@ -186,29 +186,52 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 4px 6px 4px 4px;
+  padding: 4px 12px 4px 4px;
   border-radius: var(--r-pill);
   border: 1px solid var(--line);
+  background: var(--bg-2);
+  transition:
+    border-color var(--dur) var(--ease),
+    background var(--dur) var(--ease);
+}
+.user-chip:hover {
+  border-color: var(--line-strong);
+  background: var(--bg-3);
 }
 .user-chip .avatar {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: var(--r-pill);
   display: grid;
   place-items: center;
   font-size: 12px;
   font-weight: 700;
   color: #0a0c0f;
+  flex-shrink: 0;
+}
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
 }
 .user-chip .who {
   font-size: 12.5px;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.15;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .user-chip .role {
-  font-size: 10.5px;
+  font-size: 9.5px;
+  line-height: 1.1;
   color: var(--text-faint);
-  text-transform: capitalize;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
 }
 
 /* ----------------------------------------------------------------------------
@@ -1097,7 +1120,14 @@
 @media (max-width: 900px) {
   .review {
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  /* La sidebar commentaires passe SOUS la vidéo, plafonnée pour garder l'image
+     visible ; elle scrolle en interne. */
+  .sidebar {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+    max-height: 46vh;
   }
 }
 
@@ -1542,7 +1572,9 @@
 .controls-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--s-3);
+  row-gap: var(--s-2);
 }
 .timecode {
   font-family: var(--font-mono);
@@ -1630,27 +1662,79 @@
   background: var(--accent-soft);
   color: var(--accent-strong);
 }
-.ctrl-pop-vol {
-  width: 168px;
+/* Volume inline : le bouton reste dans la navbar, la barre se déploie à sa droite
+   (et pousse la vitesse). La piste et le remplissage sont custom (0 % vide,
+   100 % plein) ; une bulle du niveau apparaît au survol. */
+.vol-inline {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 12px;
 }
-.vol-pct {
-  min-width: 36px;
+.vol-btn {
+  padding: 0 6px;
+}
+.vol-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    width var(--dur) var(--ease),
+    opacity var(--dur) var(--ease),
+    margin-left var(--dur) var(--ease);
+}
+.vol-inline.open .vol-track {
+  width: 92px;
+  opacity: 1;
+  pointer-events: auto;
+  margin-left: 8px;
+}
+/* Slider NATIF (accent-color) : le thumb parcourt toute la piste (de bout en
+   bout) et le remplissage est vide à 0 %, plein à 100 %. Plus fiable qu'un track
+   custom (qui insère le thumb d'une demi-largeur aux extrémités). */
+.vol-slider {
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.vol-slider:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-radius: var(--r-sm);
+}
+.vol-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  background: var(--bg-3);
+  border: 1px solid var(--line-strong);
+  box-shadow: var(--shadow-1);
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--text-dim);
-  text-align: right;
+  color: var(--text);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease);
 }
-.vol-slider {
-  flex: 1;
-  accent-color: var(--accent);
-  cursor: pointer;
+.vol-track:hover .vol-bubble,
+.vol-slider:focus-visible + .vol-bubble {
+  opacity: 1;
 }
 
 /* Barre d'outils d'annotation */
 .toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 4px;
   border-radius: var(--r-pill);
@@ -1849,19 +1933,26 @@
 }
 .comment-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 .comment-author {
   font-size: 12.5px;
   font-weight: 600;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .comment-time {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
   color: var(--accent-strong);
+  flex-shrink: 0;
 }
 .comment-body {
   margin-top: 3px;
@@ -2044,6 +2135,13 @@
   font-size: 10.5px;
   color: var(--text-faint);
   white-space: nowrap;
+  flex-shrink: 0;
+}
+/* Header de commentaire : les contrôles restent sur la ligne, alignés en haut ;
+   seul le pseudo se tronque si l'espace manque. */
+.comment-head .resolve-btn,
+.comment-head .btn-icon {
+  flex-shrink: 0;
 }
 
 /* Compositeur de commentaire */
@@ -3241,6 +3339,7 @@
 /* --- Onglets --- */
 .admin-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s-1);
   border-bottom: 1px solid var(--line);
   margin-bottom: var(--s-5);
@@ -3723,4 +3822,70 @@
   color: var(--text-dim);
   overflow-x: auto;
   white-space: pre;
+}
+
+/* ============================================================================
+   Responsive : tablette (<= 720px) et mobile (<= 480px).
+   Complète les breakpoints existants (login 860px, revue 900px). Objectif :
+   plus de débordement horizontal, densité réduite, cibles tactiles préservées.
+============================================================================ */
+@media (max-width: 720px) {
+  .topbar {
+    gap: var(--s-3);
+    padding: 0 var(--s-3);
+  }
+  /* Sous-titre de marque superflu sur petit écran. */
+  .brand small {
+    display: none;
+  }
+  /* Les contrôles wrappent : on retire le pousseur pour un flux naturel. */
+  .controls-spacer {
+    display: none;
+  }
+  .controls-row {
+    gap: var(--s-2);
+  }
+  /* Tables/admin : scroll horizontal plutôt que débordement. */
+  .p3b-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .admin-row {
+    flex-wrap: wrap;
+  }
+  /* Login mobile : panneau gauche déjà masqué (<860px), on resserre la carte
+     pour que le formulaire respire sur petit écran. */
+  .login-form-wrap {
+    padding: var(--s-4);
+  }
+  .login-card {
+    padding: 28px 22px;
+    border-radius: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    gap: var(--s-2);
+    padding: 0 var(--s-2);
+  }
+  /* Comptes de démo : empilés (3 colonnes illisibles sous ~430px). */
+  .demo-cards {
+    grid-template-columns: 1fr;
+  }
+  /* Bulle profil : avatar seul (le nom/role prend trop de place). */
+  .user-meta {
+    display: none;
+  }
+  .user-chip {
+    gap: 0;
+    padding: 3px;
+    border-color: transparent;
+    background: none;
+  }
+  /* Insights sous le player : un peu plus de hauteur utile. */
+  .insights {
+    max-height: 52vh;
+  }
 }

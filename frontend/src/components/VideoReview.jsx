@@ -1004,18 +1004,16 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
               </button>
             )}
 
-            {/* Volume : clic sur l'icône ouvre la barre (avec le %). */}
-            <div className="ctrl-menu">
-              {volOpen && (
-                <div className="ctrl-backdrop" onClick={() => setVolOpen(false)} />
-              )}
+            {/* Volume : clic sur l'icône déploie une barre INLINE dans la navbar
+               (elle pousse la vitesse), remplie de 0 % à 100 %, avec une bulle du
+               niveau au survol. */}
+            <div className={`vol-inline${volOpen ? ' open' : ''}`}>
               <button
-                className="badge wt-badge"
+                className="badge wt-badge vol-btn"
                 onClick={() => setVolOpen((v) => !v)}
                 aria-label="Volume"
                 aria-expanded={volOpen}
                 title={`Volume ${Math.round((muted ? 0 : volume) * 100)}%`}
-                style={{ marginLeft: '12px', padding: '0 6px' }}
               >
                 {muted || volume === 0 ? (
                   <SpeakerSlash size={16} weight="fill" />
@@ -1025,27 +1023,28 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
                   <SpeakerHigh size={16} weight="fill" />
                 )}
               </button>
-              {volOpen && (
-                <div className="ctrl-pop ctrl-pop-vol" role="group" aria-label="Volume">
-                  <span className="vol-pct">
-                    {Math.round((muted ? 0 : volume) * 100)}%
-                  </span>
-                  <input
-                    type="range"
-                    className="vol-slider"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={muted ? 0 : volume}
-                    onChange={(e) => {
-                      const val = Number(e.target.value)
-                      setVolume(val)
-                      setMuted(val === 0)
-                    }}
-                    aria-label="Niveau du volume"
-                  />
-                </div>
-              )}
+              <div className="vol-track">
+                <input
+                  type="range"
+                  className="vol-slider"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={muted ? 0 : volume}
+                  onChange={(e) => {
+                    const val = Number(e.target.value)
+                    setVolume(val)
+                    setMuted(val === 0)
+                  }}
+                  aria-label="Niveau du volume"
+                />
+                <span
+                  className="vol-bubble"
+                  style={{ left: `${Math.round((muted ? 0 : volume) * 100)}%` }}
+                >
+                  {Math.round((muted ? 0 : volume) * 100)}%
+                </span>
+              </div>
             </div>
 
             {/* Vitesse : un bouton (vitesse active) qui déploie les 4 options. */}
