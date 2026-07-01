@@ -3,9 +3,13 @@ import type { Request } from 'express'
 export interface JwtUser {
   sub: string | number
   username: string
-  role?: 'superadmin' | 'admin' | 'user'
+  role?: 'superadmin' | 'admin' | 'user' | 'guest'
   companyId?: string | null
   mustChangePassword?: boolean
+  // Tokens INVITÉ (role 'guest') : portée limitée à un contenu + une session,
+  // sans compte. `exp` (posé par signAsync) borne la durée de validité.
+  contentId?: string
+  session?: string
   iat?: number
   exp?: number
 }
