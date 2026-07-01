@@ -9,7 +9,6 @@ import {
   Gear,
   Warning,
 } from '@phosphor-icons/react'
-import { SAMPLE } from '../data/videos'
 import { shortId } from '../lib/format'
 import { isSuperAdmin } from '../auth'
 import { listMyContents } from '../contents'
@@ -160,23 +159,6 @@ export default function Catalogue({ onOpen, onOpenSecure, onOpenAdmin }) {
                   />
                 </div>
               </div>
-
-              {/* Vidéo de démonstration locale */}
-              <button className="vid-card" onClick={() => onOpen({ ...SAMPLE })}>
-                <div className="vid-thumb">
-                  <FilmSlate size={34} weight="light" color="var(--text-faint)" />
-                  <div className="play-badge">
-                    <Play size={40} weight="fill" />
-                  </div>
-                </div>
-                <div className="vid-meta">
-                  <div className="vid-title">{SAMPLE.title}</div>
-                  <div className="vid-sub">
-                    <span className="badge badge-accent">Démo</span>
-                    {SAMPLE.category}
-                  </div>
-                </div>
-              </button>
             </div>
           </>
         )}
