@@ -30,19 +30,40 @@ export function getToken() {
   return localStorage.getItem(TOKEN_KEY)
 }
 
-// Rôle lu depuis le payload du JWT (sans appel réseau). 'admin' | 'member' | null.
-export function getRole() {
+// Claims du JWT décodés depuis le payload (sans appel réseau, sans vérif de
+// signature — pour l'affichage uniquement, jamais pour une décision de sécurité).
+// { role, companyId, mustChangePassword, ... } ou null.
+export function getClaims() {
   const t = getToken()
   if (!t) return null
   try {
-    return JSON.parse(atob(t.split('.')[1])).role ?? null
+    return JSON.parse(atob(t.split('.')[1]))
   } catch {
     return null
   }
 }
 
+// Rôle : 'superadmin' | 'admin' | 'user' | null.
+export function getRole() {
+  return getClaims()?.role ?? null
+}
+
+export function getCompanyId() {
+  return getClaims()?.companyId ?? null
+}
+
+// superadmin est un admin (global) : il doit voir tout ce qu'un admin voit.
 export function isAdmin() {
-  return getRole() === 'admin'
+  return ['admin', 'superadmin'].includes(getRole())
+}
+
+export function isSuperAdmin() {
+  return getRole() === 'superadmin'
+}
+
+// Admin invité tant qu'il n'a pas changé son mot de passe temporaire.
+export function mustChangePwd() {
+  return Boolean(getClaims()?.mustChangePassword)
 }
 
 // Réhydrate l'utilisateur courant à partir du token (au rechargement de page).
@@ -59,6 +80,31 @@ export async function me() {
   } catch {
     return null
   }
+}
+
+// Changement de mot de passe (1re connexion d'un admin invité, ou volontaire).
+// Renvoie un NOUVEAU token sans le flag mustChangePassword : on le stocke et on
+// renvoie l'utilisateur à jour. Lève une erreur au libellé clair sinon.
+export async function changePassword(currentPassword, newPassword) {
+  const res = await authFetch('/auth/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+  if (!res.ok) {
+    let serverMsg = null
+    try {
+      const data = await res.json()
+      serverMsg = Array.isArray(data?.message) ? data.message.join(', ') : data?.message
+    } catch {
+      /* pas de corps JSON exploitable */
+    }
+    if (res.status === 401) throw new Error('Mot de passe actuel incorrect.')
+    throw new Error(serverMsg || 'Impossible de changer le mot de passe.')
+  }
+  const data = await res.json()
+  localStorage.setItem(TOKEN_KEY, data.accessToken)
+  return data.user
 }
 
 // fetch authentifié : ajoute `Authorization: Bearer <token>` + intercepteur 401.

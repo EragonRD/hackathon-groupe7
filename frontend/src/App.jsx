@@ -1,16 +1,18 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { ShieldCheck } from '@phosphor-icons/react'
+import { ShieldCheck, Gear } from '@phosphor-icons/react'
 import './App.css'
 import Login from './Login.jsx'
+import ChangePassword from './components/ChangePassword.jsx'
 import AppShell from './components/AppShell.jsx'
 import Catalogue from './components/Catalogue.jsx'
 import VideoReview from './components/VideoReview.jsx'
 import Documentation from './components/Documentation.jsx'
-import { getToken, logout, me, isAdmin } from './auth'
+import { getToken, logout, me, isAdmin, mustChangePwd } from './auth'
 
 // Chargés à la demande : SecureVideo embarque hls.js (lourd) -> hors du bundle initial.
 const SecureVideo = lazy(() => import('./components/SecureVideo.jsx'))
 const SecurityDashboard = lazy(() => import('./components/SecurityDashboard.jsx'))
+const AdminPanel = lazy(() => import('./components/admin/AdminPanel.jsx'))
 
 function Loading() {
   return (
@@ -74,6 +76,14 @@ export default function App() {
     return <Login onAuthed={setUser} />
   }
 
+  // Admin invité : tant que le mot de passe temporaire n'est pas remplacé, le
+  // Core bloque tout /admin/* (403). On force l'écran de changement avant tout.
+  if (mustChangePwd()) {
+    return (
+      <ChangePassword user={user} onDone={(u) => setUser(u)} onLogout={handleLogout} />
+    )
+  }
+
   function goToCatalogue() {
     setReviewPeers([])
     setView({ name: 'catalogue' })
@@ -82,17 +92,28 @@ export default function App() {
     review: view.video?.title,
     secure: 'Lecture protégée',
     dashboard: 'Surveillance',
+    admin: 'Administration',
   }
-  const showBack = ['review', 'secure', 'dashboard'].includes(view.name)
+  const showBack = ['review', 'secure', 'dashboard', 'admin'].includes(view.name)
 
-  // Accès admin discret (les utilisateurs non-admin ne le voient jamais).
-  const adminButton =
-    isAdmin() && view.name !== 'dashboard' ? (
-      <button className="btn btn-ghost" onClick={() => setView({ name: 'dashboard' })}>
-        <ShieldCheck size={16} weight="bold" />
-        Surveillance
-      </button>
-    ) : null
+  // Accès réservés (les non-admins ne les voient jamais). isAdmin() inclut le
+  // superadmin ; le panel adapte ensuite ses onglets au rôle exact.
+  const adminButtons = isAdmin() ? (
+    <>
+      {view.name !== 'admin' && (
+        <button className="btn btn-ghost" onClick={() => setView({ name: 'admin' })}>
+          <Gear size={16} weight="bold" />
+          Administration
+        </button>
+      )}
+      {view.name !== 'dashboard' && (
+        <button className="btn btn-ghost" onClick={() => setView({ name: 'dashboard' })}>
+          <ShieldCheck size={16} weight="bold" />
+          Surveillance
+        </button>
+      )}
+    </>
+  ) : null
 
   return (
     <AppShell
@@ -102,7 +123,7 @@ export default function App() {
       onHome={goToCatalogue}
       onOpenDocs={() => setView({ name: 'docs' })}
       title={titles[view.name]}
-      right={adminButton}
+      right={adminButtons}
       peers={reviewPeers}
     >
       {view.name === 'review' && (
@@ -122,6 +143,11 @@ export default function App() {
       {view.name === 'dashboard' && (
         <Suspense fallback={<Loading />}>
           <SecurityDashboard />
+        </Suspense>
+      )}
+      {view.name === 'admin' && (
+        <Suspense fallback={<Loading />}>
+          <AdminPanel />
         </Suspense>
       )}
       {view.name === 'docs' && <Documentation onBack={goToCatalogue} />}
