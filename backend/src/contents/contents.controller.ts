@@ -45,6 +45,7 @@ export class ContentsController {
       id: c.id,
       title: c.title,
       revoked: c.revoked,
+      guestUpload: c.guestUpload ?? false, // vidéo déposée par un invité -> badge UI
       // 'playable' = une clé AES est provisionnée pour ce contenu ET il n'est pas
       // révoqué. Le flux HLS n'est pas vérifiable depuis le Core ; la présence de
       // la clé (backend/secrets/<id>.key) est le signal fiable côté serveur.

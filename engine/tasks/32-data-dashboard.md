@@ -13,12 +13,12 @@ Tableau de bord **lisible** : par vidéo, sa courbe de rétention et ses zones d
 - Alimente : 33 (lecture business), View/Bloc B (insights).
 
 ## Étapes (checklist)
-- [ ] ❌ Page « par vidéo » : courbe de rétention + zones d'ennui surlignées
-- [ ] ❌ Page « comparaison » : classer/comparer les vidéos (rétention, durée, catégorie)
-- [ ] ❌ Afficher prédictions modèle + métriques (MAE/R²)
-- [ ] ❌ Filtres (catégorie, durée) + sélection vidéo
-- [ ] ❌ Réutiliser les fonctions des tâches 30/31 (pas de recalcul dupliqué)
-- [ ] ❌ `streamlit run dashboard/app.py` opérationnel localement
+- [x] ✅ Page « par vidéo » : courbe de rétention + zones d'ennui surlignées (+ signal de friction, conseils business)
+- [x] ✅ Page « comparaison » : classer/comparer les vidéos (rétention, durée, catégorie)
+- [x] ✅ Afficher prédictions modèle + métriques (MAE/R²) — onglet « Prévision » (intervalle d'ennui + risque d'abandon)
+- [x] ✅ Filtres (catégorie, durée) + sélection vidéo
+- [x] ✅ Réutiliser les fonctions des tâches 30/31 (`app/data/*`, pas de recalcul dupliqué)
+- [x] ✅ `streamlit run dashboard/app.py` opérationnel localement (4 onglets : Par vidéo, Catégories, Comparaison, Prévision)
 
 ## Critères « fait »
 - Dashboard se lance en 1 commande, lisible sans explication.

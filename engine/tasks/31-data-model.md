@@ -13,14 +13,14 @@ Prédire la rétention d'une vidéo à partir de features **indépendantes du d�
 - Partage des features avec : 30. Alimente : 32, 33.
 
 ## Étapes (checklist)
-- [ ] ❌ Lire `DATA_SCHEMA.md` : identifier la **cible** et ce qui la recopie (interdit)
-- [ ] ❌ Construire des features **sans fuite** : catégorie, durée, engagement précoce, nb pauses / retours arrière, fréquence
-- [ ] ❌ Bannir explicitement : score de rétention, position moyenne atteinte, % sessions terminées
-- [ ] ❌ Split train/test + validation croisée
-- [ ] ❌ Modèles : RandomForest / GradientBoosting (comparer)
-- [ ] ❌ Métriques : **MAE**, **R²** (test, pas train)
-- [ ] ❌ Importance des features (interprétation)
-- [ ] ❌ Module `app/data/model.py` : `train()`, `evaluate()`, `predict()`
+- [x] ✅ Lire `DATA_SCHEMA.md` : identifier la **cible** et ce qui la recopie (interdit)
+- [x] ✅ Construire des features **sans fuite** : catégorie, durée, engagement précoce, nb pauses / retours arrière, fréquence (`app/data/features.py`)
+- [x] ✅ Bannir explicitement : score de rétention, position moyenne atteinte, % sessions terminées
+- [x] ✅ Leave-One-Out CV (25 vidéos → split train/test trop bruité, LOO-CV = métriques honnêtes)
+- [x] ✅ Modèles : Ridge / RandomForest / GradientBoosting (comparer) — Ridge retenu (MAE 0.069)
+- [x] ✅ Métriques : **MAE**, **R²** (LOO-CV, jamais in-sample)
+- [x] ✅ Importance des features (interprétation) — `seek_per_sess` domine
+- [x] ✅ Module `app/data/model.py` : `train()`, `evaluate()`, `predict()`
 
 ## Critères « fait »
 - Aucune feature de fuite (revue croisée avec Otman).

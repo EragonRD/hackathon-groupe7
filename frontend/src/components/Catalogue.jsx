@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Gear,
   Warning,
+  UsersThree,
 } from '@phosphor-icons/react'
 import { isSuperAdmin } from '../auth'
 import { listMyContents } from '../contents'
@@ -205,6 +206,12 @@ function ContentCard({ content, onOpenSecure }) {
           <div className="vid-sub">
             <Icon size={13} weight="bold" />
             {unavailable.label}
+            {content.guestUpload && (
+              <span className="badge" title="Vidéo déposée par un invité">
+                <UsersThree size={12} weight="bold" />
+                Upload invité
+              </span>
+            )}
           </div>
         </div>
       </button>
@@ -226,6 +233,12 @@ function ContentCard({ content, onOpenSecure }) {
             <LockSimple size={12} weight="bold" />
             Protégé
           </span>
+          {content.guestUpload && (
+            <span className="badge" title="Vidéo déposée par un invité">
+              <UsersThree size={12} weight="bold" />
+              Upload invité
+            </span>
+          )}
           Revue sur flux protégé
         </div>
       </div>

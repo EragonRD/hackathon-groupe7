@@ -9,7 +9,7 @@
 | Squad | Sujet | Entrée → Sortie |
 |---|---|---|
 | **NLP** | 3A — Indexation & analyse sémantique | Vidéo → JSON (langue, transcript, segments horodatés, **traductions multilingues**, résumé, chapitres, mots-clés) |
-| **Data** | 3B — Audience & rétention | `../data/*.csv` → dashboard + modèle prédictif (à venir) |
+| **Data** | 3B — Audience & rétention | `../data/*.csv` → dashboard + modèle prédictif ✅ (voir [`docs/business-3b.md`](docs/business-3b.md)) |
 
 ## Stack (CPU-only)
 | Besoin | Modèle / outil | Empreinte |
@@ -75,6 +75,15 @@ uvicorn app.main:app --reload                         # http://localhost:8000
 
 Auth = `Authorization: Bearer <JWT du Core>` (HS256, `JWT_SECRET`). Bypass local : `ENGINE_REQUIRE_AUTH=false`.
 
+### Dashboard & modèle prédictif (Data 3B)
+```bash
+python scripts/run_analysis_3b.py             # pipeline -> engine/outputs/data-3b/
+streamlit run dashboard/app.py                # dashboard interactif (4 onglets)
+uvicorn app.data.api.main:app --reload --port 8010   # (bonus) API JSON, docs sur /docs
+```
+Détail méthodo, métriques et guide de repro : [`docs/business-3b.md`](docs/business-3b.md).
+Code réutilisable : `app/data/` (rétention, détection, modèle, descriptif, conseils business).
+
 ## Format de sortie (contrat P3-A + multilingue)
 ```json
 {
@@ -122,17 +131,19 @@ Plan complet : [`tests/TEST-PLAN.md`](tests/TEST-PLAN.md).
 ```
 engine/
 ├── Dockerfile · .dockerignore   conteneurisation (microservice)
-├── app/                      API FastAPI
-│   ├── main.py               endpoints + jobs async
+├── app/
+│   ├── main.py               API FastAPI 3A — endpoints + jobs async
 │   ├── config.py auth.py schemas.py models.py pipeline.py output.py
-│   └── nlp/                  transcribe · summarize · search · translate
-├── dashboard/                Streamlit 3B (placeholder)
+│   ├── nlp/                  transcribe · summarize · search · translate
+│   └── data/                 3B — retention · hotspots · model · descriptive · recommend
+│       └── api/               (bonus) API FastAPI JSON pour la partie 3B
+├── dashboard/                Streamlit 3B (`streamlit run dashboard/app.py`)
 ├── models/                   GGUF + caches (ignorés par git)
-├── outputs/                  résultats par vidéo (ignorés par git)
-├── scripts/                  analyze_file.py · demo_api.py
+├── outputs/                  résultats par vidéo + data-3b/ (ignorés par git)
+├── scripts/                  analyze_file.py · demo_api.py · run_analysis_3b.py
 ├── tasks/                    répartition (1 .md par membre)
 ├── tests/                    pytest + bench + examples/ (corpus vidéos)
-└── docs/                     api-contract · model-selection · architecture
+└── docs/                     api-contract · model-selection · architecture · business-3b
 ```
 
 ## Documentation
@@ -143,6 +154,7 @@ engine/
 | [`docs/model-selection.md`](docs/model-selection.md) | choix des modèles légers |
 | [`docs/api-vs-microservice.md`](docs/api-vs-microservice.md) | API vs microservice (soutenance) |
 | [`tests/TEST-PLAN.md`](tests/TEST-PLAN.md) · [`tests/ESTIMATIONS.md`](tests/ESTIMATIONS.md) | tests · perf |
+| [`docs/business-3b.md`](docs/business-3b.md) | lecture business + repro Data (3B) |
 | [`../docs/feature-plans/engine-p3-ia-data.md`](../docs/feature-plans/engine-p3-ia-data.md) | plan maître |
 
 ## Statut
@@ -151,4 +163,5 @@ engine/
 | 00 — Setup CPU-only | ✅ |
 | 10 — API Engine (auth, jobs, orchestration) | ✅ testé E2E |
 | Traduction multilingue + sous-titres (NLLB) | ✅ |
-| 20/21/22 — affinage NLP · 30-33 — Data 3B | ❌ à venir (autres membres) |
+| 20/21/22 — affinage NLP | ❌ à venir (autres membres) |
+| 30-33 — Data 3B (rétention, modèle, dashboard, business) | ✅ |

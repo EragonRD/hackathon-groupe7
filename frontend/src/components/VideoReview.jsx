@@ -16,11 +16,7 @@ import {
   TrashSimple,
   ArrowsOutSimple,
   ArrowsInSimple,
-  Faders,
-  Tag,
-  CheckCircle,
   ClosedCaptioning,
-  X,
 } from '@phosphor-icons/react'
 import Hls from 'hls.js'
 import { getToken } from '../auth'
@@ -631,35 +627,6 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
     return () => document.removeEventListener('fullscreenchange', onFs)
   }, [])
 
-  // --- Catégorisation sidebar --------------------------------------------
-  const [showCategorizer, setShowCategorizer] = useState(false)
-
-  const noteCategories = useMemo(() => {
-    const cats = {}
-    for (const n of notes) {
-      const key = n.category || n.color || n.author.id
-      if (!cats[key]) {
-        cats[key] = {
-          label: n.category || n.author.name,
-          color: n.color || n.author.color,
-          count: 0,
-        }
-      }
-      cats[key].count++
-    }
-    return Object.entries(cats)
-  }, [notes])
-
-  const catStats = useMemo(
-    () => ({
-      total: notes.length,
-      open: notes.filter((n) => !n.resolved).length,
-      resolved: notes.filter((n) => n.resolved).length,
-      withDrawing: notes.filter((n) => n.shapes?.length > 0).length,
-    }),
-    [notes],
-  )
-
   // 🔐 Lecture du flux HLS CHIFFRÉ (Zero-Trust) : hls.js alimente l'élément vidéo
   // et joint le JWT UNIQUEMENT sur la requête de clé (/keys/…). Un fichier direct
   // (.mp4) reste géré par l'attribut src. Récupération d'erreur robuste (le HLS
@@ -1101,15 +1068,6 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
             />
             <span className="toolbar-sep" />
             <button
-              className={`btn-icon${showCategorizer ? ' active' : ''}`}
-              onClick={() => setShowCategorizer((v) => !v)}
-              title="Catégorisation"
-              aria-label="Ouvrir la catégorisation"
-            >
-              <Faders size={18} />
-            </button>
-            <span className="toolbar-sep" />
-            <button
               className="btn-icon"
               onClick={() => {
                 if (activeId) {
@@ -1134,83 +1092,8 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Catégorisation sidebar (glissante) */}
-      <div className={`categorizer${showCategorizer ? ' open' : ''}`}>
-        <div className="categorizer-head">
-          <Faders size={15} weight="bold" />
-          <span>Catégorisation</span>
-          <button
-            className="btn-icon categorizer-close"
-            onClick={() => setShowCategorizer(false)}
-          >
-            <X size={14} weight="bold" />
-          </button>
-        </div>
-
-        <div className="categorizer-body">
-          <div className="categorizer-stats">
-            <div className="categorizer-stat">
-              <span className="categorizer-stat-num">{catStats.total}</span>
-              <span className="categorizer-stat-label">Total</span>
-            </div>
-            <div className="categorizer-stat">
-              <span className="categorizer-stat-num">{catStats.open}</span>
-              <span className="categorizer-stat-label">Ouverts</span>
-            </div>
-            <div className="categorizer-stat">
-              <span className="categorizer-stat-num">{catStats.resolved}</span>
-              <span className="categorizer-stat-label">Résolus</span>
-            </div>
-            <div className="categorizer-stat">
-              <span className="categorizer-stat-num">{catStats.withDrawing}</span>
-              <span className="categorizer-stat-label">Dessins</span>
-            </div>
-          </div>
-
-          <div className="categorizer-section">
-            <div className="categorizer-section-head">
-              <Tag size={13} weight="bold" />
-              Par catégorie
-            </div>
-            {noteCategories.length === 0 ? (
-              <div className="categorizer-empty">Aucune annotation catégorisée</div>
-            ) : (
-              <div className="categorizer-tags">
-                {noteCategories.map(([key, cat]) => (
-                  <div key={key} className="categorizer-tag-row">
-                    <span
-                      className="categorizer-tag-dot"
-                      style={{ background: cat.color }}
-                    />
-                    <span className="categorizer-tag-label">{cat.label}</span>
-                    <span className="categorizer-tag-count">{cat.count}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="categorizer-section">
-            <div className="categorizer-section-head">
-              <CheckCircle size={13} weight="bold" />
-              Par statut
-            </div>
-            <div className="categorizer-status">
-              <div className="categorizer-status-row">
-                <Circle size={12} weight="fill" color="var(--accent-strong)" />
-                <span>Ouvert</span>
-                <span className="categorizer-tag-count">{catStats.open}</span>
-              </div>
-              <div className="categorizer-status-row">
-                <CheckCircle size={12} weight="fill" color="var(--ok)" />
-                <span>Résolu</span>
-                <span className="categorizer-tag-count">{catStats.resolved}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Insights IA (Pôle 3) : sous le player, pleine largeur de la colonne */}
         <InsightsPanel
           contentId={contentId}
           meta={meta}
