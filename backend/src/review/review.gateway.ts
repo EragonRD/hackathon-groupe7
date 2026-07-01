@@ -60,7 +60,7 @@ export class ReviewGateway implements OnGatewayConnection {
     @ConnectedSocket() client: Socket,
     @MessageBody() body: { session?: string },
   ): void {
-    if (body?.session) client.join(room(body.session))
+    if (body?.session) void client.join(room(body.session))
   }
 
   // Relai pur : renvoie le message à tous les autres membres de la room.

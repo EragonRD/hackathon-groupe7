@@ -17,9 +17,11 @@ async function bootstrap() {
   app.set('trust proxy', process.env.TRUST_PROXY ?? 'loopback, uniquelocal')
 
   // Hackathon : on autorise le front (Vite) à appeler l'API. À restreindre en prod.
+  // origin: true reflète l'origine ; on ne fige PAS allowedHeaders (le package cors
+  // reflète alors les Access-Control-Request-Headers) pour ne bloquer aucun en-tête
+  // légitime (Range, If-Range, X-Requested-With, en-têtes custom du lecteur…).
   app.enableCors({
     origin: true,
-    allowedHeaders: ['Authorization', 'Content-Type', 'Range', 'X-Forwarded-For'],
     exposedHeaders: ['Content-Length', 'Content-Range'],
   })
 

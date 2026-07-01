@@ -61,6 +61,7 @@ export class SecurityService implements OnModuleInit {
   private readonly logger = new Logger(SecurityService.name)
   private readonly proxyListPath = backendPath('data', 'proxy-ips.txt')
   private readonly alertLogPath = backendPath('logs', 'security-alerts.log')
+  private alertDirReady = false
   private readonly traffic: SecurityTrafficEvent[] = []
   private readonly alerts: StoredAlert[] = []
   private readonly alertDedupe = new Map<string, number>()
@@ -248,7 +249,10 @@ export class SecurityService implements OnModuleInit {
     const line = JSON.stringify(publicAlert)
     this.logger.warn(line)
 
-    await mkdir(dirname(this.alertLogPath), { recursive: true })
+    if (!this.alertDirReady) {
+      await mkdir(dirname(this.alertLogPath), { recursive: true })
+      this.alertDirReady = true
+    }
     await appendFile(this.alertLogPath, `${line}\n`, 'utf8')
 
     return publicAlert
@@ -284,7 +288,12 @@ export class SecurityService implements OnModuleInit {
     const prefix = Number(prefixText)
     const ipNumber = this.ipv4ToNumber(ip)
 
-    if (ipNumber === undefined || prefix < 0 || prefix > 32) {
+    if (
+      ipNumber === undefined ||
+      !Number.isInteger(prefix) ||
+      prefix < 0 ||
+      prefix > 32
+    ) {
       return undefined
     }
 

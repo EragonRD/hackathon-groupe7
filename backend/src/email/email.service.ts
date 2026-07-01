@@ -2,6 +2,16 @@ import { Injectable, Logger } from '@nestjs/common'
 
 const MAILJET_ENDPOINT = 'https://api.mailjet.com/v3.1/send'
 
+// Échappe les valeurs interpolées dans le HTML de l'email (anti-injection/phishing).
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export interface EmailDelivery {
   delivered: boolean
   provider: 'mailjet' | 'simulated'
@@ -40,10 +50,10 @@ export class EmailService {
       `Valable jusqu'au ${expire}. Vous devrez le changer à la première connexion.\n`
     const html =
       `<p>Bonjour,</p><p>Vous êtes invité comme <b>administrateur</b> de ` +
-      `« ${input.companyName} ».</p>` +
-      `<p><a href="${input.link}">Se connecter</a></p>` +
-      `<p>Mot de passe temporaire : <b>${input.tempPassword}</b><br>` +
-      `Valable jusqu'au ${expire}. À changer à la première connexion.</p>`
+      `« ${escapeHtml(input.companyName)} ».</p>` +
+      `<p><a href="${escapeHtml(input.link)}">Se connecter</a></p>` +
+      `<p>Mot de passe temporaire : <b>${escapeHtml(input.tempPassword)}</b><br>` +
+      `Valable jusqu'au ${escapeHtml(expire)}. À changer à la première connexion.</p>`
 
     // Pas de clés → simulation (log + retour à l'appelant via la réponse HTTP).
     if (!this.configured) {
