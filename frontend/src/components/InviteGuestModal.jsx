@@ -23,7 +23,9 @@ export default function InviteGuestModal({ content, onClose }) {
     setError(null)
     try {
       const res = await inviteGuest(content.id, ttl)
-      setLink(res.shareUrl)
+      // On construit le lien depuis l'origine RÉELLE du front (le shareUrl du
+      // backend dépend d'APP_URL, qui peut pointer un autre port/domaine).
+      setLink(`${window.location.origin}/?guest=${res.token}`)
     } catch (err) {
       setError(err.message)
     } finally {
