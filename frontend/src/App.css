@@ -1577,6 +1577,76 @@
   flex: 1;
 }
 
+/* Contrôles compacts (vitesse / volume) : bouton + popover au-dessus. */
+.ctrl-menu {
+  position: relative;
+  display: inline-flex;
+}
+/* Filet transparent plein écran : un clic en dehors ferme le popover. */
+.ctrl-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+.ctrl-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 31;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-pop);
+  animation: fade-in 0.12s var(--ease);
+}
+.ctrl-pop-speed {
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+}
+.speed-opt {
+  min-width: 60px;
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  transition:
+    background var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+.speed-opt:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+.speed-opt.active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.ctrl-pop-vol {
+  width: 168px;
+}
+.vol-pct {
+  min-width: 36px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  text-align: right;
+}
+.vol-slider {
+  flex: 1;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 /* Barre d'outils d'annotation */
 .toolbar {
   display: flex;
@@ -3531,4 +3601,126 @@
   width: 100%;
   justify-content: center;
   margin-top: var(--s-3);
+}
+
+/* --- Synthèse P3-B (Analyse audience & rétention, vue superadmin) ---------- */
+.p3b {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+.p3b-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  color: var(--accent-strong);
+}
+.p3b-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+.p3b-head p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.p3b-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--s-3);
+}
+.p3b-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--s-4);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.p3b-stat-num {
+  font-size: 1.7rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-strong);
+}
+.p3b-stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.p3b-stat-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.p3b-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.p3b-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.p3b-section p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+.p3b-section code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  padding: 1px 5px;
+  border-radius: var(--r-sm);
+}
+.p3b-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 12px !important;
+  color: var(--text-dim) !important;
+}
+.p3b-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.p3b-table th,
+.p3b-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  vertical-align: top;
+}
+.p3b-table th {
+  background: var(--bg-2);
+  color: var(--text-dim);
+  font-weight: 700;
+}
+.p3b-table td {
+  color: var(--text);
+}
+.p3b-code {
+  margin: 0;
+  padding: var(--s-3);
+  background: var(--bg-inset);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow-x: auto;
+  white-space: pre;
 }
