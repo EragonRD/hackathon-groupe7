@@ -7,6 +7,15 @@
 const API =
   import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:3000')
 const TOKEN_KEY = 'hackathon_token'
+const REFRESH_KEY = 'hackathon_refresh'
+
+// Stocke le couple access + refresh renvoyé par le Core (login / change-password /
+// refresh). Le refresh token permet de renouveler l'access token expiré sans
+// redemander les identifiants.
+function storeSession(data) {
+  if (data?.accessToken) localStorage.setItem(TOKEN_KEY, data.accessToken)
+  if (data?.refreshToken) localStorage.setItem(REFRESH_KEY, data.refreshToken)
+}
 
 export async function login(username, password) {
   const res = await fetch(`${API}/auth/login`, {
@@ -22,16 +31,61 @@ export async function login(username, password) {
     throw new Error('Identifiant ou mot de passe incorrect.')
   }
   const data = await res.json()
-  localStorage.setItem(TOKEN_KEY, data.accessToken)
+  storeSession(data)
   return data.user
 }
 
 export function logout() {
+  // Révoque le refresh token côté serveur (vrai logout), au mieux (fire-and-forget).
+  const refreshToken = localStorage.getItem(REFRESH_KEY)
+  if (refreshToken) {
+    fetch(`${API}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    }).catch(() => {})
+  }
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_KEY)
 }
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY)
+}
+
+// Le refresh token est à USAGE UNIQUE (rotaté côté serveur). Si plusieurs requêtes
+// tombent en 401 en même temps, elles doivent partager UN SEUL appel /auth/refresh :
+// sinon la 1re consomme le token et les suivantes échouent → déconnexion parasite.
+// On mémorise donc la promesse de refresh en cours et tout le monde l'attend.
+let refreshInFlight = null
+
+async function doRefresh() {
+  const refreshToken = localStorage.getItem(REFRESH_KEY)
+  if (!refreshToken) return false
+  try {
+    const res = await fetch(`${API}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+    if (!res.ok) return false
+    const data = await res.json()
+    storeSession(data)
+    return Boolean(data?.accessToken)
+  } catch {
+    return false
+  }
+}
+
+// Tente de renouveler l'access token, en coalisant les appels concurrents.
+// Renvoie true si un nouveau token a été stocké, false sinon (refresh absent/expiré).
+function tryRefresh() {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh().finally(() => {
+      refreshInFlight = null
+    })
+  }
+  return refreshInFlight
 }
 
 // Claims du JWT décodés depuis le payload (sans appel réseau, sans vérif de
@@ -107,19 +161,20 @@ export async function changePassword(currentPassword, newPassword) {
     throw new Error(serverMsg || 'Impossible de changer le mot de passe.')
   }
   const data = await res.json()
-  localStorage.setItem(TOKEN_KEY, data.accessToken)
+  storeSession(data)
   return data.user
 }
 
 // fetch authentifié : ajoute `Authorization: Bearer <token>` + intercepteur 401.
-// Sur 401 (token absent/expiré/invalide), on déconnecte et on émet `auth:expired`
-// pour que l'app retourne à l'écran de connexion. Le code appelant reçoit quand
-// même la réponse et peut la traiter.
+// Sur 401 (token expiré), on tente UNE FOIS un refresh silencieux puis on rejoue
+// la requête. Si le refresh échoue, on déconnecte et on émet `auth:expired` pour
+// que l'app retourne à l'écran de connexion. Le code appelant reçoit la réponse.
 //
 // Mono-session : le Core renvoie `message: 'session_superseded'` quand le compte a
-// été rouvert ailleurs (le dernier gagne). On propage la raison pour que l'app
-// affiche « déconnecté par une autre session » — distinct d'une simple expiration.
-export async function authFetch(path, options = {}) {
+// été rouvert ailleurs (le dernier gagne). Dans ce cas le refresh est inutile (le
+// refresh token a été révoqué côté serveur) : on saute le refresh et on propage la
+// raison pour afficher « déconnecté par une autre session » (≠ simple expiration).
+export async function authFetch(path, options = {}, _retried = false) {
   const token = getToken()
   const res = await fetch(`${API}${path}`, {
     ...options,
@@ -136,6 +191,10 @@ export async function authFetch(path, options = {}) {
       if (data?.message === 'session_superseded') reason = 'session_superseded'
     } catch {
       /* pas de corps JSON exploitable */
+    }
+    // Refresh silencieux (une seule fois) — sauf si la session a été supersédée.
+    if (!reason && !_retried && (await tryRefresh())) {
+      return authFetch(path, options, true)
     }
     logout()
     window.dispatchEvent(new CustomEvent('auth:expired', { detail: { reason } }))

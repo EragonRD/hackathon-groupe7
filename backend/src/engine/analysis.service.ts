@@ -28,10 +28,19 @@ export class AnalysisService {
   constructor(private readonly engine: EngineService) {
     const stored = loadJson<AnalysisRecord[] | null>(STORE, null) ?? []
     for (const r of stored) this.records.set(r.contentId, r)
-    // Reprend le polling des analyses restées « processing » après un redémarrage.
+    // Reprise après redémarrage :
+    // - « processing » AVEC jobId : le job existe côté Engine, on reprend le polling.
+    // - « processing » SANS jobId : l'appel à analyzeFile n'a jamais abouti avant le
+    //   crash (le fichier clair a disparu depuis). On ne peut plus reprendre : on
+    //   marque en erreur pour ne pas laisser le contenu bloqué à vie en « processing ».
     for (const r of this.records.values()) {
-      if (r.status === 'processing' && r.jobId)
-        this.poll(r.contentId, r.jobId, Date.now())
+      if (r.status !== 'processing') continue
+      if (r.jobId) this.poll(r.contentId, r.jobId, Date.now())
+      else
+        this.set(r.contentId, {
+          status: 'error',
+          error: 'analyse interrompue par un redémarrage (source indisponible)',
+        })
     }
   }
 
@@ -41,23 +50,25 @@ export class AnalysisService {
 
   // Déclenche l'analyse depuis le fichier CLAIR (à l'ingestion — la vidéo n'est pas
   // encore chiffrée). Idempotent : ne relance pas si déjà `done`/`processing`.
-  startFromFile(contentId: string, filePath: string): void {
+  // La promesse renvoyée se résout dès que l'Engine a REÇU le fichier (upload
+  // terminé) — pas à la fin de l'analyse : le polling se poursuit en arrière-plan.
+  // Elle permet à l'appelant de savoir quand le fichier temporaire clair peut être
+  // supprimé sans casser le stream d'upload (cf. upload.controller).
+  async startFromFile(contentId: string, filePath: string): Promise<void> {
     const existing = this.records.get(contentId)
     if (existing && (existing.status === 'done' || existing.status === 'processing'))
       return
     this.set(contentId, { status: 'processing' })
-    void this.engine
-      .analyzeFile(filePath)
-      .then((jobId) => {
-        this.set(contentId, { status: 'processing', jobId })
-        this.poll(contentId, jobId, Date.now())
+    try {
+      const jobId = await this.engine.analyzeFile(filePath)
+      this.set(contentId, { status: 'processing', jobId })
+      this.poll(contentId, jobId, Date.now())
+    } catch (e: unknown) {
+      this.set(contentId, {
+        status: 'error',
+        error: `Engine indisponible : ${(e as Error).message}`,
       })
-      .catch((e: unknown) => {
-        this.set(contentId, {
-          status: 'error',
-          error: `Engine indisponible : ${(e as Error).message}`,
-        })
-      })
+    }
   }
 
   async search(contentId: string, query: string, k: number): Promise<unknown> {

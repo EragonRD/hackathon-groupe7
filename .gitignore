@@ -23,9 +23,10 @@ media/hls/
 backend/media/
 
 # Persistance metier generee au runtime (users.json contient des hachages de
-# mots de passe ; analysis.json = cache d'analyse IA) : jamais commite.
-# proxy-ips.txt (.txt), lui, reste suivi.
+# mots de passe ; analysis.json = cache d'analyse IA ; bans.json = IP bannies) :
+# jamais commite. proxy-ips.txt (.txt), lui, reste suivi.
 backend/data/*.json
+backend/data/.*.tmp
 
 # Package files
 *.jar

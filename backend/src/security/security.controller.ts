@@ -93,6 +93,34 @@ export class SecurityController {
     }
   }
 
+  // Remontée d'un signal de risque de capture d'écran (heuristique client).
+  // Authentifié : on rattache l'alerte à l'utilisateur + son IP (traçabilité).
+  @SkipThrottle()
+  @UseGuards(AuthGuard)
+  @Post('capture-report')
+  @HttpCode(204)
+  async captureReport(
+    @Req() req: RequestWithUser,
+    @Body()
+    body: {
+      contentId?: string
+      session?: string
+      risk?: number
+      signals?: string[]
+    },
+  ): Promise<void> {
+    const user = req.user!
+    await this.security.recordCaptureSignal({
+      account: user.sub,
+      username: user.username,
+      ip: extractClientIp(req),
+      contentId: body?.contentId,
+      session: body?.session,
+      risk: Number(body?.risk) || 0,
+      signals: Array.isArray(body?.signals) ? body.signals : [],
+    })
+  }
+
   @SkipThrottle()
   @All('ingest')
   @HttpCode(204)

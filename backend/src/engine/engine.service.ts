@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
-import { readFile } from 'fs/promises'
+import { openAsBlob } from 'fs'
 
 const ENGINE_URL = process.env.ENGINE_URL ?? 'http://localhost:8000'
 
@@ -31,9 +31,12 @@ export class EngineService {
 
   // Envoie la vidéo EN CLAIR à l'Engine pour analyse → renvoie le job_id.
   async analyzeFile(filePath: string, filename = 'video.mp4'): Promise<string> {
-    const buffer = await readFile(filePath)
+    // openAsBlob : le fichier est lu en flux (streaming) au moment de l'envoi, sans
+    // le charger entièrement en RAM puis le recopier dans un Blob (évite le 2× mémoire
+    // qui, sur une vidéo ~1 Go, doublait l'empreinte du process).
+    const blob = await openAsBlob(filePath)
     const form = new FormData()
-    form.append('file', new Blob([buffer]), filename)
+    form.append('file', blob, filename)
     const res = await fetch(`${ENGINE_URL}/analyze`, {
       method: 'POST',
       headers: { Authorization: await this.auth() },

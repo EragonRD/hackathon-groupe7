@@ -195,9 +195,13 @@ export class UsersService implements OnModuleInit {
       .map((u) => this.toPublic(u))
   }
 
-  search(query: string): PublicUser[] {
+  // Recherche SCOPÉE au tenant de l'appelant (isolation multi-tenant) :
+  // - superadmin : cherche dans tous les tenants ;
+  // - admin/user : uniquement dans SA propre entreprise (companyId).
+  search(query: string, caller: { role: Role; companyId: string | null }): PublicUser[] {
     const q = query.toLowerCase()
     return this.users
+      .filter((u) => caller.role === 'superadmin' || u.companyId === caller.companyId)
       .filter(
         (u) =>
           u.username.toLowerCase().includes(q) ||

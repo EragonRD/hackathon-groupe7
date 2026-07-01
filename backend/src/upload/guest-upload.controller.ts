@@ -12,6 +12,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express'
 import { randomBytes } from 'crypto'
 import { existsSync, mkdirSync } from 'fs'
+import { rm } from 'fs/promises'
 import { diskStorage } from 'multer'
 import { tmpdir } from 'os'
 import { extname, join } from 'path'
@@ -92,9 +93,15 @@ export class GuestUploadController {
     for (const u of this.users.listByCompany(me.companyId)) {
       if (u.role === 'admin') this.contents.grantAccess(content.id, u.username)
     }
-    // Analyse IA sur la vidéo en clair, puis chiffrement HLS en tâche de fond.
-    this.analysis.startFromFile(content.id, file.path)
-    this.upload.encryptInBackground(content.id, file.path)
+    // Analyse IA sur la vidéo en clair + chiffrement HLS en tâche de fond. Le
+    // fichier temporaire clair n'est supprimé qu'APRÈS que les deux consommateurs
+    // (Engine + chiffrement) l'ont lu — sinon un rm prématuré casse le stream de
+    // l'Engine (cf. upload.controller). encryptInBackground n'efface plus lui-même.
+    const analysisSent = this.analysis.startFromFile(content.id, file.path)
+    const encoded = this.upload.encryptInBackground(content.id, file.path)
+    void Promise.allSettled([analysisSent, encoded]).finally(() => {
+      void rm(file.path, { force: true }).catch(() => {})
+    })
 
     return {
       id: content.id,

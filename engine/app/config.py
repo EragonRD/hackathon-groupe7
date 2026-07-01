@@ -30,3 +30,9 @@ TARGET_LANGS = [c.strip() for c in os.getenv("TARGET_LANGS", _DEFAULT_LANGS).spl
 
 # --- Sorties : 1 dossier par vidéo (vidéo + 1 JSON par langue + métadonnées) ---
 OUTPUT_DIR = os.getenv("ENGINE_OUTPUT_DIR", str(ENGINE_DIR / "outputs"))
+
+# --- /analyze-path (test/démo) : répertoire AUTORISÉ pour l'analyse de fichiers
+# locaux. Vide (défaut) => l'endpoint est DÉSACTIVÉ (403). Sinon, seuls les fichiers
+# strictement à l'intérieur de ce dossier sont acceptés (anti-path-traversal /
+# anti-lecture de fichiers arbitraires du conteneur comme /etc/passwd).
+ANALYZE_PATH_BASE = os.getenv("ANALYZE_PATH_BASE", "").strip()

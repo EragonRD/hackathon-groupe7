@@ -6,3 +6,8 @@ secrets
 .env
 .env.*
 npm-debug.log*
+# Données runtime : ne PAS embarquer les JSON de dev dans l'image.
+# Elles vivent dans le volume nommé `poulpium_data` (voir docker-compose.yml).
+# Seul le seed `proxy-ips.txt` reste embarqué pour amorcer le volume au 1er run.
+data/*.json
+data/.*.tmp

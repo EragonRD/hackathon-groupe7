@@ -2,7 +2,9 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { appendFile, mkdir, readFile } from 'fs/promises'
 import { dirname } from 'path'
 import { backendPath } from '../common/runtime-paths'
+import { loadJson, saveJson } from '../common/json-store'
 
+const BANS_STORE = 'bans.json'
 const WINDOW_MS = 5 * 60 * 1000
 const ALERT_TTL_MS = 10 * 60 * 1000
 const MULTI_SESSION_IP_THRESHOLD = 3
@@ -16,8 +18,24 @@ export const SEGMENT_ALERT_THRESHOLD = 60
 export const SEGMENT_BLOCK_THRESHOLD = 120
 const ALERT_DEDUPE_MS = 30 * 1000
 const MAX_TRAFFIC_EVENTS = 2_000
+// Capture d'écran (heuristique client) : plancher sous lequel on ignore le signal
+// (bruit), et seuil au-dessus duquel l'alerte passe en action 'block' (visuel).
+const CAPTURE_MIN_RISK = 40
+const CAPTURE_BLOCK_RISK = 80
 
-export type SecurityAlertType = 'multi_session' | 'proxy_ip' | 'segment_scrape'
+export type SecurityAlertType =
+  'multi_session' | 'proxy_ip' | 'segment_scrape' | 'screen_capture'
+
+// Signaux de risque de capture d'écran remontés par le client (heuristiques).
+export interface CaptureSignalInput {
+  account?: string | number
+  username?: string
+  ip: string
+  contentId?: string
+  session?: string
+  risk: number // 0..100 (score calculé côté client, revalidé/borné ici)
+  signals: string[] // ex: ['page_inactive', 'extended_display', 'devtools']
+}
 
 export interface SecurityRequestInput {
   account?: string | number
@@ -79,6 +97,12 @@ export class SecurityService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.loadProxyList()
+    // Recharge les bans persistés (survivent aux redémarrages).
+    const stored = loadJson<Array<{ ip: string; reason: string; at: string }> | null>(
+      BANS_STORE,
+      null,
+    )
+    for (const b of stored ?? []) this.bans.set(b.ip, { reason: b.reason, at: b.at })
   }
 
   async recordRequest(input: SecurityRequestInput): Promise<{
@@ -252,16 +276,23 @@ export class SecurityService implements OnModuleInit {
   ): { ip: string; reason: string; at: string } {
     const entry = { reason: reason || 'Banni manuellement', at: nowIso }
     this.bans.set(ip, entry)
+    this.persistBans()
     this.logger.warn(`IP bannie: ${ip} (${entry.reason})`)
     return { ip, ...entry }
   }
 
   unbanIp(ip: string): boolean {
-    return this.bans.delete(ip)
+    const removed = this.bans.delete(ip)
+    if (removed) this.persistBans()
+    return removed
   }
 
   listBans(): Array<{ ip: string; reason: string; at: string }> {
     return [...this.bans.entries()].map(([ip, e]) => ({ ip, ...e }))
+  }
+
+  private persistBans(): void {
+    saveJson(BANS_STORE, this.listBans())
   }
 
   private async loadProxyList(): Promise<void> {
@@ -299,6 +330,29 @@ export class SecurityService implements OnModuleInit {
         event.tsMs >= cutoff &&
         this.isSegmentRequest(event.path),
     )
+  }
+
+  // Enregistre un signal de RISQUE de capture d'écran (heuristique remontée par le
+  // client) comme alerte de sécurité — visible dans le dashboard de surveillance et
+  // journalisée. Ce n'est PAS une preuve de capture (le navigateur n'en expose
+  // aucune) : c'est un score de risque agrégé, à valeur dissuasive et de traçabilité.
+  async recordCaptureSignal(
+    input: CaptureSignalInput,
+  ): Promise<SecurityAlert | undefined> {
+    const now = Date.now()
+    const risk = Math.max(0, Math.min(100, Math.round(Number(input.risk) || 0)))
+    // Sous le plancher : bruit, on ignore pour ne pas inonder le dashboard.
+    if (risk < CAPTURE_MIN_RISK) return undefined
+    const signals = (input.signals ?? []).slice(0, 8).map((s) => String(s).slice(0, 40))
+    const where = input.contentId ? ` sur "${String(input.contentId).slice(0, 60)}"` : ''
+    return this.createAlert(now, {
+      type: 'screen_capture',
+      account: input.account !== undefined ? String(input.account) : undefined,
+      username: input.username,
+      ip: input.ip,
+      detail: `Risque capture ${risk}/100${where} [${signals.join(', ') || 'n/a'}]`,
+      action: risk >= CAPTURE_BLOCK_RISK ? 'block' : 'flag',
+    })
   }
 
   private async createAlert(

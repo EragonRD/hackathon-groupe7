@@ -17,11 +17,26 @@ function resolveHlsDir(): string {
   return join(cwd, 'media', 'hls')
 }
 
+// Chiffrement HLS = ré-encodage libx264 (très CPU). On borne le nombre de jobs
+// ffmpeg SIMULTANÉS : sans ça, N uploads en parallèle lancent N ffmpeg et
+// saturent le CPU (voire l'OOM), ralentissant tout le service. File d'attente FIFO.
+// Validation stricte : une valeur absente/invalide/<=0 (ex: "0", "abc", NaN)
+// retomberait sur 0 ou NaN et gèlerait TOUS les encodages à vie. On plancher à 1.
+function parseMaxEncodes(raw: string | undefined): number {
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 1 ? n : 1
+}
+const MAX_CONCURRENT_ENCODES = parseMaxEncodes(process.env.MAX_CONCURRENT_ENCODES)
+
 @Injectable()
 export class UploadService implements OnModuleInit {
   private readonly logger = new Logger(UploadService.name)
   private readonly hlsDir = resolveHlsDir()
   private readonly secretsDir = backendPath('secrets')
+
+  // Sémaphore de concurrence ffmpeg : jetons disponibles + file de réveils en attente.
+  private encodeSlots = MAX_CONCURRENT_ENCODES
+  private readonly encodeQueue: Array<() => void> = []
 
   constructor(private readonly contents: ContentsService) {}
 
@@ -41,10 +56,28 @@ export class UploadService implements OnModuleInit {
     }
   }
 
+  // Acquiert un jeton (attend si tous les slots ffmpeg sont pris).
+  private acquireEncodeSlot(): Promise<void> {
+    if (this.encodeSlots > 0) {
+      this.encodeSlots -= 1
+      return Promise.resolve()
+    }
+    return new Promise<void>((resolve) => this.encodeQueue.push(resolve))
+  }
+
+  // Rend le jeton et réveille le prochain job en attente, s'il y en a un.
+  private releaseEncodeSlot(): void {
+    const next = this.encodeQueue.shift()
+    if (next) next()
+    else this.encodeSlots += 1
+  }
+
   // Lance le chiffrement en TÂCHE DE FOND (ne bloque pas la requête d'upload) :
-  // met le contenu en `ready` / `failed` et nettoie le fichier temporaire.
-  encryptInBackground(contentId: string, inputPath: string): void {
-    void this.encrypt(contentId, inputPath)
+  // met le contenu en `ready` / `failed`. La suppression du fichier temporaire
+  // clair est coordonnée par l'appelant (contrôleur), APRÈS que l'Engine l'a aussi
+  // lu — d'où la promesse renvoyée. On n'efface donc PAS le fichier ici.
+  encryptInBackground(contentId: string, inputPath: string): Promise<void> {
+    return this.encrypt(contentId, inputPath)
       .then(() => {
         this.contents.setStatus(contentId, 'ready')
         this.logger.log(`Contenu ${contentId} chiffré → prêt`)
@@ -53,15 +86,14 @@ export class UploadService implements OnModuleInit {
         this.contents.setStatus(contentId, 'failed')
         this.logger.error(`Échec chiffrement ${contentId} : ${(e as Error).message}`)
       })
-      .finally(() => {
-        void rm(inputPath, { force: true }).catch(() => {})
-      })
   }
 
   // Supprime les artefacts d'un contenu : rendu HLS chiffré + clé AES.
   // Best-effort (le contenu peut n'avoir jamais été chiffré).
   async deleteArtifacts(contentId: string): Promise<void> {
-    await rm(join(this.hlsDir, contentId), { recursive: true, force: true }).catch(() => {})
+    await rm(join(this.hlsDir, contentId), { recursive: true, force: true }).catch(
+      () => {},
+    )
     await rm(join(this.secretsDir, `${contentId}.key`), { force: true }).catch(() => {})
   }
 
@@ -81,6 +113,8 @@ export class UploadService implements OnModuleInit {
     const keyInfoPath = join(outDir, 'key_info')
     await writeFile(keyInfoPath, `/keys/${contentId}\n${keyPath}\n${iv}\n`)
 
+    // Attend un slot libre avant de lancer le ré-encodage (borne la charge CPU).
+    await this.acquireEncodeSlot()
     try {
       await this.runFfmpeg([
         '-hide_banner',
@@ -108,6 +142,7 @@ export class UploadService implements OnModuleInit {
         join(outDir, 'index.m3u8'),
       ])
     } finally {
+      this.releaseEncodeSlot()
       await rm(keyInfoPath, { force: true }).catch(() => {})
     }
   }
