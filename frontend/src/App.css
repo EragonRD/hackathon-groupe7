@@ -3289,6 +3289,13 @@
   color: var(--danger);
 }
 
+/* Bouton pleine largeur (modal d'invitation + entrée invité) */
+.invite-gen,
+.pwd-submit {
+  width: 100%;
+  justify-content: center;
+}
+
 /* --- Boîte d'invitation (lien + mot de passe temporaire) --- */
 .invite-box {
   display: grid;

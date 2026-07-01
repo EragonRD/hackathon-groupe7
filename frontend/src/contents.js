@@ -12,3 +12,17 @@ export async function listMyContents() {
   if (res.status === 401) throw new Error('Session expirée. Reconnectez-vous.')
   throw new Error('Impossible de charger vos contenus.')
 }
+
+// Génère un lien d'invité temporaire pour un contenu. ttl ∈ '15m' | '1h' | '24h'.
+// Renvoie { token, shareUrl, expiresAt }.
+export async function inviteGuest(contentId, ttl) {
+  const res = await authFetch(`/contents/${encodeURIComponent(contentId)}/invite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ttl }),
+  })
+  if (res.ok) return res.json()
+  if (res.status === 403) throw new Error("Vous n'avez pas accès à ce contenu.")
+  if (res.status === 401) throw new Error('Session expirée. Reconnectez-vous.')
+  throw new Error("Impossible de générer le lien d'invitation.")
+}

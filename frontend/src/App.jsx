@@ -1,8 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { ShieldCheck, Gear } from '@phosphor-icons/react'
+import { ShieldCheck, Gear, UsersThree } from '@phosphor-icons/react'
 import './App.css'
 import Login from './Login.jsx'
 import ChangePassword from './components/ChangePassword.jsx'
+import GuestJoin from './components/GuestJoin.jsx'
+import InviteGuestModal from './components/InviteGuestModal.jsx'
 import AppShell from './components/AppShell.jsx'
 import Catalogue from './components/Catalogue.jsx'
 import VideoReview from './components/VideoReview.jsx'
@@ -12,6 +14,23 @@ import { getToken, logout, me, isAdmin, mustChangePwd } from './auth'
 // Chargés à la demande (hors bundle initial).
 const SecurityDashboard = lazy(() => import('./components/SecurityDashboard.jsx'))
 const AdminPanel = lazy(() => import('./components/admin/AdminPanel.jsx'))
+
+// Lien d'invité : ?guest=<jwt> dans l'URL. On stocke le token (même clé que les
+// membres -> réutilisé par hls.js et le socket), on décode sa portée, et on
+// nettoie l'URL. Retourne { contentId, session } ou null.
+function parseGuestLink() {
+  try {
+    const token = new URLSearchParams(window.location.search).get('guest')
+    if (!token) return null
+    localStorage.setItem('hackathon_token', token)
+    const claims = JSON.parse(atob(token.split('.')[1]))
+    window.history.replaceState({}, '', window.location.pathname)
+    if (claims?.role !== 'guest' || !claims.contentId) return null
+    return { contentId: claims.contentId, session: claims.session ?? claims.contentId }
+  } catch {
+    return null
+  }
+}
 
 function Loading() {
   return (
@@ -23,16 +42,22 @@ function Loading() {
 
 export default function App() {
   const [user, setUser] = useState(null)
-  const [checking, setChecking] = useState(Boolean(getToken()))
+  // Mode invité d'abord (parseGuestLink stocke le token + nettoie l'URL) : il
+  // conditionne l'écran de démarrage, donc `checking` s'initialise en fonction.
+  const [guestMode] = useState(parseGuestLink) // { contentId, session } | null
+  const [checking, setChecking] = useState(() => !guestMode && Boolean(getToken()))
   // view : { name: 'catalogue' } | { name: 'review', video } | { name: 'docs' }
   //      | { name: 'dashboard' } | { name: 'admin' }
   //   review.video.src peut être une vidéo locale (blob) OU un flux HLS chiffré
   //   (/videos/:id/index.m3u8) : VideoReview gère les deux (annotation dans les deux cas).
   const [view, setView] = useState({ name: 'catalogue' })
   const [reviewPeers, setReviewPeers] = useState([])
+  const [inviteContent, setInviteContent] = useState(null)
 
   // Réhydrate la session si un token est déjà présent (rechargement de page).
+  // En mode invité, on saute la réhydratation (pas de compte à récupérer).
   useEffect(() => {
+    if (guestMode) return undefined
     let alive = true
     if (getToken()) {
       me().then((u) => {
@@ -45,7 +70,7 @@ export default function App() {
     return () => {
       alive = false
     }
-  }, [])
+  }, [guestMode])
 
   // Token expiré (intercepteur 401 d'authFetch) -> retour à l'écran de connexion.
   useEffect(() => {
@@ -73,6 +98,27 @@ export default function App() {
     )
   }
 
+  // Invité (lien ?guest=) : entrée sans login. Après saisie du nom, on ouvre
+  // directement la revue du contenu invité (flux protégé + room temps réel).
+  if (guestMode && !user) {
+    return (
+      <GuestJoin
+        onJoin={(name) => {
+          setUser({ username: name, role: 'guest', companyId: null })
+          setView({
+            name: 'review',
+            video: {
+              id: guestMode.contentId,
+              title: 'Session invité',
+              src: `/videos/${guestMode.contentId}/index.m3u8`,
+              session: guestMode.session,
+            },
+          })
+        }}
+      />
+    )
+  }
+
   if (!user) {
     return <Login onAuthed={setUser} />
   }
@@ -94,7 +140,9 @@ export default function App() {
     dashboard: 'Surveillance',
     admin: 'Administration',
   }
-  const showBack = ['review', 'dashboard', 'admin'].includes(view.name)
+  // Un invité (role 'guest') n'a ni catalogue ni back-office : pas de retour.
+  const isGuest = user.role === 'guest'
+  const showBack = !isGuest && ['review', 'dashboard', 'admin'].includes(view.name)
 
   // Accès réservés (les non-admins ne les voient jamais). isAdmin() inclut le
   // superadmin ; le panel adapte ensuite ses onglets au rôle exact.
@@ -115,6 +163,18 @@ export default function App() {
     </>
   ) : null
 
+  // Inviter des participants : visible pour un membre (pas un invité) en revue.
+  const inviteButton =
+    !isGuest && view.name === 'review' && view.video?.id ? (
+      <button
+        className="btn btn-ghost"
+        onClick={() => setInviteContent({ id: view.video.id, title: view.video.title })}
+      >
+        <UsersThree size={16} weight="bold" />
+        Inviter
+      </button>
+    ) : null
+
   return (
     <AppShell
       user={user}
@@ -123,7 +183,12 @@ export default function App() {
       onHome={goToCatalogue}
       onOpenDocs={() => setView({ name: 'docs' })}
       title={titles[view.name]}
-      right={adminButtons}
+      right={
+        <>
+          {inviteButton}
+          {adminButtons}
+        </>
+      }
       peers={reviewPeers}
     >
       {view.name === 'review' && (
@@ -162,6 +227,12 @@ export default function App() {
             })
           }
           onOpenAdmin={() => setView({ name: 'admin' })}
+        />
+      )}
+      {inviteContent && (
+        <InviteGuestModal
+          content={inviteContent}
+          onClose={() => setInviteContent(null)}
         />
       )}
     </AppShell>
