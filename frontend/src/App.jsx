@@ -11,7 +11,7 @@ import AppShell from './components/AppShell.jsx'
 import Catalogue from './components/Catalogue.jsx'
 import VideoReview from './components/VideoReview.jsx'
 import Documentation from './components/Documentation.jsx'
-import { getToken, logout, me, isAdmin, mustChangePwd } from './auth'
+import { getToken, logout, me, isAdmin, mustChangePwd, reconnect } from './auth'
 
 // Chargés à la demande (hors bundle initial).
 const SecurityDashboard = lazy(() => import('./components/SecurityDashboard.jsx'))
@@ -109,14 +109,14 @@ export default function App() {
 
   // Mono-session : battement léger pour détecter l'expulsion même si l'utilisateur
   // est inactif. `me()` déclenche l'intercepteur 401 -> `auth:expired` si supersédé.
-  // Pas de battement en mode invité (pas de compte mono-session).
+  // Pas de battement en mode invité, ni tant que l'alerte est affichée (kicked).
   useEffect(() => {
-    if (!user || user.role === 'guest') return undefined
+    if (!user || user.role === 'guest' || kicked) return undefined
     const id = setInterval(() => {
       me()
     }, 15000)
     return () => clearInterval(id)
-  }, [user])
+  }, [user, kicked])
 
   function handleLogout() {
     logout()
@@ -292,11 +292,17 @@ export default function App() {
       {guestUploadOpen && <GuestUploadModal onClose={() => setGuestUploadOpen(false)} />}
       {kicked && (
         <SessionEndedModal
-          onReconnect={() => {
+          onReconnect={async () => {
+            // Reprise sans identifiants (refresh token / token encore valide).
+            const ok = await reconnect()
+            setKicked(false)
+            if (!ok) handleLogout() // impossible -> retour login
+          }}
+          onDismiss={() => {
+            // « Laisser la déconnexion » = vrai logout -> écran de connexion.
             setKicked(false)
             handleLogout()
           }}
-          onDismiss={() => setKicked(false)}
         />
       )}
     </AppShell>

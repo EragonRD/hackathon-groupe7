@@ -166,12 +166,10 @@ export class AuthService {
       sid,
     }
     this.sessions.setActive(user.id, sid)
-    // Si la mono-session est active, on révoque les refresh tokens précédents de
-    // ce compte : une seule session peut rafraîchir son access token.
-    if (this.sessions.enabled) {
-      for (const [t, r] of this.refreshTokens)
-        if (r.sub === user.id) this.refreshTokens.delete(t)
-    }
+    // NB: on NE révoque PAS les refresh tokens précédents du compte. La mono-session
+    // s'appuie sur le `sid` de l'access token (l'AuthGuard refuse un sid supersédé) ;
+    // garder le refresh token permet à une session expulsée de « Se reconnecter »
+    // sans redonner ses identifiants (elle redevient alors la session active).
     const accessToken = await this.jwt.signAsync(payload)
     const refreshToken = this.createRefreshToken(user.id, user.username)
     return {
