@@ -148,7 +148,6 @@ export default function App() {
       {view.name === 'docs' && <Documentation onBack={goToCatalogue} />}
       {view.name === 'catalogue' && (
         <Catalogue
-          onOpen={(video) => setView({ name: 'review', video })}
           onOpenSecure={(content) =>
             setView({
               name: 'review',

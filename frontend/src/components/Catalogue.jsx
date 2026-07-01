@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   FilmSlate,
   Play,
@@ -9,16 +9,16 @@ import {
   Gear,
   Warning,
 } from '@phosphor-icons/react'
-import { shortId } from '../lib/format'
 import { isSuperAdmin } from '../auth'
 import { listMyContents } from '../contents'
 import VideoUploadModal from './VideoUploadModal'
 
 // Catalogue.
-// `onOpen(video)` ouvre une vidéo locale (lecteur) ; `onOpenSecure(contentId)`
-// ouvre un contenu protégé de l'organisation (flux Zero-Trust) ; `onOpenAdmin()`
-// renvoie le superadmin vers le back-office (il n'a aucun contenu propre).
-export default function Catalogue({ onOpen, onOpenSecure, onOpenAdmin }) {
+// `onOpenSecure(content)` ouvre un contenu protégé de l'organisation (flux HLS
+// Zero-Trust) ; `onOpenAdmin()` renvoie le superadmin vers le back-office (il
+// n'a aucun contenu propre). L'upload local passe par VideoUploadModal qui
+// chiffre la vidéo côté serveur, puis on l'ouvre comme un contenu protégé.
+export default function Catalogue({ onOpenSecure, onOpenAdmin }) {
   const fileRef = useRef(null)
   const [dragging, setDragging] = useState(false)
   const [uploadFile, setUploadFile] = useState(null)
@@ -27,6 +27,17 @@ export default function Catalogue({ onOpen, onOpenSecure, onOpenAdmin }) {
   const [contents, setContents] = useState([])
   const [loading, setLoading] = useState(!superadmin)
   const [error, setError] = useState(null)
+
+  // Rechargement manuel (après un upload) : rafraîchit « Vos contenus ».
+  const reloadContents = useCallback(async () => {
+    try {
+      const list = await listMyContents()
+      setContents(list)
+      setError(null)
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [])
 
   // Contenus de l'organisation (aucun pour un superadmin : il gère la plateforme,
   // pas le contenu). setState seulement APRÈS le await (react-hooks/set-state-in-effect).
@@ -55,18 +66,16 @@ export default function Catalogue({ onOpen, onOpenSecure, onOpenAdmin }) {
     setUploadFile(file)
   }
 
-  function handleUploadConfirm(meta) {
-    const url = URL.createObjectURL(uploadFile)
-    onOpen({
-      id: `local-${shortId()}`,
-      title: meta.title,
-      src: url,
-      session: 'local',
-      playable: true,
-      category: meta.category,
-      invited: meta.invited,
-    })
+  // La vidéo a été uploadée ET chiffrée côté serveur (VideoUploadModal renvoie le
+  // contenu serveur, status 'ready'). On l'ouvre donc comme un contenu protégé
+  // (flux HLS Zero-Trust /videos/:id), pas comme un blob local, et on rafraîchit
+  // la liste pour qu'il apparaisse dans « Vos contenus ».
+  function handleUploadConfirm(content) {
     setUploadFile(null)
+    if (content?.id) {
+      onOpenSecure(content)
+      reloadContents()
+    }
   }
 
   function handleUploadCancel() {
