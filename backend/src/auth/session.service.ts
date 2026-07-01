@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Optional } from '@nestjs/common'
 
 // Active la mono-session en PROD par défaut ; override explicite via MONO_SESSION.
 // En dev/test on laisse plusieurs sessions (démo multi-fenêtres du même compte).
@@ -20,8 +20,9 @@ export class SessionService {
   private readonly active = new Map<number, string>()
   private readonly enforce: boolean
 
-  // `enabled` sert aux tests ; en DI Nest l'appelle sans argument (-> env).
-  constructor(enabled?: boolean) {
+  // `enabled` sert aux tests ; @Optional() car ce n'est pas un provider Nest :
+  // en DI l'injecteur passe `undefined` -> on retombe sur la config d'environnement.
+  constructor(@Optional() enabled?: boolean) {
     this.enforce = enabled ?? monoSessionEnabled()
   }
 
