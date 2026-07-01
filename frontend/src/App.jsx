@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { ShieldCheck, Gear, UsersThree } from '@phosphor-icons/react'
+import { ShieldCheck, Gear, UsersThree, UploadSimple } from '@phosphor-icons/react'
 import './App.css'
 import Login from './Login.jsx'
 import ChangePassword from './components/ChangePassword.jsx'
 import GuestJoin from './components/GuestJoin.jsx'
 import InviteGuestModal from './components/InviteGuestModal.jsx'
+import GuestUploadModal from './components/GuestUploadModal.jsx'
 import AppShell from './components/AppShell.jsx'
 import Catalogue from './components/Catalogue.jsx'
 import VideoReview from './components/VideoReview.jsx'
@@ -53,6 +54,7 @@ export default function App() {
   const [view, setView] = useState({ name: 'catalogue' })
   const [reviewPeers, setReviewPeers] = useState([])
   const [inviteContent, setInviteContent] = useState(null)
+  const [guestUploadOpen, setGuestUploadOpen] = useState(false)
 
   // Réhydrate la session si un token est déjà présent (rechargement de page).
   // En mode invité, on saute la réhydratation (pas de compte à récupérer).
@@ -175,6 +177,15 @@ export default function App() {
       </button>
     ) : null
 
+  // Un invité peut contribuer une vidéo (partagée à l'hôte + admins de son orga).
+  const guestUploadButton =
+    isGuest && view.name === 'review' ? (
+      <button className="btn btn-ghost" onClick={() => setGuestUploadOpen(true)}>
+        <UploadSimple size={16} weight="bold" />
+        Ajouter une vidéo
+      </button>
+    ) : null
+
   return (
     <AppShell
       user={user}
@@ -185,6 +196,7 @@ export default function App() {
       title={titles[view.name]}
       right={
         <>
+          {guestUploadButton}
           {inviteButton}
           {adminButtons}
         </>
@@ -235,6 +247,7 @@ export default function App() {
           onClose={() => setInviteContent(null)}
         />
       )}
+      {guestUploadOpen && <GuestUploadModal onClose={() => setGuestUploadOpen(false)} />}
     </AppShell>
   )
 }
