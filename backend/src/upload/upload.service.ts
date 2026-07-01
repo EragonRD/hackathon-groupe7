@@ -58,6 +58,13 @@ export class UploadService implements OnModuleInit {
       })
   }
 
+  // Supprime les artefacts d'un contenu : rendu HLS chiffré + clé AES.
+  // Best-effort (le contenu peut n'avoir jamais été chiffré).
+  async deleteArtifacts(contentId: string): Promise<void> {
+    await rm(join(this.hlsDir, contentId), { recursive: true, force: true }).catch(() => {})
+    await rm(join(this.secretsDir, `${contentId}.key`), { force: true }).catch(() => {})
+  }
+
   // Chiffre la vidéo en HLS AES-128 (clé + IV par contenu). Ré-encode en H.264/AAC
   // pour garantir un flux lisible par hls.js quel que soit le fichier source.
   private async encrypt(contentId: string, inputPath: string): Promise<void> {
