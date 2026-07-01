@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt'
 import { randomBytes } from 'crypto'
 import * as argon2 from 'argon2'
 import { UsersService } from './users.service'
+import { SessionService } from './session.service'
 
 // Anti-bruteforce : au-delà de MAX_FAILS échecs, le COUPLE (IP, compte) est
 // verrouillé temporairement (LOCK_MS). Clé par IP+username pour qu'un attaquant
@@ -43,6 +44,7 @@ export class AuthService {
   constructor(
     private readonly users: UsersService,
     private readonly jwt: JwtService,
+    private readonly sessions: SessionService,
   ) {}
 
   // Vérifie les identifiants puis émet un JWT court qui identifiera l'utilisateur
@@ -131,12 +133,24 @@ export class AuthService {
     companyId: string | null
     mustChangePassword: boolean
   }) {
+    // Mono-session : identifiant de session embarqué dans le token. Le serveur
+    // retient le dernier `sid` par compte (dernière émission = gagnante) ; les
+    // tokens portant un `sid` plus ancien seront refusés par l'AuthGuard.
+    const sid = randomBytes(16).toString('base64url')
     const payload = {
       sub: user.id,
       username: user.username,
       role: user.role,
       companyId: user.companyId,
       mustChangePassword: user.mustChangePassword,
+      sid,
+    }
+    this.sessions.setActive(user.id, sid)
+    // Si la mono-session est active, on révoque les refresh tokens précédents de
+    // ce compte : une seule session peut rafraîchir son access token.
+    if (this.sessions.enabled) {
+      for (const [t, r] of this.refreshTokens)
+        if (r.sub === user.id) this.refreshTokens.delete(t)
     }
     const accessToken = await this.jwt.signAsync(payload)
     const refreshToken = this.createRefreshToken(user.id, user.username)

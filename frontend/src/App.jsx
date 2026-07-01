@@ -67,6 +67,8 @@ export default function App() {
   const [reviewPeers, setReviewPeers] = useState([])
   const [inviteContent, setInviteContent] = useState(null)
   const [guestUploadOpen, setGuestUploadOpen] = useState(false)
+  // Message affiché sur l'écran de connexion après une expulsion mono-session.
+  const [authNotice, setAuthNotice] = useState(null)
 
   // Réhydrate la session si un token est déjà présent (rechargement de page).
   // En mode invité, on saute la réhydratation (pas de compte à récupérer).
@@ -86,15 +88,33 @@ export default function App() {
     }
   }, [guestMode])
 
-  // Token expiré (intercepteur 401 d'authFetch) -> retour à l'écran de connexion.
+  // Token expiré ou session supersédée (intercepteur 401 d'authFetch) -> retour à
+  // l'écran de connexion. Le motif `session_superseded` (mono-session : le compte a
+  // été rouvert ailleurs) affiche un message dédié.
   useEffect(() => {
-    function onExpired() {
+    function onExpired(e) {
       setUser(null)
       setView({ name: 'catalogue' })
+      setAuthNotice(
+        e?.detail?.reason === 'session_superseded'
+          ? 'Vous avez été déconnecté par une autre session.'
+          : null,
+      )
     }
     window.addEventListener('auth:expired', onExpired)
     return () => window.removeEventListener('auth:expired', onExpired)
   }, [])
+
+  // Mono-session : battement léger pour détecter l'expulsion même si l'utilisateur
+  // est inactif. `me()` déclenche l'intercepteur 401 -> `auth:expired` si supersédé.
+  // Pas de battement en mode invité (pas de compte mono-session).
+  useEffect(() => {
+    if (!user || user.role === 'guest') return undefined
+    const id = setInterval(() => {
+      me()
+    }, 15000)
+    return () => clearInterval(id)
+  }, [user])
 
   function handleLogout() {
     logout()
@@ -134,7 +154,15 @@ export default function App() {
   }
 
   if (!user) {
-    return <Login onAuthed={setUser} />
+    return (
+      <Login
+        notice={authNotice}
+        onAuthed={(u) => {
+          setAuthNotice(null)
+          setUser(u)
+        }}
+      />
+    )
   }
 
   // Admin invité : tant que le mot de passe temporaire n'est pas remplacé, le

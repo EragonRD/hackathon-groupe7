@@ -115,6 +115,10 @@ export async function changePassword(currentPassword, newPassword) {
 // Sur 401 (token absent/expiré/invalide), on déconnecte et on émet `auth:expired`
 // pour que l'app retourne à l'écran de connexion. Le code appelant reçoit quand
 // même la réponse et peut la traiter.
+//
+// Mono-session : le Core renvoie `message: 'session_superseded'` quand le compte a
+// été rouvert ailleurs (le dernier gagne). On propage la raison pour que l'app
+// affiche « déconnecté par une autre session » — distinct d'une simple expiration.
 export async function authFetch(path, options = {}) {
   const token = getToken()
   const res = await fetch(`${API}${path}`, {
@@ -125,8 +129,16 @@ export async function authFetch(path, options = {}) {
     },
   })
   if (res.status === 401 && token) {
+    let reason = null
+    try {
+      // clone() : on lit le corps sans le consommer pour l'appelant.
+      const data = await res.clone().json()
+      if (data?.message === 'session_superseded') reason = 'session_superseded'
+    } catch {
+      /* pas de corps JSON exploitable */
+    }
     logout()
-    window.dispatchEvent(new Event('auth:expired'))
+    window.dispatchEvent(new CustomEvent('auth:expired', { detail: { reason } }))
   }
   return res
 }
