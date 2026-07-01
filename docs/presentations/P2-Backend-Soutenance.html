@@ -137,6 +137,42 @@
   .cover .meta .row .tag{font-family:var(--mono);font-size:11px;color:var(--accent-2);border:1px solid var(--accent-line);background:var(--accent-soft);padding:3px 9px;border-radius:var(--r-pill)}
   .cover .team{margin-top:20px;font-family:var(--mono);font-size:12.5px;color:var(--faint);letter-spacing:.03em}
 
+  /* ===== Slides de scan (grype / trivy) — mêmes maquettes, thème sombre ===== */
+  .scan-alert{display:flex;align-items:center;gap:16px;padding:13px 18px;border-radius:var(--r-md);margin-top:16px;font-size:14px;line-height:1.4}
+  .scan-alert.warn{background:rgba(255,91,91,.08);border:1px solid rgba(255,91,91,.3)}
+  .scan-alert.ok{background:rgba(46,194,126,.08);border:1px solid rgba(46,194,126,.3)}
+  .scan-alert .ico{font-size:20px;flex:0 0 auto}
+  .scan-alert .txt{flex:1}.scan-alert .txt b{color:var(--text)}
+  .scan-alert.ok .txt b{color:var(--ok)}
+  .counts{display:flex;gap:9px;margin-left:auto;flex:0 0 auto}
+  .count{text-align:center;padding:6px 12px;border-radius:var(--r-sm);border:1px solid var(--line);min-width:60px}
+  .count .n{font-family:var(--mono);font-size:19px;font-weight:800;line-height:1}
+  .count .l{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--faint);margin-top:3px}
+  .count.crit .n,.count.low .n{color:var(--faint)}
+  .count.high{border-color:rgba(255,91,91,.4);background:rgba(255,91,91,.08)}.count.high .n{color:var(--danger)}
+  .count.med{border-color:rgba(245,166,35,.4);background:rgba(245,166,35,.08)}.count.med .n{color:var(--warn)}
+  .vtable{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+  .vtable th{background:var(--bg-3);color:var(--dim);font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:10px 14px;font-weight:700}
+  .vtable td{padding:10px 14px;border-top:1px solid var(--line);color:var(--text)}
+  .vtable tr:nth-child(odd) td{background:var(--bg-1)}
+  .vtable .fix{color:var(--ok);font-weight:700}
+  .vtable .lnk{color:var(--accent-2);font-family:var(--mono)}
+  .vtable .mono{font-family:var(--mono);color:var(--dim)}
+  .sev{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:800;padding:3px 9px;border-radius:5px;letter-spacing:.03em}
+  .sev.high{color:#fff;background:var(--danger)}
+  .sev.med{color:#241905;background:var(--warn)}
+  .tcards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px}
+  .tcard{border:1px solid var(--line-strong);border-radius:var(--r-md);padding:18px 14px;text-align:center;background:var(--bg-1)}
+  .tcard.ok{border-color:rgba(46,194,126,.35);background:linear-gradient(180deg,rgba(46,194,126,.06),var(--bg-1))}
+  .tcard.warn{border-color:rgba(245,166,35,.4);background:linear-gradient(180deg,rgba(245,166,35,.07),var(--bg-1))}
+  .tcard.danger{border-color:rgba(255,91,91,.4);background:linear-gradient(180deg,rgba(255,91,91,.07),var(--bg-1))}
+  .tcard .ico{font-size:20px}
+  .tcard .name{font-weight:800;font-size:16px;margin:8px 0 2px}
+  .tcard .os{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .tcard .res{margin-top:12px;font-size:13px;font-weight:700}
+  .tcard.ok .res{color:var(--ok)}.tcard.warn .res{color:var(--warn)}.tcard.danger .res{color:var(--danger)}
+  .rowline{display:flex;justify-content:space-between;align-items:baseline;margin-top:22px}
+
   .hint{position:fixed;z-index:20;top:16px;right:clamp(18px,3vw,40px);font-family:var(--mono);font-size:11px;color:var(--faint);opacity:0;transition:opacity .4s}
   body:hover .hint{opacity:.7}
   kbd{font-family:var(--mono);border:1px solid var(--line-strong);border-radius:5px;padding:1px 6px;color:var(--dim);font-size:10.5px}
@@ -150,7 +186,7 @@
 <div id="deck"></div>
 <div id="hud"><div id="bar"></div></div>
 <div id="dots"></div>
-<div id="counter"><b>01</b> / 12</div>
+<div id="counter"><b>01</b> / 15</div>
 <div id="brand-hud"><img src="assets/poulpium-mark.png" alt=""><span>Poulpium · Pôle 2</span></div>
 
 <script>
@@ -172,7 +208,7 @@ const slides = [
     <div class="row"><span class="tag">Sujet A</span> Diffusion « Zero-Trust » — HLS chiffré + clé éphémère</div>
     <div class="row"><span class="tag">Sujet B</span> Détection des menaces & Anti-Scraping</div>
   </div>
-  <div class="team">Hackathon ESTIAM — Groupe 7   ·   Équipe P2 : Enzo · William · Gabriel · Ryan</div>
+  <div class="team">Hackathon ESTIAM — Groupe 7   ·   Équipe P2 : Enzo (lead) · William · Ryan · Gabriel</div>
 </section>`,
 
 /* 2 — ARCHITECTURE */
@@ -448,7 +484,82 @@ seg21+       <span class="no">403</span>  <span class="c"># …puis bloqué net<
   </div>
 </section>`,
 
-/* 12 — CLOSING */
+/* 12 — AUDIT DURCISSEMENT */
+`<section class="slide">
+  <div class="kicker">Audit de sécurité · durcissement adversarial</div>
+  <h2>Des failles cherchées, et corrigées.</h2>
+  <div class="reqs scroll" style="max-height:64vh">
+    <div class="req"><div class="w"><span class="tick">✓</span> Secret JWT <span class="tag">config</span></div>
+      <div class="g">Le Core <b>refuse de démarrer</b> en prod avec un secret faible ou par défaut.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Algorithme épinglé <span class="tag">JWT</span></div>
+      <div class="g"><code>HS256</code> forcé → bloque la confusion d'algorithme (<code>alg=none</code>).</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Path traversal <span class="tag">clés</span></div>
+      <div class="g"><code>contentId</code> validé (regex) + ACL <b>avant</b> toute lecture de fichier.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Brute-force login <span class="tag">auth</span></div>
+      <div class="g">Rate-limit <code>10/min/IP</code> + verrouillage du compte après <b>5 échecs</b>.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Énumération d'utilisateurs <span class="tag">auth</span></div>
+      <div class="g">Vérification <b>Argon2 à temps constant</b>, même pour un compte inexistant.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Endpoint interne <span class="tag">réseau</span></div>
+      <div class="g"><code>/security/ingest</code> réservé au reverse-proxy / loopback (pas d'accès externe).</div></div>
+  </div>
+</section>`,
+
+/* 13 — SCAN GRYPE */
+`<section class="slide">
+  <div class="kicker">Scan grype · dépendances (SCA)</div>
+  <h2>Scan de sécurité — grype</h2>
+  <p class="lede" style="margin-top:8px">Analyse SCA sur 160 paquets · <span class="mono" style="font-family:var(--mono)">grype dir:. -o table</span></p>
+  <div class="scan-alert warn">
+    <span class="ico">⚠</span>
+    <div class="txt"><b>2 vulnérabilités</b> détectées (1 HIGH · 1 MEDIUM) — multer 2.1.1 — toutes <b>corrigées en 2.2.0</b></div>
+    <div class="counts">
+      <div class="count crit"><div class="n">0</div><div class="l">CRITICAL</div></div>
+      <div class="count high"><div class="n">1</div><div class="l">HIGH</div></div>
+      <div class="count med"><div class="n">1</div><div class="l">MEDIUM</div></div>
+      <div class="count low"><div class="n">0</div><div class="l">LOW</div></div>
+    </div>
+  </div>
+  <table class="vtable">
+    <tr><th>Paquet</th><th>Installé</th><th>Corrigé dans</th><th>Type</th><th>CVE / GHSA</th><th>Sévérité</th><th>EPSS</th><th>Risk</th></tr>
+    <tr><td><b>multer</b></td><td class="mono">2.1.1</td><td class="fix">2.2.0</td><td>npm</td><td class="lnk">GHSA-72gw-mp4g-v24j</td><td><span class="sev high">HIGH</span></td><td class="mono">0.3% (19th)</td><td class="mono">0.2</td></tr>
+    <tr><td><b>multer</b></td><td class="mono">2.1.1</td><td class="fix">2.2.0</td><td>npm</td><td class="lnk">GHSA-3p4h-7m6x-2hcm</td><td><span class="sev med">MEDIUM</span></td><td class="mono">0.3% (19th)</td><td class="mono">0.1</td></tr>
+  </table>
+  <div class="grid2" style="margin-top:16px">
+    <div class="box a"><h3><span class="sev high">HIGH</span>&nbsp; GHSA-72gw-mp4g-v24j</h3><div style="font-weight:700;color:var(--text);margin-bottom:6px">DoS via champs imbriqués</div><div style="color:var(--dim);font-size:14px;line-height:1.5">Requête avec noms de champs profondément imbriqués → crash du serveur.</div></div>
+    <div class="box l"><h3><span class="sev med">MEDIUM</span>&nbsp; GHSA-3p4h-7m6x-2hcm</h3><div style="font-weight:700;color:var(--text);margin-bottom:6px">DoS — uploads abandonnés</div><div style="color:var(--dim);font-size:14px;line-height:1.5">Fichiers temporaires non nettoyés après abandon → saturation disque/mémoire.</div></div>
+  </div>
+  <div class="scan-alert ok" style="margin-top:14px">
+    <span class="ico" style="color:var(--ok)">✓</span>
+    <div class="txt"><b>Correctif disponible :</b> <span class="mono" style="font-family:var(--mono);color:var(--dim)">npm install multer@2.2.0</span> — 2 vulnérabilités corrigées, aucun breaking change NestJS.</div>
+  </div>
+</section>`,
+
+/* 14 — SCAN TRIVY */
+`<section class="slide">
+  <div class="kicker">Trivy scan · images Docker</div>
+  <h2>Rapport Trivy — vue globale</h2>
+  <p class="lede" style="margin-top:8px"><span class="mono" style="font-family:var(--mono)">trivy image --severity HIGH,CRITICAL</span> · 4 images scannées</p>
+  <div class="tcards">
+    <div class="tcard ok"><div class="ico" style="color:var(--ok)">✓</div><div class="name">frontend</div><div class="os">alpine 3.23.5</div><div class="res">0 vulnérabilité</div></div>
+    <div class="tcard warn"><div class="ico" style="color:var(--warn)">⚠</div><div class="name">core</div><div class="os">alpine 3.23.4</div><div class="res">14 HIGH · correctifs dispo</div></div>
+    <div class="tcard ok"><div class="ico" style="color:var(--ok)">✓</div><div class="name">nginx:alpine</div><div class="os">alpine 3.23.5</div><div class="res">0 vulnérabilité</div></div>
+    <div class="tcard danger"><div class="ico" style="color:var(--danger)">!</div><div class="name">engine</div><div class="os">debian 13.5</div><div class="res">45 vulns (Pôle 3)</div></div>
+  </div>
+  <div class="rowline">
+    <div style="font-weight:700">core — couche OS <span class="mono" style="font-family:var(--mono);color:var(--faint);font-size:13px">(alpine 3.23.4)</span></div>
+    <div class="mono" style="font-family:var(--mono);color:var(--ok);font-size:13px">correctif : rebuild → 3.5.7-r0</div>
+  </div>
+  <table class="vtable">
+    <tr><th>Bibliothèque</th><th>CVE</th><th>Sévérité</th><th>Installé</th><th>Corrigé dans</th></tr>
+    <tr><td><b>libcrypto3 + libssl3</b></td><td class="lnk">CVE-2026-45447</td><td><span class="sev high">HIGH</span></td><td class="mono">3.5.6-r0</td><td class="fix">3.5.7-r0</td></tr>
+  </table>
+  <div class="scan-alert warn" style="margin-top:18px">
+    <span class="ico">!</span>
+    <div class="txt"><b>engine (Pôle 3)</b> — 8 CRITICAL + 37 HIGH sur debian 13.5.<br><span style="color:var(--dim)">Dont Mesa 3D (will_not_fix), FFmpeg, libexpat, Perl, Mbed TLS — image hors périmètre P2 mais à surveiller par le Pôle 3.</span></div>
+  </div>
+</section>`,
+
+/* 14 — CLOSING */
 `<section class="slide">
   <div class="kicker">Bilan</div>
   <h2>Deux sujets, tenus. Des bonus, en plus.</h2>
@@ -461,10 +572,11 @@ seg21+       <span class="no">403</span>  <span class="c"># …puis bloqué net<
     <span class="chip">Orchestration P3</span>
     <span class="chip">Capture Guard</span>
     <span class="chip">Volumes Docker</span>
+    <span class="chip">Audit grype + trivy</span>
     <span class="chip">37/37 tests</span>
   </div>
   <p class="lede" style="margin-top:26px">Une plateforme vidéo où la sécurité n'est pas posée à côté du produit : elle <b style="color:var(--text)">est</b> le chemin par défaut. Chiffré, cloisonné, surveillé — et reproductible en une commande.</p>
-  <p class="mono" style="margin-top:20px;color:var(--faint);font-size:13px">Poulpium · Pôle 2 — Enzo · William · Gabriel · Ryan</p>
+  <p class="mono" style="margin-top:20px;color:var(--faint);font-size:13px">Poulpium · Pôle 2 — Enzo (lead) · William · Ryan · Gabriel</p>
 </section>`,
 
 ];
