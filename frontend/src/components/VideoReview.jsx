@@ -552,13 +552,14 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
 
   // 🔐 Lecture du flux HLS CHIFFRÉ (Zero-Trust) : hls.js alimente l'élément vidéo
   // et joint le JWT UNIQUEMENT sur la requête de clé (/keys/…). Un fichier direct
-  // (.mp4) reste géré par l'attribut src.
+  // (.mp4) reste géré par l'attribut src. Récupération d'erreur robuste (le HLS
+  // en `-c copy` peut générer des erreurs média non fatales à récupérer).
   useEffect(() => {
     const v = videoRef.current
     if (!v || !source || !source.endsWith('.m3u8')) return
     if (!Hls.isSupported()) {
-      // Safari : HLS natif (la clé ne pourra pas porter le token → login requis côté serveur).
-      v.src = source
+      // Safari : HLS natif (la clé ne peut pas porter le token → utiliser Chrome).
+      if (v.canPlayType('application/vnd.apple.mpegurl')) v.src = source
       return
     }
     const hls = new Hls({
@@ -568,6 +569,27 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
           if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
         }
       },
+    })
+    let mediaRecover = 0
+    const clear = () => setVideoError(false)
+    hls.on(Hls.Events.MANIFEST_PARSED, clear)
+    hls.on(Hls.Events.FRAG_BUFFERED, clear)
+    hls.on(Hls.Events.ERROR, (_evt, data) => {
+      if (!data.fatal) return
+      if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        // stall / append error : on récupère (jusqu'à 3 fois) au lieu d'abandonner.
+        if (mediaRecover < 3) {
+          mediaRecover += 1
+          hls.recoverMediaError()
+        } else {
+          hls.destroy()
+        }
+      } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+        // clé/segment : on retente (utile si l'utilisateur vient de se connecter).
+        hls.startLoad()
+      } else {
+        hls.destroy()
+      }
     })
     hls.loadSource(source)
     hls.attachMedia(v)
