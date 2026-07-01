@@ -122,6 +122,14 @@ export class ContentsService {
     return c.allowedUsernames.includes(user.username)
   }
 
+  // Supprime un contenu (son enregistrement). Les artefacts HLS/clé sont retirés
+  // séparément par UploadService.deleteArtifacts. Retourne true si retiré.
+  delete(id: string): boolean {
+    const ok = this.contents.delete(id)
+    if (ok) this.persist()
+    return ok
+  }
+
   // Supprime tous les contenus d'une entreprise (cascade à la suppression d'orga).
   deleteByCompany(companyId: string): number {
     let removed = 0

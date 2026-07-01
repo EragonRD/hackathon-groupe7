@@ -151,3 +151,6 @@ export const revokeKey = (id) =>
   request(`/admin/contents/${encodeURIComponent(id)}/revoke`, { method: 'POST' })
 export const restoreKey = (id) =>
   request(`/admin/contents/${encodeURIComponent(id)}/restore`, { method: 'POST' })
+// Supprime définitivement un contenu (enregistrement + HLS chiffré + clé).
+export const deleteContent = (id) =>
+  request(`/admin/contents/${encodeURIComponent(id)}`, { method: 'DELETE' })

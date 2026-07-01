@@ -7,6 +7,7 @@ import {
   WebSocketGateway,
 } from '@nestjs/websockets'
 import { Socket } from 'socket.io'
+import type { JwtUser } from '../common/request-context'
 
 // ============================================================================
 //  ReviewGateway — relais temps réel des sessions de revue (Pôle 1).
@@ -44,23 +45,30 @@ export class ReviewGateway implements OnGatewayConnection {
   // contrôle d'accès : une connexion sans token reste acceptée (l'identité est
   // de toute façon portée par les messages). Le durcissement « refus par
   // défaut » est l'objet du Pôle 2, pas d'ici.
+  // Refus par défaut : un token VALIDE (membre OU invité) est exigé pour
+  // participer. Absent / invalide / expiré => déconnexion. C'est ce qui fait
+  // qu'un lien d'invité cesse de fonctionner une fois expiré.
   async handleConnection(client: Socket): Promise<void> {
     const token = client.handshake.auth?.token as string | undefined
-    if (!token) return
     try {
-      client.data.user = await this.jwt.verifyAsync(token)
+      client.data.user = await this.jwt.verifyAsync(token as string)
     } catch {
-      // token invalide/expiré : on n'interrompt pas la collaboration de revue.
+      client.disconnect()
     }
   }
 
   // Le client rejoint la room de sa session (et la re-rejoint après reconnexion).
+  // Un invité ne peut rejoindre QUE la session portée par son token.
   @SubscribeMessage('join')
   onJoin(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: { session?: string },
   ): void {
-    if (body?.session) void client.join(room(body.session))
+    if (!body?.session) return
+    const user = client.data.user as JwtUser | undefined
+    if (!user) return
+    if (user.role === 'guest' && user.session !== body.session) return
+    void client.join(room(body.session))
   }
 
   // Relai pur : renvoie le message à tous les autres membres de la room.

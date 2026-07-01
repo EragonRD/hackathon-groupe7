@@ -25,6 +25,7 @@ import { ContentsService } from '../contents/contents.service'
 import type { Content } from '../contents/contents.service'
 import { EmailService } from '../email/email.service'
 import { KeysService } from '../keys/keys.service'
+import { UploadService } from '../upload/upload.service'
 import type { JwtUser, RequestWithUser } from '../common/request-context'
 
 const INVITE_TTL_MS = 24 * 60 * 60 * 1000 // 24 h
@@ -43,6 +44,7 @@ export class AdminController {
     private readonly contents: ContentsService,
     private readonly email: EmailService,
     private readonly keys: KeysService,
+    private readonly upload: UploadService,
   ) {}
 
   // Journal d'accès aux clés (audit) — superadmin = tout ; admin = son entreprise.
@@ -267,6 +269,17 @@ export class AdminController {
     this.scopedContent(id, req.user!)
     const content = this.contents.setRevoked(id, false)
     return { ...content, message: 'Delivrance retablie' }
+  }
+
+  // Supprimer définitivement un contenu : enregistrement + rendu HLS chiffré +
+  // clé AES. Scopé au tenant (un admin ne supprime que dans SON entreprise).
+  @UseGuards(CompanyAdminGuard)
+  @Delete('contents/:id')
+  async deleteContent(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const content = this.scopedContent(id, req.user!)
+    await this.upload.deleteArtifacts(id)
+    this.contents.delete(id)
+    return { deleted: content.id, message: 'Contenu supprime' }
   }
 
   // ───────────────────────── helpers ─────────────────────────

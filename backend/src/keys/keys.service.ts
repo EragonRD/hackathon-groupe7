@@ -88,7 +88,12 @@ export class KeysService {
       })
       throw new ForbiddenException('Cle revoquee pour ce contenu')
     }
-    if (!this.contents.isAllowed(contentId, user)) {
+    // Invité (token scopé à CE contenu) : le tenant + la révocation ont déjà été
+    // vérifiés ci-dessus, et l'expiration est garantie par la validation du JWT
+    // (token expiré => 401 dans le guard, on n'arrive jamais ici). On saute donc
+    // l'ACL par username (l'invité n'a pas de compte). Sinon, ACL classique.
+    const isGuest = user.role === 'guest' && user.contentId === contentId
+    if (!isGuest && !this.contents.isAllowed(contentId, user)) {
       await this.logAccess({
         user,
         contentId,

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { spawn } from 'child_process'
 import { randomBytes } from 'crypto'
 import { existsSync } from 'fs'
@@ -29,7 +29,7 @@ function parseMaxEncodes(raw: string | undefined): number {
 const MAX_CONCURRENT_ENCODES = parseMaxEncodes(process.env.MAX_CONCURRENT_ENCODES)
 
 @Injectable()
-export class UploadService {
+export class UploadService implements OnModuleInit {
   private readonly logger = new Logger(UploadService.name)
   private readonly hlsDir = resolveHlsDir()
   private readonly secretsDir = backendPath('secrets')
@@ -39,6 +39,22 @@ export class UploadService {
   private readonly encodeQueue: Array<() => void> = []
 
   constructor(private readonly contents: ContentsService) {}
+
+  // Réconciliation au démarrage : un chiffrement interrompu par un arrêt du Core
+  // (jobs en mémoire, non repris) laisse le contenu bloqué en 'processing' pour
+  // toujours -> spinner infini côté front. On rattrape : si le HLS est complet
+  // (index.m3u8 écrit en dernier par ffmpeg) -> 'ready', sinon -> 'failed' (donc
+  // l'utilisateur voit l'échec et peut ré-uploader).
+  onModuleInit(): void {
+    for (const c of this.contents.list()) {
+      if (c.status !== 'processing') continue
+      const done = existsSync(join(this.hlsDir, c.id, 'index.m3u8'))
+      this.contents.setStatus(c.id, done ? 'ready' : 'failed')
+      this.logger.warn(
+        `Réconciliation démarrage : ${c.id} 'processing' -> '${done ? 'ready' : 'failed'}'`,
+      )
+    }
+  }
 
   // Acquiert un jeton (attend si tous les slots ffmpeg sont pris).
   private acquireEncodeSlot(): Promise<void> {
@@ -70,6 +86,15 @@ export class UploadService {
         this.contents.setStatus(contentId, 'failed')
         this.logger.error(`Échec chiffrement ${contentId} : ${(e as Error).message}`)
       })
+  }
+
+  // Supprime les artefacts d'un contenu : rendu HLS chiffré + clé AES.
+  // Best-effort (le contenu peut n'avoir jamais été chiffré).
+  async deleteArtifacts(contentId: string): Promise<void> {
+    await rm(join(this.hlsDir, contentId), { recursive: true, force: true }).catch(
+      () => {},
+    )
+    await rm(join(this.secretsDir, `${contentId}.key`), { force: true }).catch(() => {})
   }
 
   // Chiffre la vidéo en HLS AES-128 (clé + IV par contenu). Ré-encode en H.264/AAC
