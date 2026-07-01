@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Query,
   Req,
   UnauthorizedException,
   UseGuards,
@@ -12,10 +13,14 @@ import type { Request } from 'express'
 import { AuthService } from './auth.service'
 import { AuthGuard } from './auth.guard'
 import { extractClientIp } from '../common/request-context'
+import { UsersService } from './users.service'
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly users: UsersService,
+  ) {}
 
   // POST /auth/login  { username, password }  ->  { accessToken, user }
   // Rate-limit strict par IP (10/min) : ralentit fortement le credential stuffing,
@@ -55,5 +60,14 @@ export class AuthController {
       body.currentPassword,
       body.newPassword,
     )
+  }
+
+  // GET /auth/users?q=… — recherche d'utilisateurs par username ou email.
+  // Accessible à tout utilisateur authentifié (pour inviter des collaborateurs).
+  @UseGuards(AuthGuard)
+  @Get('users')
+  searchUsers(@Query('q') q?: string) {
+    if (!q || q.length < 1) return []
+    return this.users.search(q)
   }
 }

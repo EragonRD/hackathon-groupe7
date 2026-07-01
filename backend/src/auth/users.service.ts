@@ -195,6 +195,17 @@ export class UsersService implements OnModuleInit {
       .map((u) => this.toPublic(u))
   }
 
+  search(query: string): PublicUser[] {
+    const q = query.toLowerCase()
+    return this.users
+      .filter(
+        (u) =>
+          u.username.toLowerCase().includes(q) ||
+          (u.email ?? '').toLowerCase().includes(q),
+      )
+      .map((u) => this.toPublic(u))
+  }
+
   private toPublic(u: User): PublicUser {
     return {
       id: u.id,

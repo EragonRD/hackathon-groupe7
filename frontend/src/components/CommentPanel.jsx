@@ -86,16 +86,18 @@ export default function CommentPanel({
             </option>
           ))}
         </select>
-        <select
-          value={statusFilter}
-          aria-label="Filtrer par état"
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="all">Tous les états</option>
-          <option value="open">Ouverts</option>
-          <option value="resolved">Résolus</option>
-        </select>
-        <label className="filter-check">
+        <div className="filter-status-group">
+          {['all', 'open', 'resolved'].map((s) => (
+            <button
+              key={s}
+              className={`filter-status-btn${statusFilter === s ? ' active' : ''}`}
+              onClick={() => setStatusFilter(s)}
+            >
+              {s === 'all' ? 'Tous' : s === 'open' ? 'Ouverts' : 'Résolus'}
+            </button>
+          ))}
+        </div>
+        <label className={`filter-chip${mineOnly ? ' active' : ''}`}>
           <input
             type="checkbox"
             checked={mineOnly}

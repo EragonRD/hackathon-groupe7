@@ -90,7 +90,7 @@ export default function App() {
   }
   const titles = {
     review: view.video?.title,
-    secure: 'Lecture protégée',
+    secure: view.video?.title ?? 'Lecture protégée',
     dashboard: 'Surveillance',
     admin: 'Administration',
   }
@@ -137,7 +137,13 @@ export default function App() {
       )}
       {view.name === 'secure' && (
         <Suspense fallback={<Loading />}>
-          <SecureVideo contentId={view.contentId ?? 'poc'} />
+          <SecureVideo
+            contentId={view.contentId}
+            src={view.video?.src}
+            title={view.video?.title}
+            category={view.video?.category}
+            invited={view.video?.invited}
+          />
         </Suspense>
       )}
       {view.name === 'dashboard' && (
@@ -153,7 +159,7 @@ export default function App() {
       {view.name === 'docs' && <Documentation onBack={goToCatalogue} />}
       {view.name === 'catalogue' && (
         <Catalogue
-          onOpen={(video) => setView({ name: 'review', video })}
+          onOpen={(video) => setView({ name: 'secure', video })}
           onOpenSecure={() => setView({ name: 'secure', contentId: 'poc' })}
         />
       )}
