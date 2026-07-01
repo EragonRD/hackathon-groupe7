@@ -15,17 +15,11 @@ export interface Content {
 }
 
 const STORE = 'contents.json'
-// Contenu de démo semé au tout premier lancement (fichier absent).
-const SEED: Content[] = [
-  {
-    id: 'poc',
-    title: 'POC Parc des Princes',
-    companyId: 'demo',
-    allowedUsernames: ['alice', 'bob', 'carol'],
-    revoked: false,
-    status: 'ready',
-  },
-]
+// Aucun contenu semé : un enregistrement seul (sans ses artefacts HLS + clé AES)
+// s'afficherait comme « Flux indisponible » (bug de démo). Les contenus se créent
+// par UPLOAD, qui génère le HLS chiffré + la clé. Catalogue vide au tout premier
+// lancement, jusqu'au premier upload.
+const SEED: Content[] = []
 
 // Catalogue + droits d'accès, isolé PAR ENTREPRISE (multi-tenant). Persisté sur
 // disque (backend/data) : survit au redémarrage. Partagé entre KeysService

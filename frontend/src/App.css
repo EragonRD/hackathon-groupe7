@@ -847,21 +847,6 @@
   animation: err-shake 0.4s var(--ease);
 }
 
-/* Bandeau d'information sur l'écran de connexion (ex. expulsion mono-session).
-   Ton neutre/accent (pas une erreur de saisie) : l'accent bleu du design system. */
-.login-notice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px 0 var(--s-4);
-  padding: 10px 12px;
-  border-radius: var(--r-md);
-  font-size: 12.5px;
-  color: var(--text);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-line);
-}
-
 /* Spinner du bouton (état « busy ») */
 .spinner {
   width: 16px;

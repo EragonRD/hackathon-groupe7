@@ -6,6 +6,7 @@ import ChangePassword from './components/ChangePassword.jsx'
 import GuestJoin from './components/GuestJoin.jsx'
 import InviteGuestModal from './components/InviteGuestModal.jsx'
 import GuestUploadModal from './components/GuestUploadModal.jsx'
+import SessionEndedModal from './components/SessionEndedModal.jsx'
 import AppShell from './components/AppShell.jsx'
 import Catalogue from './components/Catalogue.jsx'
 import VideoReview from './components/VideoReview.jsx'
@@ -67,8 +68,9 @@ export default function App() {
   const [reviewPeers, setReviewPeers] = useState([])
   const [inviteContent, setInviteContent] = useState(null)
   const [guestUploadOpen, setGuestUploadOpen] = useState(false)
-  // Message affiché sur l'écran de connexion après une expulsion mono-session.
-  const [authNotice, setAuthNotice] = useState(null)
+  // Mono-session : le compte a été rouvert ailleurs. On affiche une alerte en
+  // overlay SUR la page courante (sans déconnecter l'UI ni changer de vue).
+  const [kicked, setKicked] = useState(false)
 
   // Réhydrate la session si un token est déjà présent (rechargement de page).
   // En mode invité, on saute la réhydratation (pas de compte à récupérer).
@@ -88,18 +90,18 @@ export default function App() {
     }
   }, [guestMode])
 
-  // Token expiré ou session supersédée (intercepteur 401 d'authFetch) -> retour à
-  // l'écran de connexion. Le motif `session_superseded` (mono-session : le compte a
-  // été rouvert ailleurs) affiche un message dédié.
+  // Intercepteur 401 d'authFetch.
+  //  - `session_superseded` (mono-session) : on NE déconnecte PAS l'UI, on lève une
+  //    alerte en overlay sur la page courante (l'utilisateur choisit quoi faire).
+  //  - autre 401 (token expiré, refresh échoué) : retour à l'écran de connexion.
   useEffect(() => {
     function onExpired(e) {
+      if (e?.detail?.reason === 'session_superseded') {
+        setKicked(true)
+        return
+      }
       setUser(null)
       setView({ name: 'catalogue' })
-      setAuthNotice(
-        e?.detail?.reason === 'session_superseded'
-          ? 'Vous avez été déconnecté par une autre session.'
-          : null,
-      )
     }
     window.addEventListener('auth:expired', onExpired)
     return () => window.removeEventListener('auth:expired', onExpired)
@@ -156,9 +158,8 @@ export default function App() {
   if (!user) {
     return (
       <Login
-        notice={authNotice}
         onAuthed={(u) => {
-          setAuthNotice(null)
+          setKicked(false)
           setUser(u)
         }}
       />
@@ -289,6 +290,15 @@ export default function App() {
         />
       )}
       {guestUploadOpen && <GuestUploadModal onClose={() => setGuestUploadOpen(false)} />}
+      {kicked && (
+        <SessionEndedModal
+          onReconnect={() => {
+            setKicked(false)
+            handleLogout()
+          }}
+          onDismiss={() => setKicked(false)}
+        />
+      )}
     </AppShell>
   )
 }
