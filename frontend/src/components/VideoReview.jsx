@@ -341,6 +341,15 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
   }
 
   function selectNote(note) {
+    // Toggle : re-cliquer la note DÉJÀ active la désélectionne (masque son dessin).
+    if (activeId === note.id) {
+      setActiveId(null)
+      setDraftShapes([])
+      setEditingId(null)
+      // Présentateur : propage la désélection aux invités (vue partagée).
+      if (isPresenter) sendSelect(null)
+      return
+    }
     setActiveId(note.id)
     setDraftShapes([])
     setPinnedTime(null)
