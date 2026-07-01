@@ -117,7 +117,7 @@ export class EmailService {
   }): string {
     const badge = `${this.appUrl}/poulpium-badge.png`
     const mark = `${this.appUrl}/poulpium-mark.png`
-    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#05070a;">
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b1220;">
 <tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#101319;border:1px solid rgba(255,255,255,0.08);border-radius:18px;overflow:hidden;">
 <tr><td style="background-color:#0e1524;background-image:linear-gradient(135deg,#12204a 0%,#101319 55%);padding:34px 32px 30px 32px;text-align:center;">
