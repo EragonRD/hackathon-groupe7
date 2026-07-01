@@ -111,16 +111,26 @@ export function useReview({ session, user, mode }) {
   useEffect(() => {
     let alive = true
     loadedRef.current = false
-    fetchNotes(session).then((serverNotes) => {
-      if (!alive) return
-      if (serverNotes) {
-        if (serverNotes.length) upsertNotes(serverNotes)
-        loadedRef.current = true // fetch OK -> on autorise la sauvegarde (même si vide)
-      }
-      // fetch KO (null) -> loadedRef reste false : on NE sauvegarde pas (anti-clobber).
-    })
+    // Tentatives bornées : un serveur brièvement indisponible ne doit pas bloquer
+    // la persistance pour TOUTE la session. On réessaie quelques fois avant
+    // d'abandonner. En cas d'échec définitif, loadedRef reste false : on NE
+    // sauvegarde pas (anti-clobber = on n'écrase pas le serveur sans l'avoir lu).
+    let retryTimer = null
+    const attempt = (left) => {
+      fetchNotes(session).then((serverNotes) => {
+        if (!alive) return
+        if (serverNotes) {
+          if (serverNotes.length) upsertNotes(serverNotes)
+          loadedRef.current = true // fetch OK -> on autorise la sauvegarde (même si vide)
+          return
+        }
+        if (left > 0) retryTimer = setTimeout(() => attempt(left - 1), 1500)
+      })
+    }
+    attempt(3)
     return () => {
       alive = false
+      if (retryTimer) clearTimeout(retryTimer)
     }
   }, [session, upsertNotes])
 

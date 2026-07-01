@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  PayloadTooLargeException,
   Put,
   Req,
   UseGuards,
@@ -13,6 +14,11 @@ import { AuthGuard } from '../auth/auth.guard'
 import { NotesService } from './notes.service'
 import { ContentsService } from '../contents/contents.service'
 import type { JwtUser, RequestWithUser } from '../common/request-context'
+
+// Borne explicite de la taille du payload de notes (défense en profondeur : le
+// body-parser d'Express plafonne déjà à ~100 ko, mais on ne veut PAS dépendre de
+// ce défaut implicite si la limite globale est un jour relevée pour l'upload).
+const MAX_NOTES_BYTES = 256 * 1024
 
 // Persistance serveur des notes de revue, par session. Protégé par AuthGuard.
 //   GET  /notes/:session   -> notes[] persistées
@@ -40,6 +46,9 @@ export class NotesController {
     this.assertAccess(session, req.user!)
     if (!Array.isArray(body?.notes)) {
       throw new BadRequestException('notes[] requis')
+    }
+    if (Buffer.byteLength(JSON.stringify(body.notes)) > MAX_NOTES_BYTES) {
+      throw new PayloadTooLargeException('Trop de données de notes pour cette session')
     }
     return { notes: this.notes.replace(session, body.notes) }
   }

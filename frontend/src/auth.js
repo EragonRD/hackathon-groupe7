@@ -32,6 +32,7 @@ export async function login(username, password) {
   }
   const data = await res.json()
   storeSession(data)
+  superseded = false // nouvelle session propre : on lève tout blocage de refresh hérité
   return data.user
 }
 
