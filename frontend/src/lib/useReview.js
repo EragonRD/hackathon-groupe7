@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createTransport } from './collab'
 import { colorForUser, shortId } from './format'
+import { fetchNotes, saveNotes } from './notes'
 
 // ============================================================================
 //  useReview — état d'une session de revue, synchronisé entre participants.
@@ -55,6 +56,11 @@ export function useReview({ session, user, mode }) {
   const [peers, setPeers] = useState({}) // id -> { id, name, color, lastSeen, cursor }
   const [presenterId, setPresenterId] = useState(null) // id du présentateur (Watch Together)
   const transportRef = useRef(null)
+  // Persistance serveur (notes.js) : `loadedRef` passe à true après le 1er fetch
+  // RÉUSSI (anti-clobber : on ne sauvegarde pas tant qu'on n'a pas lu le serveur) ;
+  // `saveTimerRef` debounce les écritures.
+  const loadedRef = useRef(false)
+  const saveTimerRef = useRef(null)
   // Références "toujours fraîches" pour l'effet de connexion (handlers async) :
   // elles évitent de remettre `self`/`notes` en dépendances de la (re)connexion.
   // Mises à jour dans des effets (jamais pendant le render).
@@ -96,6 +102,37 @@ export function useReview({ session, user, mode }) {
       return [...byId.values()].sort((a, b) => a.time - b.time)
     })
   }, [])
+
+  // --- Chargement initial depuis le serveur (source partagée, durable) -------
+  // Complète le temps réel : les notes survivent au départ de tous les pairs et
+  // reviennent à l'ouverture, sur n'importe quelle machine. Best-effort.
+  useEffect(() => {
+    let alive = true
+    loadedRef.current = false
+    fetchNotes(session).then((serverNotes) => {
+      if (!alive) return
+      if (serverNotes) {
+        if (serverNotes.length) upsertNotes(serverNotes)
+        loadedRef.current = true // fetch OK -> on autorise la sauvegarde (même si vide)
+      }
+      // fetch KO (null) -> loadedRef reste false : on NE sauvegarde pas (anti-clobber).
+    })
+    return () => {
+      alive = false
+    }
+  }, [session, upsertNotes])
+
+  // --- Sauvegarde serveur debouncée à chaque changement de notes -------------
+  useEffect(() => {
+    if (!loadedRef.current) return undefined
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      saveNotes(session, notesRef.current)
+    }, 800)
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [notes, session])
 
   // --- Connexion au transport + boucle de présence ------------------------
   useEffect(() => {
