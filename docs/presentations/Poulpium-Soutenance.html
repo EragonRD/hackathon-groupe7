@@ -1,0 +1,677 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Poulpium — Soutenance (deck fusionné)</title>
+<style>
+  :root{
+    --bg:#080b10; --bg-1:#0d1017; --bg-2:#12161e; --bg-3:#1b1f29; --inset:#06080b; --editor:#0a0d12;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.15);
+    --text:#eaf0f6; --dim:#98a2b0; --faint:#5a6470;
+    --accent:#3d6dfd; --accent-2:#5b85ff; --accent-soft:rgba(61,109,253,.15); --accent-line:rgba(61,109,253,.45);
+    --ok:#2ee6a0; --warn:#f5b23a; --danger:#ff5b6e; --cyan:#2fd4e6; --violet:#b07bff; --cf:#f6821f;
+    --sect:var(--accent);              /* accent de la SECTION courante (par lead) */
+    --r-sm:7px; --r:14px; --r-lg:20px; --pill:999px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"SFMono-Regular","JetBrains Mono","Cascadia Code",Consolas,Menlo,monospace;
+    --ease:cubic-bezier(.16,1,.3,1);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  #glow{position:fixed;inset:-20%;z-index:0;pointer-events:none;filter:blur(34px);opacity:.8;
+    background:radial-gradient(38% 44% at 16% 18%, color-mix(in srgb,var(--sect) 26%,transparent), transparent 60%),
+      radial-gradient(40% 46% at 84% 26%, color-mix(in srgb,var(--sect) 14%,transparent), transparent 60%),
+      radial-gradient(50% 50% at 60% 108%, rgba(61,109,253,.10), transparent 60%);
+    transition:background .5s var(--ease)}
+
+  #deck{position:fixed;inset:0;z-index:1}
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:clamp(26px,4.4vw,78px);opacity:0;visibility:hidden;transform:translateY(12px);overflow:hidden;
+    transition:opacity .45s var(--ease),transform .45s var(--ease),visibility .45s}
+  .slide.active{opacity:1;visibility:visible;transform:none}
+
+  #hud{position:fixed;z-index:20;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.05)}
+  #bar{height:100%;width:0;background:linear-gradient(90deg,var(--sect),var(--accent-2));transition:width .45s ease,background .5s ease}
+  #counter{position:fixed;z-index:20;right:clamp(18px,3vw,40px);bottom:16px;font-family:var(--mono);font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;letter-spacing:.08em}
+  #counter b{color:var(--text)}
+  #dots{position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:14px;display:flex;gap:6px;max-width:70vw;flex-wrap:wrap;justify-content:center}
+  #dots button{width:6px;height:6px;border-radius:50%;border:0;background:rgba(255,255,255,.18);cursor:pointer;padding:0;transition:all .3s}
+  #dots button.on{background:var(--sect);width:18px;border-radius:4px}
+  #brand-hud{position:fixed;z-index:20;left:clamp(18px,3vw,40px);bottom:13px;display:flex;align-items:center;gap:8px;opacity:.6}
+  #brand-hud img{width:15px;height:15px}
+  #brand-hud span{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase}
+  #who{position:fixed;z-index:20;left:50%;transform:translateX(-50%);top:15px;font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);opacity:0;transition:opacity .4s}
+  #who.show{opacity:.85}#who b{color:var(--sect)}
+
+  /* Accents de section */
+  .sect-p1{--sect:#3d6dfd}.sect-p2{--sect:#ff5b6e}.sect-p3a{--sect:#2fd4e6}.sect-p3b{--sect:#b07bff}.sect-prod{--sect:#2ee6a0}.sect-int{--sect:#5b85ff}
+
+  .kicker{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12.5px;text-transform:uppercase;letter-spacing:.15em;color:var(--dim);margin-bottom:16px}
+  .kicker .pip{width:9px;height:9px;border-radius:50%;background:var(--sect);box-shadow:0 0 12px var(--sect)}
+  h1{font-size:clamp(32px,4.4vw,60px);line-height:1.03;font-weight:800;letter-spacing:-.03em}
+  h2{font-size:clamp(24px,3.2vw,42px);line-height:1.05;font-weight:800;letter-spacing:-.026em}
+  .grad{background:linear-gradient(100deg,var(--sect),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:clamp(14px,1.3vw,18px);color:var(--dim);line-height:1.55;max-width:66ch;margin-top:14px}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  b.hl{color:var(--text);font-weight:700}
+  .url{font-family:var(--mono);color:var(--ok)}
+
+  /* Divider (titre d'intervenant) */
+  .divider{justify-content:center}
+  .divider .idx{font-family:var(--mono);font-size:14px;letter-spacing:.2em;color:var(--sect);margin-bottom:16px}
+  .divider .who-name{font-size:clamp(40px,6vw,86px);font-weight:800;letter-spacing:-.035em;line-height:1}
+  .divider .role{margin-top:16px;font-size:clamp(16px,1.7vw,23px);color:var(--dim)}
+  .divider .role b{color:var(--text)}
+  .divider .rail{margin-top:26px;height:3px;width:120px;background:linear-gradient(90deg,var(--sect),transparent);border-radius:2px}
+
+  /* Cover */
+  .cover .logo{display:flex;align-items:center;gap:16px;margin-bottom:22px}
+  .cover .logo img{width:56px;height:56px;filter:drop-shadow(0 8px 24px rgba(61,109,253,.4))}
+  .cover .logo .word{font-size:clamp(34px,4.6vw,60px);font-weight:800;letter-spacing:-.03em;background:linear-gradient(90deg,#cdd6ff,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .leads{margin-top:24px;display:flex;flex-wrap:wrap;gap:9px}
+  .lead{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:12px;color:var(--text);background:var(--bg-2);border:1px solid var(--line-strong);padding:7px 13px;border-radius:var(--pill)}
+  .lead .d{width:9px;height:9px;border-radius:50%}
+  .team{margin-top:20px;font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.03em}
+
+  /* Layout */
+  .split{display:grid;grid-template-columns:1fr 1.08fr;gap:clamp(22px,3vw,52px);align-items:center;min-height:0}
+  .split.rev{grid-template-columns:1.08fr 1fr}
+  .split .txt{min-width:0}.split .media{min-width:0;overflow:hidden}
+  ul.feat{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:11px}
+  ul.feat li{display:flex;gap:12px;align-items:flex-start;font-size:clamp(13.5px,1.05vw,16px);line-height:1.42}
+  ul.feat li::before{content:"";flex:0 0 auto;width:8px;height:8px;margin-top:7px;border-radius:2px;background:var(--sect)}
+  ul.feat li b{color:var(--text);font-weight:700}ul.feat li span{color:var(--dim)}
+  .chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}
+  .chip{font-family:var(--mono);font-size:12px;color:var(--text);background:var(--bg-2);border:1px solid var(--line-strong);padding:7px 12px;border-radius:var(--pill);display:inline-flex;gap:8px;align-items:center}
+  .chip .d{width:9px;height:9px;border-radius:50%}
+  .cap{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:12px;letter-spacing:.03em}
+  .cap.ok{color:var(--ok)}
+
+  /* Frame (capture navigateur / app) */
+  .frame{border:1px solid var(--line-strong);border-radius:var(--r);overflow:hidden;background:#fff;box-shadow:0 26px 70px rgba(0,0,0,.55)}
+  .frame.dark{background:var(--bg-1)}
+  .frame-bar{display:flex;align-items:center;gap:7px;padding:10px 13px;background:var(--bg-2);border-bottom:1px solid var(--line)}
+  .frame-bar i{width:11px;height:11px;border-radius:50%;background:#2b313b;display:block}
+  .frame-bar i:nth-child(1){background:#ff5f57}.frame-bar i:nth-child(2){background:#febc2e}.frame-bar i:nth-child(3){background:#28c840}
+  .frame-bar .u{margin-left:10px;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+  .frame img{display:block;width:100%;height:auto}
+  .callout-wrap{position:relative}
+  .callout{position:absolute;font-family:var(--mono);font-size:11.5px;color:var(--text);background:rgba(13,16,23,.92);border:1px solid var(--accent-line);padding:6px 10px;border-radius:var(--pill);box-shadow:0 8px 24px rgba(0,0,0,.5);white-space:nowrap}
+  .callout .d{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
+
+  /* Before/After (P1) */
+  .ba{display:grid;grid-template-columns:1fr auto 1fr;gap:clamp(16px,2.4vw,40px);align-items:stretch;margin-top:28px}
+  .bacard{border:1px solid var(--line);border-radius:var(--r);padding:clamp(18px,2.2vw,32px);display:flex;flex-direction:column;justify-content:center}
+  .bacard.bad{background:linear-gradient(180deg,rgba(255,91,110,.06),transparent);border-color:rgba(255,91,110,.28)}
+  .bacard.good{background:linear-gradient(180deg,color-mix(in srgb,var(--sect) 14%,transparent),transparent);border-color:color-mix(in srgb,var(--sect) 45%,transparent)}
+  .bacard .t{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.14em;margin-bottom:14px}
+  .bacard.bad .t{color:var(--danger)}.bacard.good .t{color:var(--sect)}
+  .bacard .big{font-size:clamp(17px,1.7vw,23px);font-weight:700;line-height:1.25}
+  .bacard .sub{color:var(--dim);margin-top:10px;font-size:14px;line-height:1.5}
+  .bacard .mail{font-family:var(--mono);font-size:12.5px;color:var(--dim);background:var(--inset);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;margin-top:14px;line-height:1.5}
+  .barrow{display:flex;align-items:center;color:var(--faint);font-size:26px}
+
+  /* Editor + code (P2/P3) */
+  .editor{border:1px solid var(--line-strong);border-radius:var(--r);overflow:hidden;background:var(--editor);box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .etop{display:flex;align-items:center;background:var(--bg-2);border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12px}
+  .etop .dots{display:flex;gap:6px;padding:0 14px}.etop .dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .etop .dots i:nth-child(1){background:#ff5f57}.etop .dots i:nth-child(2){background:#febc2e}.etop .dots i:nth-child(3){background:#28c840}
+  .etab{padding:9px 15px;color:var(--text);border-left:1px solid var(--line);border-bottom:2px solid var(--sect)}
+  .code{font-family:var(--mono);font-size:clamp(11px,.95vw,13.5px);line-height:1.7;padding:16px 20px;white-space:pre;overflow:auto;color:#c6cdd7;tab-size:2}
+  .code .k{color:var(--accent-2)}.code .s{color:var(--ok)}.code .w{color:var(--warn)}.code .r{color:var(--danger)}.code .c{color:var(--faint);font-style:italic}.code .f{color:var(--cyan)}.code .n{color:var(--warn)}.code .v{color:var(--violet)}
+  .term{font-family:var(--mono);font-size:clamp(11px,.95vw,13.5px);line-height:1.8;background:var(--inset);border:1px solid var(--line);border-radius:var(--r);padding:16px 20px;white-space:pre-wrap;color:#c6cdd7}
+  .term .p{color:var(--accent-2)}.term .ok{color:var(--ok)}.term .no{color:var(--danger)}.term .c{color:var(--faint)}.term .w{color:var(--warn)}
+
+  /* Reqs (P2) */
+  .reqs{display:flex;flex-direction:column;gap:11px;margin-top:16px}
+  .req{border:1px solid var(--line);border-left:3px solid var(--sect);border-radius:var(--r-sm);padding:13px 16px;background:var(--bg-1)}
+  .req .w{display:flex;gap:10px;align-items:baseline;font-size:clamp(13.5px,1.05vw,16px);font-weight:700}
+  .req .w .tick{color:var(--ok);font-weight:800}
+  .req .g{color:var(--dim);font-size:13.5px;margin-top:6px;line-height:1.5}
+  .req .g code{font-family:var(--mono);color:var(--accent-2)}
+
+  /* Panel verre (P3) */
+  .panel{position:relative;border-radius:var(--r-lg);background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.012));border:1px solid rgba(255,255,255,.10);box-shadow:0 24px 70px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.07);backdrop-filter:blur(10px);overflow:hidden}
+  .panel::before{content:"";position:absolute;left:0;top:0;right:0;height:2px;background:linear-gradient(100deg,var(--sect),var(--accent-2))}
+  .panel-label{display:flex;align-items:center;gap:8px;padding:11px 16px;font-family:var(--mono);font-size:11.5px;color:var(--dim);border-bottom:1px solid var(--line)}
+  .panel-label .d{width:7px;height:7px;border-radius:50%;background:var(--sect)}
+
+  /* Pipeline (P3-A) */
+  .track{position:relative;margin-top:30px;display:flex;justify-content:space-between;gap:8px}
+  .track::before{content:"";position:absolute;left:5%;right:5%;top:26px;height:2px;background:linear-gradient(90deg,transparent,var(--sect),var(--violet),transparent);opacity:.55}
+  .stop{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;gap:9px;min-width:0}
+  .stop .dot{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-weight:800;font-size:15px;background:var(--bg-1);border:1px solid var(--line-strong);color:var(--dim);z-index:1}
+  .stop.io .dot{background:linear-gradient(100deg,var(--sect),var(--cyan));color:#04121a;border-color:transparent}
+  .stop .nm{font-weight:700;font-size:13.5px}.stop .ss{color:var(--faint);font-size:11px;line-height:1.35;font-family:var(--mono)}
+
+  /* Metrics + count-up (P3-B) */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:13px;margin-top:22px}
+  .metric{border-radius:var(--r);padding:16px 18px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+  .metric .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:2rem;font-weight:800;line-height:1;background:linear-gradient(100deg,var(--sect),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .metric .l{font-size:12px;font-weight:700;color:var(--text);margin-top:8px}.metric .s{font-size:10.5px;color:var(--faint);margin-top:3px}
+
+  /* Curve (P3-B) */
+  .curve{border-radius:var(--r);background:rgba(0,0,0,.28);border:1px solid var(--line-strong);padding:14px 16px}
+  .curve svg{display:block;width:100%;max-width:100%;height:auto}
+  .clabel{font-family:var(--mono);font-size:11px;fill:var(--faint)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .legend b{display:inline-block;width:11px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+  /* Table + bars (P3-B) */
+  table.mods{width:100%;border-collapse:collapse;margin-top:18px;font-size:clamp(12px,1vw,14.5px)}
+  table.mods th,table.mods td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line)}
+  table.mods th{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:700}
+  table.mods td{color:var(--dim)}table.mods td b{color:var(--text)}table.mods td .mono{color:var(--sect)}
+  table.mods tr:last-child td{border-bottom:0}table.mods tr.hi td{background:rgba(46,230,160,.06)}
+  .bars{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .bar{display:grid;grid-template-columns:126px 1fr;gap:11px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .bar .fillwrap{height:9px;background:rgba(255,255,255,.06);border-radius:var(--pill);overflow:hidden}
+  .bar .fill{height:100%;background:linear-gradient(100deg,var(--sect),var(--cyan));border-radius:var(--pill)}
+
+  /* Nodes / arch / topo */
+  .arch{display:flex;gap:13px;align-items:stretch;margin-top:24px}
+  .node{flex:1;border:1px solid var(--line-strong);border-radius:var(--r);padding:18px;background:var(--bg-1);position:relative}
+  .node.hi{border-color:transparent;background:linear-gradient(180deg,color-mix(in srgb,var(--sect) 16%,transparent),var(--bg-1))}
+  .node .t{font-weight:800;font-size:16px;margin-bottom:5px}.node .s{color:var(--dim);font-size:12.5px;line-height:1.45}
+  .node .tag{position:absolute;top:-10px;left:16px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;background:var(--bg-3);border:1px solid var(--line-strong);color:var(--dim);padding:2px 8px;border-radius:var(--pill)}
+  .node.hi .tag{background:var(--sect);color:#04121a;border-color:transparent}
+  .link{display:flex;align-items:center;color:var(--faint);font-family:var(--mono);font-size:15px}
+  .topo{display:flex;align-items:stretch;gap:10px;margin-top:8px;flex-wrap:wrap}
+  .tnode{flex:1;min-width:130px;border-radius:var(--r);padding:15px 14px;background:rgba(255,255,255,.03);border:1px solid var(--line-strong)}
+  .tnode.cf{border-color:rgba(246,130,31,.4);background:linear-gradient(180deg,rgba(246,130,31,.10),rgba(255,255,255,.02))}
+  .tnode.host{border-color:transparent;background:linear-gradient(180deg,rgba(46,230,160,.12),rgba(47,212,230,.05))}
+  .tnode .ic{font-size:19px;margin-bottom:7px}.tnode .t{font-weight:800;font-size:14px}.tnode .s{color:var(--dim);font-size:11.5px;margin-top:4px;line-height:1.4}
+  .tlink{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--faint);font-family:var(--mono);min-width:56px}
+  .tlink .a{font-size:15px;color:var(--ok)}.tlink small{font-size:9.5px;white-space:nowrap}
+  .svcs{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px}
+  .svc{display:flex;align-items:center;gap:12px;border-radius:var(--r);padding:13px 15px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+  .svc .st{width:9px;height:9px;border-radius:50%;background:var(--ok);flex:0 0 auto;box-shadow:0 0 10px rgba(46,230,160,.6)}
+  .svc .nm{font-weight:700;font-size:14px}.svc .img{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:2px}
+  .svc .ram{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--dim);text-align:right;white-space:nowrap}.svc .ram b{color:var(--text)}
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px}
+  .card{border-radius:var(--r);padding:18px 20px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-top:2px solid var(--sect)}
+  .card.warn{border-top-color:var(--warn)}.card.danger{border-top-color:var(--danger)}.card.ok{border-top-color:var(--ok)}
+  .card h3{font-family:var(--mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:11px;color:var(--dim)}
+  .card ul{list-style:none;display:flex;flex-direction:column;gap:8px}
+  .card li{display:flex;gap:9px;font-size:13px;line-height:1.4;color:var(--dim)}
+  .card li::before{content:"›";color:var(--sect);font-family:var(--mono);font-weight:800}.card li b{color:var(--text);font-weight:600}
+
+  .live{display:inline-flex;align-items:center;gap:7px;color:var(--ok);font-weight:700}
+  .live .d{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(46,230,160,.5);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(46,230,160,.5)}70%{box-shadow:0 0 0 9px rgba(46,230,160,0)}100%{box-shadow:0 0 0 0 rgba(46,230,160,0)}}
+  .caret{display:inline-block;width:8px;height:1.05em;background:var(--sect);vertical-align:-2px;animation:bl 1s steps(1) infinite}@keyframes bl{50%{opacity:0}}
+
+  .hint{position:fixed;z-index:20;top:15px;right:clamp(18px,3vw,40px);font-family:var(--mono);font-size:11px;color:var(--faint);opacity:0;transition:opacity .4s}
+  body:hover .hint{opacity:.7}
+  kbd{font-family:var(--mono);border:1px solid var(--line-strong);border-radius:5px;padding:1px 6px;color:var(--dim);font-size:10.5px}
+
+  @media (prefers-reduced-motion:no-preference){
+    @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+    @keyframes pop{from{opacity:0;transform:translateY(7px) scale(.95)}to{opacity:1;transform:none}}
+    .slide.active .kicker,.slide.active .idx{animation:rise .5s .04s both var(--ease)}
+    .slide.active h1,.slide.active h2,.slide.active .who-name{animation:rise .55s .10s both var(--ease)}
+    .slide.active .lede,.slide.active .role{animation:rise .55s .18s both var(--ease)}
+    .slide.active .editor,.slide.active .panel,.slide.active .frame,.slide.active .term,.slide.active .curve,.slide.active table.mods{animation:rise .6s .16s both var(--ease)}
+    .slide.active .stop,.slide.active .metric,.slide.active .req,.slide.active .svc,.slide.active .bacard,.slide.active .node{animation:pop .5s both var(--ease)}
+    .slide.active .stop:nth-child(2),.slide.active .metric:nth-child(2),.slide.active .req:nth-child(2),.slide.active .svc:nth-child(2),.slide.active .node:nth-child(3){animation-delay:.12s}
+    .slide.active .stop:nth-child(4),.slide.active .metric:nth-child(3),.slide.active .req:nth-child(3),.slide.active .svc:nth-child(3),.slide.active .node:nth-child(5){animation-delay:.22s}
+    .slide.active .stop:nth-child(6),.slide.active .metric:nth-child(4),.slide.active .req:nth-child(4),.slide.active .svc:nth-child(4){animation-delay:.32s}
+    .slide.active ul.feat li{animation:rise .5s both var(--ease)}
+    .slide.active ul.feat li:nth-child(1){animation-delay:.24s}.slide.active ul.feat li:nth-child(2){animation-delay:.32s}
+    .slide.active ul.feat li:nth-child(3){animation-delay:.40s}.slide.active ul.feat li:nth-child(4){animation-delay:.48s}.slide.active ul.feat li:nth-child(5){animation-delay:.56s}
+    .slide.active .callout{animation:pop .5s .5s both var(--ease)}
+  }
+  @media(max-width:900px){.split,.split.rev,.arch,.duo,.ba,.topo{grid-template-columns:1fr;display:flex;flex-direction:column}.barrow,.tlink .a{transform:rotate(90deg)}}
+  @media (prefers-reduced-motion:reduce){.slide{transition:opacity .001s}.caret,.live .d{animation:none}}
+</style>
+</head>
+<body>
+<div id="glow"></div>
+<div class="hint">← → naviguer · <kbd>F</kbd> plein écran</div>
+<div id="who"></div>
+<div id="deck"></div>
+<div id="hud"><div id="bar"></div></div>
+<div id="dots"></div>
+<div id="counter"><b>01</b> / 22</div>
+<div id="brand-hud"><img src="assets/poulpium-mark.png" alt=""><span>Poulpium · Soutenance</span></div>
+
+<script>
+/* chaque slide : [classe-section, "Nom · rôle" pour le bandeau (ou ""), html] */
+const S = [
+
+["", "",
+`<section class="slide cover">
+  <div class="logo"><img src="assets/poulpium-mark.png" alt="Poulpium"><span class="word">Poulpium</span></div>
+  <div class="kicker"><span class="pip"></span> Hackathon ESTIAM · Groupe 7</div>
+  <h1>Une plateforme vidéo.<br>Trois pôles, <span class="grad">une seule identité</span>.</h1>
+  <p class="lede">Revue vidéo collaborative, diffusion sécurisée, IA locale — cousus en un seul produit, déployé en prod. Chaque lead présente son pôle.</p>
+  <div class="leads">
+    <span class="lead"><span class="d" style="background:#3d6dfd"></span>Alex · Pôle 1</span>
+    <span class="lead"><span class="d" style="background:#ff5b6e"></span>Enzo · Pôle 2</span>
+    <span class="lead"><span class="d" style="background:#2fd4e6"></span>Rabah · Pôle 3-A</span>
+    <span class="lead"><span class="d" style="background:#b07bff"></span>Izlen · Pôle 3-B</span>
+    <span class="lead"><span class="d" style="background:#2ee6a0"></span>William · Prod</span>
+  </div>
+  <div class="team">Poulpium — « plusieurs bras sur une même vidéo »</div>
+</section>`],
+
+["sect-int", "Enzo · Ouverture",
+`<section class="slide sect-int">
+  <div class="kicker"><span class="pip"></span> Le produit en un écran</div>
+  <h2>Une architecture <span class="grad">View / Core / Engine</span>.</h2>
+  <div class="arch">
+    <div class="node hi"><span class="tag">View · P1</span><div class="t">React / Vite</div><div class="s">Le lecteur de revue : annotation, commentaires, temps réel. Affiche l'IA.</div></div>
+    <div class="link">— JWT →</div>
+    <div class="node"><span class="tag">Core · P2</span><div class="t">NestJS</div><div class="s">Auth, clés AES, anti-abus, orchestration. Le seul décideur.</div></div>
+    <div class="link">— service →</div>
+    <div class="node"><span class="tag">Engine · P3</span><div class="t">FastAPI</div><div class="s">IA locale : NLP (3A) + rétention (3B).</div></div>
+  </div>
+  <p class="lede" style="margin-top:24px">Le fil rouge de la démo : <b class="hl">une identité</b> ouvre une vidéo (P1), le Core la sécurise (P2) et appelle l'Engine (P3) — le tout servi en prod (William). Pas trois outils juxtaposés, <b class="hl">un seul flux</b>.</p>
+</section>`],
+
+/* ===================== ALEX · P1 ===================== */
+["sect-p1", "Alex · Pôle 1 — Application & Collaboration",
+`<section class="slide divider sect-p1">
+  <div class="idx">04 · APPLICATION & COLLABORATION</div>
+  <div class="who-name">Alex <span class="grad">— Pôle 1</span></div>
+  <div class="role">Le <b>lecteur de revue</b> collaboratif : annoter, commenter, à plusieurs et en direct.</div>
+  <div class="rail"></div>
+</section>`],
+
+["sect-p1", "Alex · Pôle 1 — Application & Collaboration",
+`<section class="slide sect-p1">
+  <div class="kicker"><span class="pip"></span> Le problème</div>
+  <h2>Un retour vidéo par e-mail, c'est illisible.</h2>
+  <div class="ba">
+    <div class="bacard bad"><div class="t">Avant</div><div class="big">Décrire un instant avec des mots.</div>
+      <div class="mail">« À 1:32, le logo en haut à droite est trop petit… enfin je crois, juste après la transition. »</div></div>
+    <div class="barrow">→</div>
+    <div class="bacard good"><div class="t">Avec Poulpium</div><div class="big">Montrer, exactement, sur l'image.</div>
+      <div class="sub">Pause, on dessine une flèche sur le logo, on écrit. C'est <b class="hl">épinglé au timecode</b> et partagé en direct. Un clic y ramène tout le monde.</div></div>
+  </div>
+</section>`],
+
+["sect-p1", "Alex · Pôle 1 — Application & Collaboration",
+`<section class="slide sect-p1">
+  <div class="split rev">
+    <div class="media callout-wrap">
+      <div class="frame"><div class="frame-bar"><i></i><i></i><i></i><span class="u">poulpium · review</span></div>
+        <img src="assets/03-revue-annotation.png" alt="Écran de revue Poulpium"></div>
+      <div class="callout" style="top:12%;left:38%"><span class="d" style="background:var(--cyan)"></span>Cadre au timecode</div>
+      <div class="callout" style="top:46%;left:2%"><span class="d" style="background:var(--warn)"></span>Flèche épinglée à 1:44</div>
+      <div class="callout" style="top:20%;right:-2%"><span class="d" style="background:var(--accent)"></span>Fil de commentaires</div>
+    </div>
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> Sujet A + B, livrés</div>
+      <h2>Tout sur un seul écran.</h2>
+      <ul class="feat">
+        <li><b>Annotation au timecode</b><span> — 7 outils, 6 couleurs, coordonnées normalisées (0..1).</span></li>
+        <li><b>Commentaires vivants</b><span> — triés par instant, fils, résolu, likes, persistés serveur.</span></li>
+        <li><b>Temps réel</b><span> — présence + curseurs + notes ; transport abstrait (multi-fenêtres ou LAN socket.io).</span></li>
+        <li><b>Watch Together</b><span> — présentateur pilote, invités suivis, recalage de dérive, anti-écho.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>`],
+
+/* ===================== ENZO · P2 ===================== */
+["sect-p2", "Enzo · Pôle 2 — Infrastructure, Sécurité & Cloud",
+`<section class="slide divider sect-p2">
+  <div class="idx">03 · INFRASTRUCTURE, SÉCURITÉ & CLOUD</div>
+  <div class="who-name">Enzo <span class="grad">— Pôle 2</span></div>
+  <div class="role">Le back-end qui ne fait <b>confiance à personne</b> : flux chiffré, clé verrouillée, abus bloqués.</div>
+  <div class="rail"></div>
+</section>`],
+
+["sect-p2", "Enzo · Pôle 2 — Infrastructure, Sécurité & Cloud",
+`<section class="slide sect-p2">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> Sujet A · Zero-Trust</div>
+      <h2>Une vidéo que personne ne peut piller.</h2>
+      <p class="lede">Flux <b class="hl">HLS chiffré AES-128</b> ; la clé n'est délivrée qu'à un utilisateur authentifié et autorisé. Refus par défaut.</p>
+      <ul class="feat" style="margin-top:14px">
+        <li><b>Refus par défaut</b><span> — token, tenant, ACL, révocation re-vérifiés à chaque requête.</span></li>
+        <li><b>Isolation multi-tenant</b><span> — autre entreprise → 404, on ne révèle rien.</span></li>
+        <li><b>Révocation en direct</b><span> — clé retirée → 403 immédiat, réversible.</span></li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="editor"><div class="etop"><div class="dots"><i></i><i></i><i></i></div><div class="etab">keys.service.ts</div></div>
+      <div class="code"><span class="c">// GET /keys/:id — refus par défaut</span>
+<span class="k">if</span> (!c || c.companyId !== user.companyId)
+  <span class="k">throw</span> <span class="r">NotFound</span>     <span class="c">// autre tenant → 404</span>
+<span class="k">if</span> (!<span class="k">this</span>.contents.<span class="f">isAllowed</span>(id, user))
+  <span class="k">throw</span> <span class="r">Forbidden</span>    <span class="c">// pas d'accès → 403</span>
+<span class="k">if</span> (c.revoked)
+  <span class="k">throw</span> <span class="r">Forbidden</span>    <span class="c">// révoquée → 403</span>
+<span class="k">return</span> <span class="f">readKey</span>(id)   <span class="c">// ✓ clé AES-128</span></div></div>
+    </div>
+  </div>
+</section>`],
+
+["sect-p2", "Enzo · Pôle 2 — Infrastructure, Sécurité & Cloud",
+`<section class="slide sect-p2">
+  <div class="split rev">
+    <div class="media">
+      <div class="term"><span class="c"># sans token → refus par défaut</span>
+<span class="p">$</span> curl -w "%{http_code}" /keys/poc
+<span class="no">401</span>  Unauthorized
+<span class="c"># bon user, bonne entreprise → clé délivrée</span>
+<span class="p">$</span> curl -H "Bearer <span class="w">$ALICE</span>" /keys/poc
+<span class="ok">200</span>  ····clé AES-128····
+<span class="c"># admin révoque en direct → lecture coupée</span>
+<span class="p">$</span> curl -H "Bearer <span class="w">$ALICE</span>" /keys/poc
+<span class="no">403</span>  Accès refusé</div>
+    </div>
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> Sujet B · Anti-scraping</div>
+      <h2>Avec token ça lit. Sinon, refusé.</h2>
+      <ul class="feat">
+        <li><b>Détection temps réel</b><span> — segments <span class="mono">.ts</span> par acteur en fenêtre glissante : &gt;8 alerte, &gt;20 blocage (403 réel via nginx auth_request).</span></li>
+        <li><b>Signaux</b><span> — multi-sessions, IP VPN/proxy, débit d'aspiration.</span></li>
+        <li><b>Watermark + Capture Guard</b><span> — filigrane par session, heuristique de capture, dashboard live.</span></li>
+        <li><b>Modèle de menace assumé</b><span> — trou analogique reconnu, pas de DRM matériel.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>`],
+
+["sect-p2", "Enzo · Pôle 2 — Infrastructure, Sécurité & Cloud",
+`<section class="slide sect-p2">
+  <div class="kicker"><span class="pip"></span> Modèle de menace · assumé</div>
+  <h2>Quoi protéger, contre quoi, jusqu'où.</h2>
+  <div class="duo">
+    <div class="card ok"><h3>✓ Protégé</h3><ul><li>Le contenu — chiffré, clé verrouillée</li><li>Les clés AES — jamais sans droit</li><li>L'isolation des entreprises</li></ul></div>
+    <div class="card danger"><h3>⚔ Contre</h3><ul><li>Lien direct / partage de fichier</li><li>Aspiration automatisée</li><li>Comptes partagés, proxies, brute-force</li></ul></div>
+    <div class="card"><h3>≈ Hypothèses</h3><ul><li>Reverse-proxy de confiance (X-Forwarded-For)</li><li>JWT_SECRET secret · démo mono-instance</li></ul></div>
+    <div class="card warn"><h3>⚠ Limites</h3><ul><li>Trou analogique : filmer l'écran reste possible</li><li>Anti-capture heuristique, pas de DRM matériel</li></ul></div>
+  </div>
+</section>`],
+
+/* ===================== RABAH · P3-A ===================== */
+["sect-p3a", "Rabah · Pôle 3-A — Indexation & analyse sémantique",
+`<section class="slide divider sect-p3a">
+  <div class="idx">01 · INTELLIGENCE ARTIFICIELLE — NLP</div>
+  <div class="who-name">Rabah <span class="grad">— Pôle 3-A</span></div>
+  <div class="role">La vidéo n'est plus une <b>boîte noire</b> : transcription, résumé, chapitres, recherche, sous-titres.</div>
+  <div class="rail"></div>
+</section>`],
+
+["sect-p3a", "Rabah · Pôle 3-A — Indexation & analyse sémantique",
+`<section class="slide sect-p3a">
+  <div class="kicker"><span class="pip"></span> Sujet A · le pipeline</div>
+  <h2>De la vidéo au JSON, en une passe.</h2>
+  <div class="track">
+    <div class="stop io"><div class="dot">▶</div><div class="nm">Vidéo</div><div class="ss">.mp4 / .m3u8</div></div>
+    <div class="stop"><div class="dot">1</div><div class="nm">ffmpeg</div><div class="ss">audio</div></div>
+    <div class="stop"><div class="dot">2</div><div class="nm">Whisper</div><div class="ss">transcription</div></div>
+    <div class="stop"><div class="dot">3</div><div class="nm">Qwen 2.5</div><div class="ss">résumé + chapitres</div></div>
+    <div class="stop"><div class="dot">4</div><div class="nm">NLLB-200</div><div class="ss">sous-titres</div></div>
+    <div class="stop io"><div class="dot">{}</div><div class="nm">JSON P3-A</div><div class="ss">+ index</div></div>
+  </div>
+  <ul class="feat" style="margin-top:26px">
+    <li><b>Asynchrone</b><span> — l'API renvoie un <span class="mono">job_id</span> ; le Core ne bloque jamais.</span></li>
+    <li><b>100 % local, CPU</b><span> — faster-whisper, llama.cpp (Qwen2.5-1.5B), MiniLM, NLLB-200. Aucune clé payante.</span></li>
+  </ul>
+</section>`],
+
+["sect-p3a", "Rabah · Pôle 3-A — Indexation & analyse sémantique",
+`<section class="slide sect-p3a">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> Sujet A · la restitution</div>
+      <h2>Un JSON riche,<br>pas qu'une transcription.</h2>
+      <ul class="feat" style="margin-top:14px">
+        <li><b>Segments horodatés</b><span> — chaque phrase pointe une seconde.</span></li>
+        <li><b>Recherche sémantique</b><span> — « où on parle de sécurité ? » → saut au bon instant (embeddings MiniLM).</span></li>
+        <li><b>Multilingue</b><span> — sous-titres fr/en/es/ar, extensible, incrémental (NLLB-200).</span></li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="panel"><div class="panel-label"><span class="d"></span> metadata.json · contrat P3-A</div>
+      <div class="code">{
+  <span class="f">"language"</span>: <span class="s">"fr"</span>,
+  <span class="f">"segments"</span>: [{ <span class="f">"start"</span>:<span class="n">12.4</span>, <span class="f">"text"</span>:<span class="s">"…sécurité…"</span> }],
+  <span class="f">"summary"</span>: <span class="s">"Démo produit en 3 temps…"</span>,
+  <span class="f">"chapters"</span>: [{ <span class="f">"start"</span>:<span class="n">64</span>, <span class="f">"title"</span>:<span class="s">"Sécurité"</span> }],
+  <span class="f">"keywords"</span>: [<span class="s">"chiffrement"</span>,<span class="s">"clé"</span>],
+  <span class="f">"translations"</span>: [{ <span class="f">"lang"</span>:<span class="s">"en"</span>, <span class="f">"text"</span>:<span class="s">"…"</span> }]
+}</div></div>
+    </div>
+  </div>
+</section>`],
+
+["sect-p3a", "Rabah · Pôle 3-A — Indexation & analyse sémantique",
+`<section class="slide sect-p3a">
+  <div class="kicker"><span class="pip"></span> Choix techniques · 100 % local, CPU</div>
+  <h2>Des modèles légers, choisis pour tenir sur un laptop.</h2>
+  <table class="mods">
+    <thead><tr><th>Rôle</th><th>Modèle</th><th>Empreinte</th></tr></thead>
+    <tbody>
+      <tr><td><b>Transcription</b></td><td class="mono">faster-whisper base (int8)</td><td class="mono">~140 Mo</td></tr>
+      <tr><td><b>Résumé / chapitres</b></td><td class="mono">llama.cpp · Qwen2.5-1.5B Q4_K_M</td><td class="mono">~1 Go</td></tr>
+      <tr><td><b>Mots-clés</b></td><td class="mono">KeyBERT (MMR)</td><td class="mono">réutilise l'embedder</td></tr>
+      <tr><td><b>Recherche</b></td><td class="mono">MiniLM multilingue</td><td class="mono">~470 Mo</td></tr>
+      <tr><td><b>Traduction</b></td><td class="mono">NLLB-200-distilled-600M</td><td class="mono">~2,5 Go</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:18px">API <b class="hl">FastAPI</b>, sécurisée par le JWT du Core. Aucune clé payante, aucun appel réseau à l'exécution.</p>
+</section>`],
+
+/* ===================== IZLEN · P3-B ===================== */
+["sect-p3b", "Izlen · Pôle 3-B — Audience & rétention",
+`<section class="slide divider sect-p3b">
+  <div class="idx">02 · DATA — AUDIENCE & RÉTENTION</div>
+  <div class="who-name">Izlen <span class="grad">— Pôle 3-B</span></div>
+  <div class="role">Lire l'audience : <b>où</b> une vidéo perd l'attention, et <b>quelles</b> vidéos retiennent.</div>
+  <div class="rail"></div>
+</section>`],
+
+["sect-p3b", "Izlen · Pôle 3-B — Audience & rétention",
+`<section class="slide sect-p3b">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> Détection des zones d'ennui</div>
+      <h2>Où l'attention décroche.</h2>
+      <p class="lede">4 signaux de friction combinés, régions au-dessus du quantile 0.92, en union avec les décrochages progressifs. Mesuré, pas affirmé.</p>
+      <div class="stats" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="metric"><div class="v"><span class="count" data-to="0.77" data-dec="2">0.00</span></div><div class="l">F1</div><div class="s">vs corrigé humain</div></div>
+        <div class="metric"><div class="v"><span class="count" data-to="0.69" data-dec="2">0.00</span></div><div class="l">Précision</div></div>
+        <div class="metric"><div class="v"><span class="count" data-to="0.86" data-dec="2">0.00</span></div><div class="l">Rappel</div></div>
+      </div>
+    </div>
+    <div class="media">
+      <div class="curve"><svg viewBox="0 0 420 210" role="img" aria-label="Courbe de rétention">
+        <defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b07bff"/><stop offset="1" stop-color="#2fd4e6"/></linearGradient>
+        <linearGradient id="cf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(176,123,255,.28)"/><stop offset="1" stop-color="rgba(176,123,255,0)"/></linearGradient></defs>
+        <g stroke="rgba(255,255,255,.06)"><line x1="22" y1="16" x2="22" y2="180"/><line x1="22" y1="180" x2="404" y2="180"/></g>
+        <rect x="244" y="16" width="66" height="164" fill="rgba(245,178,58,.12)" stroke="rgba(245,178,58,.42)" stroke-dasharray="3 3"/>
+        <path d="M22,32 L78,54 L134,78 L204,104 L244,120 L288,170 L338,176 L404,180 L404,180 L22,180 Z" fill="url(#cf)"/>
+        <path d="M22,32 L78,54 L134,78 L204,104 L244,120 L288,170 L338,176 L404,180" fill="none" stroke="url(#cg)" stroke-width="2.6" stroke-linejoin="round"/>
+        <text x="248" y="30" class="clabel" fill="var(--warn)">zone d'ennui</text><text x="22" y="200" class="clabel">0%</text><text x="352" y="200" class="clabel">100%</text>
+      </svg>
+      <div class="legend"><span><b style="background:linear-gradient(90deg,#b07bff,#2fd4e6)"></b>rétention</span><span><b style="background:var(--warn)"></b>décrochage</span></div></div>
+    </div>
+  </div>
+</section>`],
+
+["sect-p3b", "Izlen · Pôle 3-B — Audience & rétention",
+`<section class="slide sect-p3b">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> Prédiction · sans tricher</div>
+      <h2>Les chiffres, et le <span class="grad">code</span> derrière.</h2>
+      <p class="lede"><span class="mono">run_analysis_3b.py</span> → <span class="mono">metrics.json</span>. Anti-fuite de cible vérifié feature par feature, LOO-CV honnête (25 vidéos).</p>
+      <table class="mods">
+        <thead><tr><th>Modèle · LOO-CV</th><th>MAE</th><th>R²</th></tr></thead>
+        <tbody>
+          <tr><td>Baseline</td><td class="mono">0.106</td><td class="mono">−0.09</td></tr>
+          <tr class="hi"><td><b>Ridge</b> ✓</td><td class="mono" style="color:var(--ok)">0.069</td><td class="mono" style="color:var(--ok)">0.56</td></tr>
+          <tr><td>GradientBoosting</td><td class="mono">0.076</td><td class="mono">0.44</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="media">
+      <div class="bars">
+        <div class="bar"><span>seek_per_sess</span><div class="fillwrap"><div class="fill" style="width:100%"></div></div></div>
+        <div class="bar"><span>duration_sec</span><div class="fillwrap"><div class="fill" style="width:76%"></div></div></div>
+        <div class="bar"><span>early_ret_20</span><div class="fillwrap"><div class="fill" style="width:60%"></div></div></div>
+        <div class="bar"><span>pause_per_sess</span><div class="fillwrap"><div class="fill" style="width:46%"></div></div></div>
+        <div class="bar"><span>early_ret_10</span><div class="fillwrap"><div class="fill" style="width:34%"></div></div></div>
+        <div class="bar"><span>catégorie</span><div class="fillwrap"><div class="fill" style="width:22%"></div></div></div>
+      </div>
+      <div class="cap">Importance relative des features (ordre mesuré). Signal n°1 : les retours en arrière.</div>
+    </div>
+  </div>
+</section>`],
+
+["sect-p3b", "Izlen · Pôle 3-B — Audience & rétention",
+`<section class="slide sect-p3b">
+  <div class="kicker"><span class="pip"></span> Lecture business</div>
+  <h2>Du constat à <span class="grad">l'action</span>.</h2>
+  <table class="mods">
+    <thead><tr><th>Constat détecté</th><th>Action recommandée</th></tr></thead>
+    <tbody>
+      <tr><td>Zone d'ennui ponctuelle (pic de retours arrière / abandons)</td><td>Revoir le montage à cet endroit précis</td></tr>
+      <tr><td>Décrochage précoce (&lt; 85 % passent les 10 premiers %)</td><td>Soigner l'accroche des premières secondes</td></tr>
+      <tr><td>Vidéo longue pour sa catégorie</td><td>Raccourcir ou découper en chapitres</td></tr>
+      <tr><td>Chute finale (&lt; 50 % atteignent la fin)</td><td>Déplacer l'information clé plus tôt</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:18px">Le dashboard génère ces conseils <b class="hl">automatiquement</b>, par vidéo — l'analyse devient actionnable pour un créateur.</p>
+</section>`],
+
+/* ===================== WILLIAM · PROD ===================== */
+["sect-prod", "William · Mise en production",
+`<section class="slide divider sect-prod">
+  <div class="idx">05 · MISE EN PRODUCTION</div>
+  <div class="who-name">William <span class="grad">— Prod</span></div>
+  <div class="role"><span class="live"><span class="d"></span> en ligne</span> · pas une démo localhost : un vrai domaine, en HTTPS, sans port ouvert.</div>
+  <div class="rail"></div>
+</section>`],
+
+["sect-prod", "William · Mise en production",
+`<section class="slide sect-prod">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> Topologie</div>
+      <h2>Accessible partout,<br><span class="grad">sans port ouvert</span>.</h2>
+      <p class="lede"><span class="mono">cloudflared</span> ouvre une connexion <b class="hl">sortante</b> vers Cloudflare : aucun port entrant, aucune IP exposée.</p>
+      <div class="topo">
+        <div class="tnode"><div class="ic">🌍</div><div class="t">Visiteur</div></div>
+        <div class="tlink"><span class="a">→</span></div>
+        <div class="tnode cf"><div class="ic">☁️</div><div class="t">Cloudflare</div><div class="s">TLS · WAF</div></div>
+        <div class="tlink"><span class="a">→</span></div>
+        <div class="tnode host"><div class="ic">🐳</div><div class="t">Docker</div><div class="s">NAS privé</div></div>
+      </div>
+    </div>
+    <div class="media">
+      <div class="frame"><div class="frame-bar"><i></i><i></i><i></i><span class="u">Cloudflare Zero Trust · Tunnel poulpium-prod</span></div>
+      <img src="assets/William_1.png" alt="Route publiée du tunnel"></div>
+      <div class="cap ok">✓ capture réelle — <span class="url" style="color:var(--ok)">poulpium.midjix-lab.com</span> → frontend:80</div>
+    </div>
+  </div>
+</section>`],
+
+["sect-prod", "William · Mise en production",
+`<section class="slide sect-prod">
+  <div class="split rev">
+    <div class="media">
+      <div class="frame"><div class="frame-bar"><i></i><i></i><i></i><span class="u">Cloudflare · Analytics — midjix-lab.com (24 h)</span></div>
+      <img src="assets/William_2.png" alt="Cloudflare Analytics"></div>
+      <div class="cap ok">✓ capture réelle — les chiffres viennent de là</div>
+    </div>
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> La stack &amp; les chiffres</div>
+      <h2>Léger, à jour tout seul.</h2>
+      <p class="lede"><span class="mono">docker compose up</span> · images <b class="hl">GHCR</b> · <b class="hl">Watchtower</b> redéploie à chaque push.</p>
+      <div class="stats" style="grid-template-columns:1fr 1fr;margin-top:16px">
+        <div class="metric"><div class="v">39</div><div class="l">visiteurs / 24 h</div></div>
+        <div class="metric"><div class="v">8,86k</div><div class="l">requêtes</div></div>
+        <div class="metric"><div class="v">87 Mo</div><div class="l">RAM · 4 conteneurs</div></div>
+        <div class="metric"><div class="v">0</div><div class="l">port ouvert</div></div>
+      </div>
+    </div>
+  </div>
+</section>`],
+
+/* ===================== BLOC B + CLOSING ===================== */
+["sect-int", "",
+`<section class="slide sect-int">
+  <div class="kicker"><span class="pip"></span> Bloc B · l'intégration</div>
+  <h2>Une identité, un flux, <span class="grad">de bout en bout</span>.</h2>
+  <div class="arch">
+    <div class="node hi"><span class="tag">1 · View</span><div class="t">alice ouvre une revue</div><div class="s">annote, commente au timecode.</div></div>
+    <div class="link">→</div>
+    <div class="node"><span class="tag">2 · Core</span><div class="t">sécurise</div><div class="s">flux HLS chiffré, clé délivrée sur son JWT.</div></div>
+    <div class="link">→</div>
+    <div class="node"><span class="tag">3 · Engine</span><div class="t">analyse</div><div class="s">sous-titres, chapitres, recherche remontent dans la View.</div></div>
+    <div class="link">→</div>
+    <div class="node"><span class="tag">4 · Prod</span><div class="t">en ligne</div><div class="s">le tout servi sur un vrai domaine.</div></div>
+  </div>
+  <p class="lede" style="margin-top:24px">Le même utilisateur, le même token, un seul parcours — <b class="hl">c'est ça, la plateforme</b>.</p>
+</section>`],
+
+["sect-int", "",
+`<section class="slide cover sect-int">
+  <div class="kicker"><span class="pip"></span> Bilan</div>
+  <h2>Trois pôles tenus, cousus, <span class="grad">en prod</span>.</h2>
+  <div class="chips" style="margin-top:22px">
+    <span class="chip"><span class="d" style="background:#3d6dfd"></span>Revue + Watch Together</span>
+    <span class="chip"><span class="d" style="background:#ff5b6e"></span>Zero-Trust + Anti-scraping</span>
+    <span class="chip"><span class="d" style="background:#2fd4e6"></span>NLP local (P3-A)</span>
+    <span class="chip"><span class="d" style="background:#b07bff"></span>Rétention · F1 0.77 (P3-B)</span>
+    <span class="chip"><span class="d" style="background:#2ee6a0"></span>Prod · Cloudflare Tunnel</span>
+  </div>
+  <p class="lede" style="margin-top:26px">Une plateforme vidéo où revue, sécurité et IA ne sont pas juxtaposées : elles partagent une identité, un flux, et tournent en production. Merci.</p>
+  <p class="mono" style="margin-top:18px;color:var(--faint);font-size:13px">Poulpium · Groupe 7 — Alex · Enzo · Rabah · Izlen · William   ·   poulpium.midjix-lab.com</p>
+</section>`],
+
+];
+
+/* ============ Moteur ============ */
+const deck=document.getElementById('deck');
+/* Ordre d'affichage (réordonné) : cover, archi, IA(P3-A), Data(P3-B), Sécurité(P2),
+   Front(P1), Prod, BlocB, clôture. On ne déplace pas les slides, on choisit l'ordre. */
+const ORDER=[0,1, 9,10,11,12, 13,14,15,16, 5,6,7,8, 2,3,4, 17,18,19, 20,21];
+deck.innerHTML=ORDER.map(k=>S[k][2]).join('');
+const els=[...deck.querySelectorAll('.slide')];
+const dots=document.getElementById('dots'),bar=document.getElementById('bar'),counter=document.getElementById('counter'),glow=document.getElementById('glow'),who=document.getElementById('who');
+let i=0;const pad=n=>String(n).padStart(2,'0');
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+els.forEach((_,n)=>{const b=document.createElement('button');b.onclick=()=>go(n);dots.appendChild(b);});
+const dotEls=[...dots.children];
+function countUp(slide){
+  if(reduce)return;
+  slide.querySelectorAll('.count').forEach(el=>{
+    const to=parseFloat(el.dataset.to),dec=parseInt(el.dataset.dec||'0'),t0=performance.now(),dur=850;
+    (function step(t){const p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,3);el.textContent=(to*e).toFixed(dec);if(p<1)requestAnimationFrame(step);else el.textContent=to.toFixed(dec);})(t0);
+  });
+}
+function go(n){
+  i=Math.max(0,Math.min(els.length-1,n));
+  els.forEach((s,k)=>s.classList.toggle('active',k===i));
+  dotEls.forEach((d,k)=>d.classList.toggle('on',k===i));
+  bar.style.width=((i+1)/els.length*100)+'%';
+  counter.innerHTML=`<b>${pad(i+1)}</b> / ${pad(els.length)}`;
+  /* accent + bandeau intervenant */
+  const cs=getComputedStyle(els[i]);glow.style.setProperty('--sect',cs.getPropertyValue('--sect'));
+  const label=S[ORDER[i]][1];who.innerHTML=label?label.replace(/^([^·]+)/,'<b>$1</b>'):'';who.classList.toggle('show',!!label);
+  location.hash=i+1;countUp(els[i]);
+}
+function next(){go(i+1);}function prev(){go(i-1);}
+addEventListener('keydown',e=>{
+  if(['ArrowRight','ArrowDown',' ','PageDown','Enter'].includes(e.key)){e.preventDefault();next();}
+  else if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(e.key)){e.preventDefault();prev();}
+  else if(e.key==='Home'){go(0);}else if(e.key==='End'){go(els.length-1);}
+  else if(e.key==='f'||e.key==='F'){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
+});
+addEventListener('click',e=>{if(e.target.closest('#dots,.hint,#brand-hud,.editor,.term,.panel,.frame,.curve,table'))return;const x=e.clientX/innerWidth;if(x>0.66)next();else if(x<0.18)prev();});
+const start=parseInt(location.hash.slice(1));go(Number.isFinite(start)&&start?start-1:0);
+</script>
+</body>
+</html>
