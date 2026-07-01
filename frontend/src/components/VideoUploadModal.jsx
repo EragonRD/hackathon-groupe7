@@ -8,7 +8,7 @@ import {
   HardDrive,
 } from '@phosphor-icons/react'
 import { authFetch } from '../auth'
-import { uploadContent, grantAccess } from '../admin'
+import { uploadContent, grantAccess, waitUntilReady } from '../admin'
 import { formatTime } from '../lib/format'
 
 const CATEGORIES = [
@@ -41,6 +41,7 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [phase, setPhase] = useState('uploading') // 'uploading' | 'encrypting'
   const [error, setError] = useState(null)
   const [duration, setDuration] = useState(null)
   const [videoUrl, setVideoUrl] = useState(null)
@@ -153,21 +154,30 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
   const handleConfirm = useCallback(() => {
     if (!file) return
     setProcessing(true)
+    setPhase('uploading')
     setProgress(0)
     setError(null)
     async function run() {
       try {
-        // Upload réel : le Core chiffre en HLS AES-128 en tâche de fond.
+        // 1. Upload réel (barre = progression du transfert).
         const content = await uploadContent({
           file,
           title: title.trim() || nameFromFile(file),
           onProgress: setProgress,
         })
-        // Donner accès aux collaborateurs invités (même entreprise) — best effort.
+        // 2. Accès aux collaborateurs invités (même entreprise) — best effort.
         await Promise.all(
           invited.map((u) => grantAccess(content.id, u).catch(() => null)),
         )
-        onConfirm({ ...content, category, invited })
+        // 3. Attente du chiffrement HLS côté serveur (statut ready).
+        setPhase('encrypting')
+        const ready = await waitUntilReady(content.id)
+        if (!ready) {
+          setError('Le chiffrement de la vidéo a échoué. Réessayez.')
+          setProcessing(false)
+          return
+        }
+        onConfirm({ ...content, status: 'ready', category, invited })
       } catch (e) {
         setError(e.message || 'Upload échoué.')
         setProcessing(false)
@@ -185,11 +195,23 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
             style={{ padding: 'var(--s-7)', textAlign: 'center' }}
           >
             <FilmSlate size={40} weight="fill" color="var(--accent-strong)" />
-            <p style={{ marginTop: 12, fontWeight: 600 }}>Préparation de la vidéo…</p>
-            <div className="progress-track">
-              <div className="progress-fill" style={{ width: `${progress}%` }} />
-            </div>
-            <span className="progress-label">{Math.round(progress)}%</span>
+            {phase === 'uploading' ? (
+              <>
+                <p style={{ marginTop: 12, fontWeight: 600 }}>Envoi de la vidéo…</p>
+                <div className="progress-track">
+                  <div className="progress-fill" style={{ width: `${progress}%` }} />
+                </div>
+                <span className="progress-label">{Math.round(progress)}%</span>
+              </>
+            ) : (
+              <>
+                <p style={{ marginTop: 12, fontWeight: 600 }}>Chiffrement en cours…</p>
+                <div className="progress-track">
+                  <div className="progress-fill progress-indeterminate" />
+                </div>
+                <span className="progress-label">Sécurisation Zero-Trust du flux</span>
+              </>
+            )}
           </div>
         </div>
       </div>

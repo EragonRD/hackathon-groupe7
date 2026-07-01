@@ -122,6 +122,24 @@ export function uploadContent({ file, title, onProgress }) {
     xhr.send(form)
   })
 }
+// Statut d'un contenu (processing/ready/failed) — pour suivre le chiffrement.
+export async function getContentStatus(id) {
+  const list = await listContents()
+  return (list || []).find((c) => c.id === id)?.status ?? null
+}
+
+// Poll jusqu'à `ready` (résout true) ou `failed`/timeout (résout false).
+export async function waitUntilReady(id, { intervalMs = 1500, timeoutMs = 300000 } = {}) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    const status = await getContentStatus(id).catch(() => null)
+    if (status === 'ready') return true
+    if (status === 'failed') return false
+    await new Promise((r) => setTimeout(r, intervalMs))
+  }
+  return false
+}
+
 export const grantAccess = (id, username) =>
   request(`/admin/contents/${encodeURIComponent(id)}/access`, post({ username }))
 export const revokeAccess = (id, username) =>
