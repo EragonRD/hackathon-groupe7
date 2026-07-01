@@ -174,7 +174,7 @@
 
 <div id="hud"><div id="bar"></div></div>
 <div id="dots"></div>
-<div id="counter"><b>01</b> / 11</div>
+<div id="counter"><b>01</b> / 12</div>
 <div id="brand-hud"><img src="assets/poulpium-mark.png" alt=""><span>Poulpium · Pôle 1</span></div>
 
 <script>
@@ -293,6 +293,7 @@ const slides = [
         <li><b>Trié par instant</b><span> — un clic ramène tout le monde au bon timecode.</span></li>
         <li><b>Fils & statuts</b><span> — réponses, résolu / non résolu, likes, filtres.</span></li>
         <li><b>Diffusion live</b><span> — présence, curseurs distants, notes propagées.</span></li>
+        <li><b>Persistance serveur</b><span> — les notes survivent au départ de tous les participants et reviennent à l'ouverture.</span></li>
         <li><b>Transport abstrait</b><span> — même contrat : multi-fenêtres (offline) ou LAN (socket.io).</span></li>
       </ul>
     </div>
@@ -359,6 +360,7 @@ const slides = [
         <li><b>Multi-tenant</b><span> — un admin ne voit que sa propre entreprise.</span></li>
         <li><b>Droits par contenu</b><span> — autoriser / retirer un utilisateur d'un clic.</span></li>
         <li><b>Révocation en direct</b><span> — couper la clé d'un contenu → la lecture passe à 403, puis restaurer.</span></li>
+        <li><b>Upload par morceaux</b><span> — envoi de vidéos volumineuses fiabilisé (chunké), chiffrement en tâche de fond.</span></li>
         <li><b>Onboarding</b><span> — invitation admin (mot de passe temporaire) + invités par lien expirant.</span></li>
       </ul>
     </div>
@@ -387,7 +389,23 @@ const slides = [
   </div>
 </section>`,
 
-/* 10 — SOUS LE CAPOT */
+/* 10 — INTEGRATION P3 : IA dans le lecteur */
+`<section class="slide center">
+  <div class="kicker">Intégration Pôle 3 · IA locale</div>
+  <h2>L'IA arrive dans le lecteur.</h2>
+  <div class="arch" style="margin-top:34px;max-width:1100px">
+    <div class="node"><span class="tag">Core · P2</span><div class="t">Orchestre l'Engine</div><div class="s">Analyse par contenu, relais du résultat à la View — même identité JWT.</div></div>
+    <div class="link">→</div>
+    <div class="node hi"><span class="tag">View · P1</span><div class="t">Affiche l'IA</div><div class="s">Sous-titres incrustés, panneau Insights, recherche dans la transcription.</div></div>
+  </div>
+  <ul class="feat" style="margin-top:30px;max-width:98ch">
+    <li><b>Sous-titres incrustés</b><span> — transcription synchronisée à la lecture, bouton <span class="num">CC</span> pour activer / masquer.</span></li>
+    <li><b>Panneau Insights</b><span> — résumé, <b>chapitres cliquables</b> (saut au timecode), mots-clés, recherche dans la transcription.</span></li>
+    <li><b>Dégradation propre</b><span> — Engine absent → le panneau affiche « Hors ligne », jamais d'écran cassé.</span></li>
+  </ul>
+</section>`,
+
+/* 11 — SOUS LE CAPOT */
 `<section class="slide center">
   <div class="kicker">Sous le capot</div>
   <h2>Une seule identité, un transport interchangeable.</h2>
@@ -396,7 +414,7 @@ const slides = [
     <div class="link">— JWT →</div>
     <div class="node"><span class="tag">Core · P2</span><div class="t">NestJS</div><div class="s">Auth, clé AES, sécurité, gateway temps réel (rooms par session).</div></div>
     <div class="link">→</div>
-    <div class="node"><span class="tag">Engine · P3</span><div class="t">Python</div><div class="s">IA / data (transcription, rétention) — à venir.</div></div>
+    <div class="node"><span class="tag">Engine · P3</span><div class="t">Python / FastAPI</div><div class="s">IA locale : transcription, chapitres, recherche, sous-titres — affichés dans la View.</div></div>
   </div>
   <ul class="feat" style="margin-top:34px;max-width:96ch">
     <li><b>Transport abstrait</b><span> — l'UI ne connaît jamais le socket concret : <span class="num">post</span> / <span class="num">subscribe</span> / <span class="num">close</span>. On bascule BroadcastChannel ↔ socket.io sans toucher une ligne d'interface.</span></li>
@@ -404,7 +422,7 @@ const slides = [
   </ul>
 </section>`,
 
-/* 11 — BILAN / LIMITES */
+/* 12 — BILAN / LIMITES */
 `<section class="slide center">
   <div class="kicker">Bilan & honnêteté technique</div>
   <h2>Livré, et assumé.</h2>
@@ -413,25 +431,26 @@ const slides = [
       <h3>✓ Livré</h3>
       <ul>
         <li><b>Annotation au timecode</b> — 7 outils, 6 couleurs</li>
-        <li><b>Commentaires</b> — fils, résolu, filtres, likes</li>
-        <li><b>Temps réel</b> — présence, curseurs, notes</li>
+        <li><b>Commentaires</b> — fils, résolu, filtres, likes, persistés</li>
+        <li><b>Temps réel</b> — présence, curseurs, notes (multi-fenêtres & LAN)</li>
         <li><b>Watch Together</b> — sync + recalage de dérive</li>
         <li><b>Flux HLS chiffré</b> + watermark (intégration P2)</li>
-        <li><b>Back-office</b> multi-tenant + invités expirants</li>
+        <li><b>IA dans le lecteur</b> — sous-titres, résumé, chapitres, recherche (P3)</li>
+        <li><b>Back-office</b> multi-tenant + upload chunké + invités expirants</li>
       </ul>
     </div>
     <div class="col warn">
       <h3>⚠ Assumé (documenté)</h3>
       <ul>
-        <li><b>LAN</b> — BroadcastChannel ne traverse pas les machines (→ socket.io)</li>
-        <li><b>Navigation</b> — par état, pas de react-router</li>
+        <li><b>LAN multi-machines</b> — via socket.io ; dépend d'un réseau fiable le jour J</li>
+        <li><b>Anti-capture</b> — heuristique web + watermark, pas de DRM matériel</li>
         <li><b>Présentateur</b> — reprise manuelle, pas d'élection auto</li>
         <li><b>Édition concurrente</b> — last-write-wins par id</li>
         <li><b>JWT front</b> — décodé pour l'affichage seul (contrôle réel = Core)</li>
       </ul>
     </div>
   </div>
-  <p class="lede" style="margin-top:28px">Prochaines étapes : promotion auto du présentateur, avance image par image, transcription & hotspots de rétention (P3) sous la timeline.</p>
+  <p class="lede" style="margin-top:28px">Prochaines étapes : promotion auto du présentateur, avance image par image, hotspots de rétention (P3-B) sur la timeline.</p>
 </section>`,
 
 ];
