@@ -1,8 +1,9 @@
 # Plan maître — Engine · Pôle 3 (IA & Data)
 
-> Branche : `feat/intelligence-artificielle-data`
-> Statut : **🟡 EN ATTENTE DE RÉVISION** — à lire et valider avant toute implémentation.
+> Branche : `feat/intelligence-artificielle-data` (fusionnée sur `master`).
+> Statut : **🟢 3A LIVRÉ · 🔴 3B (Data) À FAIRE** — voir « Réconciliation code » en bas.
 > Document vivant : mis à jour à chaque étape.
+> ⚠️ Cases recalées sur le **code réel le 2026-07-01** (le plan était périmé).
 
 ---
 
@@ -60,26 +61,27 @@ Deux sujets sont menés en parallèle :
 ## 6. Plan d'Action (checklist)
 
 ### Phase 0 — Cadrage & socle
-- [ ] ❌ Valider ce plan (Rabah) **← étape en cours**
-- [ ] ❌ Figer le contrat d'interface Engine↔Core avec Enzo (J1)
-- [ ] ❌ Créer env Python (`requirements.txt`, venv) + structure `app/`
+- [x] ✅ Valider ce plan (Rabah) — implémentation lancée
+- [x] ✅ Figer le contrat d'interface Engine↔Core avec Enzo — orchestration opérationnelle
+- [x] ✅ Créer env Python (`requirements.txt`, venv) + structure `app/`
 - [x] ✅ Générer les fichiers de tâches `engine/tasks/*.md`
 
-### Phase 1 — Squad NLP (3A)
+### Phase 1 — Squad NLP (3A) — ✅ LIVRÉ
 - [x] ✅ API Engine + contrat JSON + orchestration + auth + jobs async (Rabah) — **testé E2E**
-- [ ] ❌ Extraction audio + transcription Whisper horodatée (Duval) — *baseline posée, à affiner*
-- [ ] ❌ Résumé + chapitres + mots-clés (Antoine)
-- [ ] ❌ Recherche sémantique + traduction multilingue (Izlene)
-- [ ] ❌ Démo bout-en-bout sur 1 vidéo (`media/`)
+- [x] ✅ Extraction audio + transcription Whisper horodatée (Duval) — `app/nlp/transcribe.py`
+- [x] ✅ Résumé + chapitres + mots-clés (Antoine) — `app/nlp/summarize.py`
+- [x] ✅ Recherche sémantique + traduction multilingue (Izlene) — `app/nlp/search.py` + `translate.py` (NLLB-200)
+- [x] ✅ Pipeline testé (11 tests, cf. `todo/context-state.md`) ; corpus `tests/examples/`
 
-### Phase 2 — Squad Data (3B)
+### Phase 2 — Squad Data (3B) — 🔴 À FAIRE (aucun code)
 - [ ] ❌ Courbe de rétention + détection zones d'ennui + mesure vs corrigé (Otman)
 - [ ] ❌ Modèle prédictif scikit-learn, features sans fuite, MAE/R² (Amina)
-- [ ] ❌ Dashboard Streamlit + comparaison vidéos (Faycal)
+- [ ] ❌ Dashboard Streamlit + comparaison vidéos (Faycal) — *`dashboard/app.py` = placeholder*
 - [ ] ❌ Lecture business + doc reproductible (Hassane)
 
 ### Phase 3 — Intégration (Bloc B)
-- [ ] ❌ Core appelle l'Engine, résultats affichés dans la View
+- [x] ✅ **Core appelle l'Engine** (P2↔P3 : orchestration par `contentId`, service Docker)
+- [ ] ❌ **Résultats affichés dans la View** (P1↔P3 : transcription/chapitres/hotspots) — cf. `docs/P1-integration-checklist.md` §2
 - [ ] ❌ Répétition démo « une identité, un flux »
 
 ## 7. Découpage des fichiers de tâches (à générer après validation)
@@ -110,10 +112,34 @@ Deux sujets sont menés en parallèle :
 | 2026-06-30 | Téléchargement GGUF Qwen2.5-1.5B Q4_K_M → `engine/models/` | ✅ |
 | 2026-06-30 | Plan de tests + benchmark perf chiffré (`tests/`) | ✅ |
 | 2026-06-30 | **Tâche 10 — API Engine** (endpoints, auth JWT, jobs async, orchestration) | ✅ testé E2E |
-| — | Tâches 20→33 (NLP fin + Data) | ❌ à venir (autres membres) |
+| 2026-06-30 | Tâches 20/21/22 (transcription, résumé/chapitres/mots-clés, recherche/traduction) | ✅ implémentées |
+| 2026-07-01 | Tâches 30→33 (Data 3B) | ❌ non commencées (aucun code) |
+| 2026-07-01 | Bloc B : P2↔P3 ✅ · P1↔P3 (View) ❌ | ⏳ partiel |
 
 ## 9. Résumé Non-Technique
 
 On crée un nouveau « moteur » (`engine/`) qui fait deux choses utiles. **Côté contenu**, il regarde une vidéo et en sort automatiquement un résumé : ce qui est dit (transcription), dans quelle langue, découpé en chapitres, avec les mots importants — pour qu'on puisse *retrouver* un passage sans tout revisionner. **Côté audience**, il analyse les statistiques de visionnage pour montrer *où les gens décrochent* d'une vidéo et *prévoir* quelles vidéos retiennent le mieux, le tout dans un tableau de bord lisible.
 
-Le travail est réparti entre 8 personnes en deux équipes, chacune avec sa fiche de tâche claire. **Rien n'est codé tant que ce plan n'est pas relu et validé.** Une fois validé, on génère les fiches une par une et on avance étape par étape.
+Le travail est réparti entre 8 personnes en deux équipes, chacune avec sa fiche de tâche claire. La partie **contenu (3A) est livrée** ; la partie **audience (3B) reste à faire**.
+
+## 10. Réconciliation code (2026-07-01)
+
+État vérifié dans le code sur `master` (pas de supposition) :
+
+| Bloc | Constat | État |
+|---|---|---|
+| API Engine (T10) | `app/main.py`, auth JWT, jobs async | ✅ |
+| Transcription (T20) | `app/nlp/transcribe.py` | ✅ |
+| Résumé/chapitres/mots-clés (T21) | `app/nlp/summarize.py` | ✅ |
+| Recherche/traduction (T22) | `app/nlp/search.py` + `translate.py` (NLLB-200) | ✅ |
+| Rétention 3B (T30) | aucun fichier, aucun code rétention/hotspot | ❌ |
+| Modèle 3B (T31) | aucun usage `scikit-learn` ; `app/data/` vide | ❌ |
+| Dashboard 3B (T32) | `dashboard/app.py` = **placeholder** Streamlit | ❌ |
+| Doc business 3B (T33) | absent | ❌ |
+| Bloc B P2↔P3 | orchestration Core→Engine réelle | ✅ |
+| Bloc B P1↔P3 | affichage metadata dans la View | ❌ |
+
+**Reste à faire = tout le Data 3B (bonus)** + **l'affichage front des métadonnées IA**
+(cf. `docs/P1-integration-checklist.md`). Le noyau 3A (sujet noté principal) est livré.
+
+> Rappel anti-fuite (T31) : bannir le score de rétention et ses proxys comme features.

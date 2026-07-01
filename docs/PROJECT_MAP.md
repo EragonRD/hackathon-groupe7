@@ -54,7 +54,8 @@ Plateforme vidéo unique. Architecture **View / Core / Engine**. 3 pôles imbriq
 | `P3A-metadata-schema.md` | Contrat JSON sortie P3-A |
 | `python-env.md` | Mise en place env Python |
 | `PROJECT_MAP.md` | Ce fichier |
-| `feature-plans/` | Plans de feature (à créer au fil de l'eau) |
+| `done/` | Travail **livré** (mono-session, upload chunké, plan Matthieu = annotation/UX en code) |
+| `todo/` | Plans/audits avec **travail restant** (engine P3, P2-taches, audit IA, plan Amos = docs P1, tests) |
 
 ## Démarrage
 | Appli | Commande |

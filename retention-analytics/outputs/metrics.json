@@ -1,0 +1,43 @@
+{
+  "detection": {
+    "precision": 0.7304116865869854,
+    "recall": 0.6918238993710691,
+    "f1": 0.710594315245478,
+    "tp": 550,
+    "fp": 203,
+    "fn": 245
+  },
+  "detection_quantile": 0.92,
+  "prediction": {
+    "Baseline (moyenne)": {
+      "mae": 0.10594932114566326,
+      "r2": -0.08506944444444442
+    },
+    "Ridge": {
+      "mae": 0.06861100024020078,
+      "r2": 0.5560789226268261
+    },
+    "RandomForest": {
+      "mae": 0.08636476696775951,
+      "r2": 0.2644189297462255
+    },
+    "GradientBoosting": {
+      "mae": 0.07616581536721068,
+      "r2": 0.44442604382791784
+    }
+  },
+  "best_model": "Ridge",
+  "features": [
+    "duration_sec",
+    "pause_per_sess",
+    "seek_per_sess",
+    "early_ret_10",
+    "early_ret_20",
+    "category_Conférence",
+    "category_Marketing",
+    "category_Onboarding",
+    "category_Produit",
+    "category_Tutoriel"
+  ],
+  "n_videos": 25
+}

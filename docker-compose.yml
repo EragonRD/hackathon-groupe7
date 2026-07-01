@@ -15,6 +15,8 @@ services:
       # restreindre au seul sous-réseau du reverse-proxy.
       TRUST_PROXY: ${TRUST_PROXY:-loopback, uniquelocal}
       APP_URL: ${APP_URL:-http://localhost:5173}
+      # Engine IA (Pôle 3). Dans le compose, le service s'appelle `engine`.
+      ENGINE_URL: ${ENGINE_URL:-http://engine:8000}
       # Mailjet (envoi des invitations). Vide -> simulation (log).
       MAILJET_API_KEY: ${MAILJET_API_KEY:-}
       MAILJET_SECRET_KEY: ${MAILJET_SECRET_KEY:-}
@@ -28,11 +30,14 @@ services:
       - poulpium_secrets:/app/secrets
       # Logs d'audit (key-access.log, security-alerts.log)
       - poulpium_logs:/app/logs
-      # Persistance métier (users, companies, contents) + liste IP proxy.
-      # RW : le Core y écrit les JSON au runtime (users/companies/contents).
-      - ./backend/data:/app/data
-      # Vidéos HLS chiffrées (générées par scripts/encrypt-hls.sh) servies par le Core
-      - ./media/hls:/app/media/hls:ro
+      # Persistance métier — volume nommé (survit aux rebuilds, hors du dépôt).
+      # Contient les JSON runtime : users, companies, contents, analysis, bans.
+      # Au 1er démarrage, Docker amorce le volume vide avec le contenu de
+      # /app/data embarqué dans l'image (le seed proxy-ips.txt).
+      - poulpium_data:/app/data
+      # Vidéos HLS chiffrées — volume nommé (RW) : le Core y ÉCRIT les uploads
+      # chiffrés et les sert. Partagé en lecture seule avec le service `hls`.
+      - poulpium_media:/app/media/hls
     depends_on:
       - hls
 
@@ -48,10 +53,37 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - ./media/hls:/usr/share/nginx/html/hls:ro
+      # Même volume nommé que le Core, monté en lecture seule pour servir le HLS.
+      - poulpium_media:/usr/share/nginx/html/hls:ro
+      # Config nginx : bind mount depuis le dépôt (fichier de config, pas de la donnée).
       - ./nginx/hls.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # Engine IA (Pôle 3) — FastAPI CPU-only. Le Core l'appelle via http://engine:8000
+  # avec un token de service signé au MÊME JWT_SECRET (HS256).
+  engine:
+    build: ./engine
+    environment:
+      # DOIT matcher le secret du core (le Core signe un token de service).
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET requis}"
+      # Optionnel : évite le rate-limit HuggingFace au 1er téléchargement des modèles.
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      # Cache des modèles HF (Whisper/MiniLM/NLLB) — évite de re-télécharger (~Go)
+      - poulpium_hf_cache:/root/.cache/huggingface
+      # Sorties d'analyse
+      - poulpium_engine_out:/engine/outputs
+    restart: always
+    # Décommenter pour débugger l'Engine directement depuis l'hôte :
+    # ports:
+    #   - "8000:8000"
 
 volumes:
   poulpium_secrets:
     # Stocker les clés AES : docker cp <fichier>.key <container>:/app/secrets/
   poulpium_logs:
+  # Données métier persistantes (users/companies/contents/analysis/bans).
+  poulpium_data:
+  # Vidéos HLS chiffrées (uploads + démo). Partagé Core (RW) / hls (RO).
+  poulpium_media:
+  poulpium_hf_cache:
+  poulpium_engine_out:

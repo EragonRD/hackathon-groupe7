@@ -1,8 +1,21 @@
 // Petit helper d'authentification (point de départ — adaptez-le à votre app).
 // Il parle au Core NestJS (`backend/`) : login, stockage du token, fetch authentifié.
 
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+// URL du Core. En dev, defaut sur :3000. En build PROD, defaut sur MEME ORIGINE
+// (chaine vide -> requetes relatives -> nginx proxifie vers le Core) : pas besoin
+// de configurer VITE_API_URL en prod derriere le reverse-proxy.
+const API =
+  import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:3000')
 const TOKEN_KEY = 'hackathon_token'
+const REFRESH_KEY = 'hackathon_refresh'
+
+// Stocke le couple access + refresh renvoyé par le Core (login / change-password /
+// refresh). Le refresh token permet de renouveler l'access token expiré sans
+// redemander les identifiants.
+function storeSession(data) {
+  if (data?.accessToken) localStorage.setItem(TOKEN_KEY, data.accessToken)
+  if (data?.refreshToken) localStorage.setItem(REFRESH_KEY, data.refreshToken)
+}
 
 export async function login(username, password) {
   const res = await fetch(`${API}/auth/login`, {
@@ -18,16 +31,68 @@ export async function login(username, password) {
     throw new Error('Identifiant ou mot de passe incorrect.')
   }
   const data = await res.json()
-  localStorage.setItem(TOKEN_KEY, data.accessToken)
+  storeSession(data)
+  superseded = false // nouvelle session propre : on lève tout blocage de refresh hérité
   return data.user
 }
 
 export function logout() {
+  // Révoque le refresh token côté serveur (vrai logout), au mieux (fire-and-forget).
+  const refreshToken = localStorage.getItem(REFRESH_KEY)
+  if (refreshToken) {
+    fetch(`${API}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    }).catch(() => {})
+  }
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(REFRESH_KEY)
+  superseded = false
 }
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY)
+}
+
+// Le refresh token est à USAGE UNIQUE (rotaté côté serveur). Si plusieurs requêtes
+// tombent en 401 en même temps, elles doivent partager UN SEUL appel /auth/refresh :
+// sinon la 1re consomme le token et les suivantes échouent → déconnexion parasite.
+// On mémorise donc la promesse de refresh en cours et tout le monde l'attend.
+let refreshInFlight = null
+
+// Session supersédée (mono-session : le compte a été rouvert ailleurs). Tant que ce
+// drapeau est levé, on BLOQUE le refresh AUTOMATIQUE (sinon on reprendrait la main
+// en douce) : seule l'action explicite `reconnect()` relance le refresh.
+let superseded = false
+
+async function doRefresh() {
+  const refreshToken = localStorage.getItem(REFRESH_KEY)
+  if (!refreshToken) return false
+  try {
+    const res = await fetch(`${API}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    })
+    if (!res.ok) return false
+    const data = await res.json()
+    storeSession(data)
+    return Boolean(data?.accessToken)
+  } catch {
+    return false
+  }
+}
+
+// Tente de renouveler l'access token, en coalisant les appels concurrents.
+// Renvoie true si un nouveau token a été stocké, false sinon (refresh absent/expiré).
+function tryRefresh() {
+  if (!refreshInFlight) {
+    refreshInFlight = doRefresh().finally(() => {
+      refreshInFlight = null
+    })
+  }
+  return refreshInFlight
 }
 
 // Claims du JWT décodés depuis le payload (sans appel réseau, sans vérif de
@@ -73,13 +138,36 @@ export async function me() {
   try {
     const res = await authFetch('/auth/me')
     if (!res.ok) {
-      logout()
+      // 401 supersédé : authFetch a déjà émis l'alerte et gardé les tokens ; on ne
+      // logout pas ici (l'utilisateur choisira Se reconnecter / Laisser).
+      if (res.status === 401 && !superseded) logout()
       return null
     }
     return await res.json()
   } catch {
     return null
   }
+}
+
+// « Se reconnecter » après une expulsion mono-session : reprend la session SANS
+// redonner les identifiants. 1) via le refresh token (nouvel access token -> ce
+// poste redevient la session active) ; 2) sinon si le token courant est encore
+// accepté. Renvoie true si la session est rétablie, false sinon.
+export async function reconnect() {
+  superseded = false // on ré-autorise le refresh
+  if (await tryRefresh()) return true
+  const token = getToken()
+  if (token) {
+    try {
+      const res = await fetch(`${API}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) return true
+    } catch {
+      /* réseau indisponible */
+    }
+  }
+  return false
 }
 
 // Changement de mot de passe (1re connexion d'un admin invité, ou volontaire).
@@ -103,15 +191,20 @@ export async function changePassword(currentPassword, newPassword) {
     throw new Error(serverMsg || 'Impossible de changer le mot de passe.')
   }
   const data = await res.json()
-  localStorage.setItem(TOKEN_KEY, data.accessToken)
+  storeSession(data)
   return data.user
 }
 
 // fetch authentifié : ajoute `Authorization: Bearer <token>` + intercepteur 401.
-// Sur 401 (token absent/expiré/invalide), on déconnecte et on émet `auth:expired`
-// pour que l'app retourne à l'écran de connexion. Le code appelant reçoit quand
-// même la réponse et peut la traiter.
-export async function authFetch(path, options = {}) {
+// Sur 401 (token expiré), on tente UNE FOIS un refresh silencieux puis on rejoue
+// la requête. Si le refresh échoue, on déconnecte et on émet `auth:expired` pour
+// que l'app retourne à l'écran de connexion. Le code appelant reçoit la réponse.
+//
+// Mono-session : le Core renvoie `message: 'session_superseded'` quand le compte a
+// été rouvert ailleurs (le dernier gagne). On NE logout PAS et on GARDE les tokens
+// (pour permettre « Se reconnecter » sans identifiants via le refresh) ; on bloque
+// juste le refresh AUTOMATIQUE et on propage la raison pour afficher l'alerte.
+export async function authFetch(path, options = {}, _retried = false) {
   const token = getToken()
   const res = await fetch(`${API}${path}`, {
     ...options,
@@ -121,8 +214,26 @@ export async function authFetch(path, options = {}) {
     },
   })
   if (res.status === 401 && token) {
+    let reason = null
+    try {
+      // clone() : on lit le corps sans le consommer pour l'appelant.
+      const data = await res.clone().json()
+      if (data?.message === 'session_superseded') reason = 'session_superseded'
+    } catch {
+      /* pas de corps JSON exploitable */
+    }
+    if (reason === 'session_superseded') {
+      superseded = true
+      window.dispatchEvent(new CustomEvent('auth:expired', { detail: { reason } }))
+      return res
+    }
+    // 401 classique (token expiré) : refresh silencieux (sauf si supersédé), sinon
+    // vrai logout + retour à l'écran de connexion.
+    if (!superseded && !_retried && (await tryRefresh())) {
+      return authFetch(path, options, true)
+    }
     logout()
-    window.dispatchEvent(new Event('auth:expired'))
+    window.dispatchEvent(new CustomEvent('auth:expired', { detail: { reason: null } }))
   }
   return res
 }

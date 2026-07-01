@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createTransport } from './collab'
 import { colorForUser, shortId } from './format'
+import { fetchNotes, saveNotes } from './notes'
 
 // ============================================================================
 //  useReview — état d'une session de revue, synchronisé entre participants.
@@ -55,6 +56,11 @@ export function useReview({ session, user, mode }) {
   const [peers, setPeers] = useState({}) // id -> { id, name, color, lastSeen, cursor }
   const [presenterId, setPresenterId] = useState(null) // id du présentateur (Watch Together)
   const transportRef = useRef(null)
+  // Persistance serveur (notes.js) : `loadedRef` passe à true après le 1er fetch
+  // RÉUSSI (anti-clobber : on ne sauvegarde pas tant qu'on n'a pas lu le serveur) ;
+  // `saveTimerRef` debounce les écritures.
+  const loadedRef = useRef(false)
+  const saveTimerRef = useRef(null)
   // Références "toujours fraîches" pour l'effet de connexion (handlers async) :
   // elles évitent de remettre `self`/`notes` en dépendances de la (re)connexion.
   // Mises à jour dans des effets (jamais pendant le render).
@@ -63,6 +69,8 @@ export function useReview({ session, user, mode }) {
   const presenterIdRef = useRef(presenterId)
   // Dernier état de lecture connu du présentateur (pour répondre aux retardataires).
   const lastPlaybackRef = useRef(null)
+  // Dernier commentaire sélectionné par le présentateur (miroir chez les invités).
+  const lastSelectRef = useRef(null)
   // Abonnés aux commandes de lecture distantes (VideoReview s'y branche).
   const playbackListenersRef = useRef(new Set())
   useEffect(() => {
@@ -97,6 +105,47 @@ export function useReview({ session, user, mode }) {
     })
   }, [])
 
+  // --- Chargement initial depuis le serveur (source partagée, durable) -------
+  // Complète le temps réel : les notes survivent au départ de tous les pairs et
+  // reviennent à l'ouverture, sur n'importe quelle machine. Best-effort.
+  useEffect(() => {
+    let alive = true
+    loadedRef.current = false
+    // Tentatives bornées : un serveur brièvement indisponible ne doit pas bloquer
+    // la persistance pour TOUTE la session. On réessaie quelques fois avant
+    // d'abandonner. En cas d'échec définitif, loadedRef reste false : on NE
+    // sauvegarde pas (anti-clobber = on n'écrase pas le serveur sans l'avoir lu).
+    let retryTimer = null
+    const attempt = (left) => {
+      fetchNotes(session).then((serverNotes) => {
+        if (!alive) return
+        if (serverNotes) {
+          if (serverNotes.length) upsertNotes(serverNotes)
+          loadedRef.current = true // fetch OK -> on autorise la sauvegarde (même si vide)
+          return
+        }
+        if (left > 0) retryTimer = setTimeout(() => attempt(left - 1), 1500)
+      })
+    }
+    attempt(3)
+    return () => {
+      alive = false
+      if (retryTimer) clearTimeout(retryTimer)
+    }
+  }, [session, upsertNotes])
+
+  // --- Sauvegarde serveur debouncée à chaque changement de notes -------------
+  useEffect(() => {
+    if (!loadedRef.current) return undefined
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      saveNotes(session, notesRef.current)
+    }, 800)
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [notes, session])
+
   // --- Connexion au transport + boucle de présence ------------------------
   useEffect(() => {
     const t = createTransport(session, { mode })
@@ -130,6 +179,7 @@ export function useReview({ session, user, mode }) {
               payload: {
                 presenterId: selfRef.current.id,
                 playback: lastPlaybackRef.current,
+                selectedNoteId: lastSelectRef.current,
               },
             })
           }
@@ -192,6 +242,9 @@ export function useReview({ session, user, mode }) {
           if (msg.payload?.playback) {
             emitPlayback({ kind: 'state', ...msg.payload.playback })
           }
+          if (msg.payload?.selectedNoteId != null) {
+            emitPlayback({ kind: 'select', noteId: msg.payload.selectedNoteId })
+          }
           break
         case 'wt:playback':
           // On n'applique QUE les commandes du présentateur courant (anti-usurpation).
@@ -202,6 +255,19 @@ export function useReview({ session, user, mode }) {
         case 'wt:heartbeat':
           if (msg.from === presenterIdRef.current) {
             emitPlayback({ kind: 'heartbeat', ...msg.payload })
+          }
+          break
+        case 'wt:rate':
+          // Vitesse de lecture imposée par le présentateur.
+          if (msg.from === presenterIdRef.current) {
+            emitPlayback({ kind: 'rate', rate: msg.payload?.rate })
+          }
+          break
+        case 'wt:select':
+          // Le présentateur a sélectionné un commentaire -> les invités s'alignent
+          // (même note active = mêmes dessins affichés).
+          if (msg.from === presenterIdRef.current) {
+            emitPlayback({ kind: 'select', noteId: msg.payload?.noteId ?? null })
           }
           break
         default:
@@ -468,6 +534,20 @@ export function useReview({ session, user, mode }) {
     transportRef.current?.post({ type: 'wt:release', from: self.id })
   }, [self.id])
 
+  // Le présentateur diffuse le commentaire qu'il sélectionne -> les invités
+  // affichent la même note active (mêmes dessins), en plus du saut de lecture.
+  const sendSelect = useCallback(
+    (noteId) => {
+      lastSelectRef.current = noteId ?? null
+      transportRef.current?.post({
+        type: 'wt:select',
+        from: self.id,
+        payload: { noteId: noteId ?? null },
+      })
+    },
+    [self.id],
+  )
+
   // Commande de lecture émise par le présentateur (play/pause/seek).
   const sendPlayback = useCallback(
     ({ action, position }) => {
@@ -485,15 +565,25 @@ export function useReview({ session, user, mode }) {
     [self.id],
   )
 
-  // Battement régulier (anti-dérive) émis par le présentateur.
+  // Battement régulier (anti-dérive) émis par le présentateur. Porte aussi la
+  // vitesse de lecture pour la resynchroniser (retardataire / robustesse).
   const sendHeartbeat = useCallback(
-    ({ position, paused }) => {
-      lastPlaybackRef.current = { paused, position, at: Date.now() }
+    ({ position, paused, rate }) => {
+      lastPlaybackRef.current = { paused, position, rate, at: Date.now() }
       transportRef.current?.post({
         type: 'wt:heartbeat',
         from: self.id,
-        payload: { position, paused, at: Date.now() },
+        payload: { position, paused, rate, at: Date.now() },
       })
+    },
+    [self.id],
+  )
+
+  // Changement de vitesse de lecture par le présentateur (appliqué chez les invités).
+  const sendRate = useCallback(
+    (rate) => {
+      lastPlaybackRef.current = { ...(lastPlaybackRef.current || {}), rate }
+      transportRef.current?.post({ type: 'wt:rate', from: self.id, payload: { rate } })
     },
     [self.id],
   )
@@ -526,8 +616,10 @@ export function useReview({ session, user, mode }) {
     isPresenter,
     claimPresenter,
     releasePresenter,
+    sendSelect,
     sendPlayback,
     sendHeartbeat,
+    sendRate,
     subscribePlayback,
   }
 }

@@ -9,6 +9,9 @@ import { SecurityModule } from './security/security.module'
 import { ReviewModule } from './review/review.module'
 import { AdminModule } from './admin/admin.module'
 import { StreamModule } from './stream/stream.module'
+import { UploadModule } from './upload/upload.module'
+import { EngineModule } from './engine/engine.module'
+import { NotesModule } from './notes/notes.module'
 
 @Module({
   imports: [
@@ -24,6 +27,9 @@ import { StreamModule } from './stream/stream.module'
     ReviewModule,
     AdminModule,
     StreamModule,
+    UploadModule,
+    EngineModule,
+    NotesModule,
   ],
   controllers: [AppController],
   providers: [

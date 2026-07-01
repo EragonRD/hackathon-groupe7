@@ -7,6 +7,7 @@ import {
   LockKeyOpen,
   UserPlus,
   X,
+  Trash,
 } from '@phosphor-icons/react'
 import {
   createContent,
@@ -14,6 +15,7 @@ import {
   revokeAccess,
   revokeKey,
   restoreKey,
+  deleteContent,
 } from '../../admin'
 
 // Admin : crée un contenu, gère qui y a accès, et coupe / rétablit la clé AES en
@@ -139,6 +141,7 @@ function ContentRow({ content, users, superadmin, companies, reload }) {
   const [add, setAdd] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Utilisateurs de la même entreprise que le contenu (le Core exige ce lien).
   const candidates = users.filter(
@@ -169,6 +172,21 @@ function ContentRow({ content, users, superadmin, companies, reload }) {
     if (!value || busy) return
     const ok = await run(() => grantAccess(content.id, value))
     if (ok) setAdd('')
+  }
+
+  async function remove() {
+    if (busy) return
+    setError(null)
+    setBusy(true)
+    try {
+      await deleteContent(content.id)
+      await reload()
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+      setConfirmDelete(false)
+    }
+    // succès : la ligne disparaît au reload, pas de setState post-suppression.
   }
 
   return (
@@ -203,6 +221,30 @@ function ContentRow({ content, users, superadmin, companies, reload }) {
         >
           {content.revoked ? 'Rétablir la clé' : 'Révoquer la clé'}
         </button>
+        {confirmDelete ? (
+          <span className="admin-confirm">
+            <span className="admin-confirm-label">Supprimer ce contenu ?</span>
+            <button className="btn btn-danger" disabled={busy} onClick={remove}>
+              {busy ? <span className="spinner" aria-hidden="true" /> : 'Confirmer'}
+            </button>
+            <button
+              className="btn btn-quiet"
+              disabled={busy}
+              onClick={() => setConfirmDelete(false)}
+            >
+              Annuler
+            </button>
+          </span>
+        ) : (
+          <button
+            className="btn-icon admin-danger-icon"
+            onClick={() => setConfirmDelete(true)}
+            title="Supprimer le contenu"
+            aria-label={`Supprimer ${content.title}`}
+          >
+            <Trash size={16} />
+          </button>
+        )}
       </div>
 
       <div className="admin-access">

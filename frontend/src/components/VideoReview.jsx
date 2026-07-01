@@ -19,13 +19,17 @@ import {
   Faders,
   Tag,
   CheckCircle,
+  ClosedCaptioning,
   X,
 } from '@phosphor-icons/react'
 import Hls from 'hls.js'
 import { getToken } from '../auth'
 import DrawingCanvas from './DrawingCanvas'
 import CommentPanel from './CommentPanel'
+import InsightsPanel from './InsightsPanel'
+import { useMetadata } from '../lib/useMetadata'
 import { useReview } from '../lib/useReview'
+import { useCaptureDetection } from '../lib/useCaptureDetection'
 import { formatTime } from '../lib/format'
 
 // ============================================================================
@@ -61,11 +65,13 @@ const SWATCHES = [
   { name: 'Blanc', value: '#f4f6fa' },
 ]
 
-// Seuil de recalage (s) : en dessous on ne touche à rien (éviter le saccadé).
-const DRIFT_THRESHOLD = 0.4
+// Seuil de recalage (s) : en dessous on ne touche à rien. Tolérant car sur un
+// flux HLS chiffré un seek coûte cher (fetch + déchiffrement du segment) ; un
+// seuil trop serré provoquerait des re-seeks en boucle (bégaiement).
+const DRIFT_THRESHOLD = 1.5
 const HEARTBEAT_MS = 2000
 
-export default function VideoReview({ source, session, user, onPeersUpdate }) {
+export default function VideoReview({ source, session, user, contentId, onPeersUpdate }) {
   const videoRef = useRef(null)
   const fileRef = useRef(null)
   const stageRef = useRef(null)
@@ -89,8 +95,10 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
     isPresenter,
     claimPresenter,
     releasePresenter,
+    sendSelect,
     sendPlayback,
     sendHeartbeat,
+    sendRate,
     subscribePlayback,
   } = useReview({ session, user })
 
@@ -100,6 +108,32 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
   const [ready, setReady] = useState(false)
   const [videoError, setVideoError] = useState(false)
   const [playbackRate, setPlaybackRate] = useState(1)
+
+  // Protection capture ("Capture Guard") : agrège des signaux de risque, occulte
+  // le flux quand la page n'est plus active, et remonte le risque au Core pour le
+  // dashboard de surveillance (voir lib/useCaptureDetection). Filet complémentaire :
+  // watermark dynamique (identité + horloge) incrusté en permanence.
+  const { guarded, risk: captureRisk } = useCaptureDetection({
+    session,
+    contentId: source,
+    playing,
+  })
+  const [wmClock, setWmClock] = useState('')
+  useEffect(() => {
+    const tick = () =>
+      setWmClock(
+        new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'medium' }),
+      )
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
+  // Quand la page est masquée, on met AUSSI la lecture en pause (coupe le son et
+  // gèle l'image sous l'overlay).
+  useEffect(() => {
+    if (guarded) videoRef.current?.pause()
+  }, [guarded])
+  const watermark = `${user?.username ?? 'invité'} · ${session ?? ''} · ${wmClock}`
 
   const [tool, setTool] = useState('cursor')
   const [color, setColor] = useState('#f5a623')
@@ -122,6 +156,22 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
 
   // Le calque affiche le brouillon en cours, sinon les dessins de la note active.
   const shapesToShow = draftShapes.length > 0 ? draftShapes : (activeNote?.shapes ?? [])
+
+  // --- Sous-titres (transcription P3) incrustés sur la vidéo ----------------
+  // Partagés avec InsightsPanel (meta passé en prop pour ne pas double-poller).
+  const meta = useMetadata(contentId)
+  const captionSegments = useMemo(
+    () => (meta.status === 'done' ? (meta.data?.segments ?? []) : []),
+    [meta],
+  )
+  const [captionsOn, setCaptionsOn] = useState(true)
+  const activeCaption = useMemo(() => {
+    if (!captionsOn || captionSegments.length === 0) return ''
+    const seg = captionSegments.find(
+      (s) => currentTime >= (s.start ?? 0) && currentTime < (s.end ?? Infinity),
+    )
+    return seg?.text ?? ''
+  }, [captionsOn, captionSegments, currentTime])
 
   // --- Réfs "fraîches" pour les handlers d'événements vidéo --------------
   const isPresenterRef = useRef(isPresenter)
@@ -160,6 +210,7 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
   }, [])
 
   const seekTo = useCallback((t) => {
+    if (followingRef.current) return // invité : navigation pilotée par le présentateur
     const v = videoRef.current
     if (v) v.currentTime = Math.max(0, Math.min(t, v.duration || t))
   }, [])
@@ -281,10 +332,14 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
     setPinnedTime(null)
     setText('')
     setEditingId(null)
-    if (!following) {
-      seekTo(note.time)
-      pause()
-    }
+    // Invité en suivi (souvent un client) : sélection LOCALE pour consulter la
+    // remarque et ses dessins, SANS toucher à la lecture (pilotée par le
+    // présentateur) ni rediffuser. Le présentateur peut réaligner via wt:select.
+    if (following) return
+    seekTo(note.time)
+    pause()
+    // Présentateur : les invités affichent la même note active (mêmes dessins).
+    if (isPresenter) sendSelect(note.id)
   }
 
   function editNote(note) {
@@ -403,7 +458,12 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
     if (!isPresenter) return
     const id = setInterval(() => {
       const v = videoRef.current
-      if (v) sendHeartbeat({ position: v.currentTime, paused: v.paused })
+      if (v)
+        sendHeartbeat({
+          position: v.currentTime,
+          paused: v.paused,
+          rate: v.playbackRate,
+        })
     }, HEARTBEAT_MS)
     return () => clearInterval(id)
   }, [isPresenter, sendHeartbeat])
@@ -417,8 +477,21 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
   useEffect(() => {
     const off = subscribePlayback((evt) => {
       if (isPresenterRef.current) return // le présentateur ne s'applique pas à lui-même
+      // Sélection de commentaire pilotée par le présentateur (mêmes dessins affichés).
+      if (evt.kind === 'select') {
+        setActiveId(evt.noteId ?? null)
+        return
+      }
       const v = videoRef.current
       if (!v) return
+
+      // Vitesse de lecture imposée par le présentateur (portée aussi par les
+      // heartbeats / la resync retardataire).
+      if (typeof evt.rate === 'number' && v.playbackRate !== evt.rate) {
+        v.playbackRate = evt.rate
+        setPlaybackRate(evt.rate)
+      }
+      if (evt.kind === 'rate') return // rien d'autre à appliquer
 
       if (evt.kind === 'playback') {
         beginApplyingRemote()
@@ -474,8 +547,11 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
         beginApplyingRemote()
         v.play().catch(() => {})
       }
-      // Recalage de position seulement en lecture.
-      if (!d.paused) {
+      // Recalage de position seulement en lecture, ET si la vidéo n'est pas déjà
+      // en train de chercher/bufferiser (readyState >= HAVE_FUTURE_DATA). Sinon,
+      // sur du HLS chiffré, on empilerait les seeks pendant le buffering -> le
+      // player n'arrive jamais à reprendre. On laisse le buffering se terminer.
+      if (!d.paused && !v.seeking && v.readyState >= 3) {
         const expected = d.position + (Date.now() - d.receivedAt) / 1000
         if (Math.abs(v.currentTime - expected) > DRIFT_THRESHOLD) {
           beginApplyingRemote()
@@ -597,6 +673,10 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
       return
     }
     const hls = new Hls({
+      // Garde ~5 min de segments déjà lus en mémoire : un seek ARRIÈRE retombe
+      // sur du buffer au lieu de re-télécharger + re-déchiffrer le segment (ce
+      // qui rendait le retour en arrière lent/impossible sur le flux chiffré).
+      backBufferLength: 300,
       xhrSetup: (xhr, url) => {
         if (url.includes('/keys/')) {
           const token = getToken()
@@ -604,24 +684,44 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
         }
       },
     })
-    let mediaRecover = 0
-    const clear = () => setVideoError(false)
+    let lastRecover = 0
+    let netRetry = 0
+    // Sur un chargement/segment réussi : on efface l'erreur ET on remet à zéro le
+    // compteur de retries réseau (les erreurs transitoires passées sont oubliées).
+    const clear = () => {
+      setVideoError(false)
+      netRetry = 0
+    }
     hls.on(Hls.Events.MANIFEST_PARSED, clear)
     hls.on(Hls.Events.FRAG_BUFFERED, clear)
     hls.on(Hls.Events.ERROR, (_evt, data) => {
       if (!data.fatal) return
       if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-        // stall / append error : on récupère (jusqu'à 3 fois) au lieu d'abandonner.
-        if (mediaRecover < 3) {
-          mediaRecover += 1
+        // stall / append error (fréquent au seek sur HLS ré-encodé) : on récupère
+        // SANS JAMAIS détruire le player. Garde-fou anti-boucle serrée : on ne
+        // relance une récupération que si la précédente date de > 2 s.
+        const now = Date.now()
+        if (now - lastRecover > 2000) {
+          lastRecover = now
           hls.recoverMediaError()
-        } else {
-          hls.destroy()
         }
       } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-        // clé/segment : on retente (utile si l'utilisateur vient de se connecter).
-        hls.startLoad()
+        const code = data.response?.code
+        // 404 = flux non provisionné (contenu sans HLS) ; 401/403 = accès refusé
+        // ou lien invité expiré : erreurs PERMANENTES -> on affiche l'erreur au
+        // lieu de retenter à l'infini (ce qui laissait « Chargement… » sans fin).
+        if (code === 404 || code === 401 || code === 403) {
+          setVideoError(true)
+        } else if (netRetry < 3) {
+          // Réseau transitoire : quelques retries.
+          netRetry += 1
+          hls.startLoad()
+        } else {
+          setVideoError(true)
+        }
       } else {
+        // Erreur vraiment irrécupérable (ex. manifest) : on signale, on arrête.
+        setVideoError(true)
         hls.destroy()
       }
     })
@@ -635,6 +735,8 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
     if (!videoRef.current) return
     videoRef.current.playbackRate = rate
     setPlaybackRate(rate)
+    // Présentateur : propager la vitesse aux invités (watch-together).
+    if (isPresenterRef.current) sendRate(rate)
   }
 
   // Nom du présentateur courant (pour le badge).
@@ -666,6 +768,38 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
                 Source vidéo illisible.
               </div>
             )}
+            {/* Watermark dynamique : identité + horloge, incrusté en tuiles.
+               aria-hidden + pointer-events:none pour ne pas gêner l'usage.
+               Plus le risque de capture est élevé, plus il est visible. */}
+            <div
+              className={`wm-layer${captureRisk >= 40 ? ' wm-strong' : ''}`}
+              aria-hidden="true"
+            >
+              {Array.from({ length: 6 }).map((_, i) => (
+                <span key={i} className="wm-tile">
+                  {watermark}
+                </span>
+              ))}
+            </div>
+            {/* Indicateur discret de risque de capture (hors occultation). */}
+            {!guarded && captureRisk >= 40 && (
+              <div
+                className="capture-risk"
+                role="status"
+                title="Signaux de risque de capture"
+              >
+                Risque capture {captureRisk}/100
+              </div>
+            )}
+            {/* Occultation "vidéo noir" quand la page n'est plus active/visible. */}
+            {guarded && (
+              <div className="capture-shield" role="status">
+                <div className="capture-shield-mark">Lecture masquée</div>
+                <div className="capture-shield-sub">
+                  Revenez sur la fenêtre pour reprendre.
+                </div>
+              </div>
+            )}
             <DrawingCanvas
               tool={tool}
               color={color}
@@ -677,6 +811,13 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
               onCursor={sendCursor}
               onBackgroundClick={togglePlay}
             />
+            {/* Sous-titres incrustés (transcription P3), synchronisés au temps
+               courant. pointer-events:none -> ne gêne ni le dessin ni le clic. */}
+            {activeCaption && (
+              <div className="video-captions" aria-hidden="true">
+                <span>{activeCaption}</span>
+              </div>
+            )}
             {/* Curseurs des autres participants (temps réel) */}
             {peers
               .filter((p) => p.cursor)
@@ -875,13 +1016,34 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
                   key={rate}
                   className={`badge ${playbackRate === rate ? 'badge-accent' : 'wt-badge'}`}
                   onClick={() => setRate(rate)}
-                  title={`Vitesse ${rate}x`}
-                  style={{ cursor: 'pointer', padding: '0 6px' }}
+                  disabled={following}
+                  title={
+                    following ? 'Vitesse pilotée par le présentateur' : `Vitesse ${rate}x`
+                  }
+                  style={{
+                    cursor: following ? 'not-allowed' : 'pointer',
+                    padding: '0 6px',
+                    opacity: following ? 0.5 : 1,
+                  }}
                 >
                   {rate}x
                 </button>
               ))}
             </div>
+
+            {captionSegments.length > 0 && (
+              <button
+                className={`badge ${captionsOn ? 'badge-accent' : 'wt-badge'}`}
+                onClick={() => setCaptionsOn((v) => !v)}
+                aria-pressed={captionsOn}
+                title={
+                  captionsOn ? 'Masquer les sous-titres' : 'Afficher les sous-titres'
+                }
+                style={{ marginLeft: '8px', padding: '0 6px' }}
+              >
+                <ClosedCaptioning size={15} weight={captionsOn ? 'fill' : 'regular'} />
+              </button>
+            )}
 
             <div className="controls-spacer" />
 
@@ -1049,6 +1211,12 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
             </div>
           </div>
         </div>
+        <InsightsPanel
+          contentId={contentId}
+          meta={meta}
+          onSeek={seekTo}
+          currentTime={currentTime}
+        />
       </div>
 
       <CommentPanel

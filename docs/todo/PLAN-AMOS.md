@@ -72,3 +72,20 @@ comportement si vidéo absente. Tu fais passer la checklist, tu notes les bugs p
 - Commits sur `feat/refonte-ui-revue`, messages clairs (`docs(P1): scénario de démo`).
 - Tu es l'interface avec les leads P2 (Enzo) et P3 (Rabah) pour le Bloc B — relance-les tôt
   sur les **contrats d'interface** (clé AES, format JSON de l'Engine).
+
+---
+
+## 📊 Avancement (MàJ 2026-07-01)
+
+| Livrable | Fichier | État |
+|---|---|---|
+| A — Scénario de démo | `docs/P1-demo-scenario.md` | ✅ rédigé (à relire/ajuster timing) |
+| B — Schéma d'export | `docs/P1-export-schema.md` | ✅ rédigé (ancré dans le code) |
+| C — Protocole temps réel | `docs/P1-protocol.md` | ✅ rédigé (ancré dans le code) |
+| D — Lecture business | `docs/P1-business.md` | ❌ à faire (Amos) |
+| E — Trame de soutenance | `docs/P1-pitch.md` | ❌ à faire (deck `presentations/P1-Frontend-Soutenance.*` existe déjà partiellement) |
+| F — Checklist Bloc B | `docs/P1-integration-checklist.md` | ❌ à faire (Amos, coordination P2/P3) |
+| G — Matrice de test | `docs/P1-test-matrix.md` | ✅ rédigé |
+
+> A/B/C/G rédigés à partir du code (sources citées dans chaque doc). D/E/F restent à
+> Amos car ils relèvent du jugement produit/PM et de la coordination inter-pôles.

@@ -3,12 +3,14 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { randomBytes } from 'crypto'
 import * as argon2 from 'argon2'
 import { UsersService } from './users.service'
+import { SessionService } from './session.service'
 
 // Anti-bruteforce : au-delà de MAX_FAILS échecs, le COUPLE (IP, compte) est
 // verrouillé temporairement (LOCK_MS). Clé par IP+username pour qu'un attaquant
@@ -17,6 +19,15 @@ const MAX_FAILS = 5
 const LOCK_MS = 5 * 60 * 1000
 // Borne mémoire : au-delà, on purge les entrées expirées (anti-OOM si spray d'usernames).
 const MAX_ATTEMPT_ENTRIES = 10_000
+
+// Détection (NON bloquante) du brute-force DISTRIBUÉ : au-delà de ce seuil
+// d'échecs agrégés par compte (toutes IP confondues) dans la fenêtre, on émet une
+// ALERTE de sécurité. On NE verrouille surtout PAS le compte : un lockout par
+// compte serait un vecteur de déni de service (un tiers pourrait bloquer une
+// victime depuis d'autres IP, même avec le bon mot de passe). La vraie protection
+// reste le hachage Argon2 + le rate-limit par IP (couche anti-abus / middleware).
+const ACCOUNT_ALERT_THRESHOLD = 50
+const ACCOUNT_ALERT_WINDOW_MS = 15 * 60 * 1000
 
 // Refresh tokens : durée de vie et store révocable (vrai logout).
 const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -34,6 +45,12 @@ export class AuthService {
     { fails: number; lockedUntil: number; ts: number }
   >()
 
+  private readonly logger = new Logger(AuthService.name)
+
+  // Compteur agrégé par compte (clé = username), SANS verrou : sert uniquement à
+  // détecter/alerter sur un brute-force distribué (jamais à bloquer — anti-DoS).
+  private readonly accountFails = new Map<string, { fails: number; ts: number }>()
+
   // Store des refresh tokens (révocables) : token opaque -> session.
   private readonly refreshTokens = new Map<
     string,
@@ -43,6 +60,7 @@ export class AuthService {
   constructor(
     private readonly users: UsersService,
     private readonly jwt: JwtService,
+    private readonly sessions: SessionService,
   ) {}
 
   // Vérifie les identifiants puis émet un JWT court qui identifiera l'utilisateur
@@ -53,6 +71,8 @@ export class AuthService {
     const record = this.attempts.get(key)
 
     // Couple (IP, compte) verrouillé : on refuse sans même tester le mot de passe.
+    // On ne verrouille QUE ce couple (pas le compte global) pour ne pas permettre
+    // à un tiers de bloquer une victime depuis d'autres IP.
     if (record && record.lockedUntil > now) {
       throw new HttpException(
         'Trop de tentatives, reessayez plus tard',
@@ -66,6 +86,7 @@ export class AuthService {
     const passwordOk = await argon2.verify(user?.passwordHash ?? DUMMY_HASH, password)
     if (!user || !passwordOk) {
       this.registerFailure(key, now)
+      this.noteAccountFailure(username, now)
       throw new UnauthorizedException('Identifiants invalides')
     }
 
@@ -76,8 +97,9 @@ export class AuthService {
       )
     }
 
-    // Succès : on remet le compteur à zéro pour ce couple.
+    // Succès : on remet les compteurs à zéro (couple ET compte).
     this.attempts.delete(key)
+    this.accountFails.delete(username)
     return this.issueSession(user)
   }
 
@@ -131,13 +153,23 @@ export class AuthService {
     companyId: string | null
     mustChangePassword: boolean
   }) {
+    // Mono-session : identifiant de session embarqué dans le token. Le serveur
+    // retient le dernier `sid` par compte (dernière émission = gagnante) ; les
+    // tokens portant un `sid` plus ancien seront refusés par l'AuthGuard.
+    const sid = randomBytes(16).toString('base64url')
     const payload = {
       sub: user.id,
       username: user.username,
       role: user.role,
       companyId: user.companyId,
       mustChangePassword: user.mustChangePassword,
+      sid,
     }
+    this.sessions.setActive(user.id, sid)
+    // NB: on NE révoque PAS les refresh tokens précédents du compte. La mono-session
+    // s'appuie sur le `sid` de l'access token (l'AuthGuard refuse un sid supersédé) ;
+    // garder le refresh token permet à une session expulsée de « Se reconnecter »
+    // sans redonner ses identifiants (elle redevient alors la session active).
     const accessToken = await this.jwt.signAsync(payload)
     const refreshToken = this.createRefreshToken(user.id, user.username)
     return {
@@ -175,6 +207,34 @@ export class AuthService {
       record.fails = 0
     }
     this.attempts.set(key, record)
+  }
+
+  // Compte les échecs AGRÉGÉS par compte (fenêtre glissante) et émet une ALERTE
+  // si le seuil est franchi. NE bloque jamais (anti-DoS) : simple visibilité sur
+  // un éventuel brute-force distribué (rotation d'IP).
+  private noteAccountFailure(username: string, now: number): void {
+    // Borne mémoire : purge opportuniste des entrées hors fenêtre.
+    if (this.accountFails.size > MAX_ATTEMPT_ENTRIES) {
+      for (const [k, r] of this.accountFails) {
+        if (now - r.ts > ACCOUNT_ALERT_WINDOW_MS) this.accountFails.delete(k)
+      }
+    }
+    const rec = this.accountFails.get(username)
+    // Hors fenêtre (ou 1re fois) : on repart de zéro.
+    if (!rec || now - rec.ts > ACCOUNT_ALERT_WINDOW_MS) {
+      this.accountFails.set(username, { fails: 1, ts: now })
+      return
+    }
+    rec.fails += 1
+    rec.ts = now
+    if (rec.fails >= ACCOUNT_ALERT_THRESHOLD) {
+      this.logger.warn(
+        `Brute-force distribué suspecté sur le compte "${username}" : ` +
+          `${rec.fails} échecs agrégés (multi-IP) en ${ACCOUNT_ALERT_WINDOW_MS / 60000} min. ` +
+          `Aucune action bloquante (protection anti-DoS).`,
+      )
+      rec.fails = 0
+    }
   }
 
   // Borne la mémoire : purge les entrées dont le verrou et l'activité sont expirés.

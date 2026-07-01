@@ -79,11 +79,19 @@ export class AuthController {
   }
 
   // GET /auth/users?q=… — recherche d'utilisateurs par username ou email.
-  // Accessible à tout utilisateur authentifié (pour inviter des collaborateurs).
+  // Accessible à tout utilisateur authentifié, mais SCOPÉE à son entreprise
+  // (un admin/user ne voit jamais les comptes des autres tenants ; seul le
+  // superadmin cherche globalement).
   @UseGuards(AuthGuard)
   @Get('users')
-  searchUsers(@Query('q') q?: string) {
+  searchUsers(@Req() req: Request, @Query('q') q?: string) {
     if (!q || q.length < 1) return []
-    return this.users.search(q)
+    const caller = (
+      req as Request & {
+        user?: { role: 'superadmin' | 'admin' | 'user'; companyId: string | null }
+      }
+    ).user
+    if (!caller) return []
+    return this.users.search(q, { role: caller.role, companyId: caller.companyId })
   }
 }

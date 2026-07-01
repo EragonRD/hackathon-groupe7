@@ -1,5 +1,9 @@
 import { appendFile, mkdir, readFile } from 'fs/promises'
-import { SecurityService } from './security.service'
+import {
+  SecurityService,
+  SEGMENT_ALERT_THRESHOLD,
+  SEGMENT_BLOCK_THRESHOLD,
+} from './security.service'
 
 jest.mock('fs/promises', () => ({
   appendFile: jest.fn(),
@@ -72,48 +76,47 @@ describe('SecurityService', () => {
     expect(result.alerts).toHaveLength(0)
   })
 
-  it('escalates segment scraping from no alert to flag to block at exact thresholds', async () => {
-    for (let i = 1; i <= 8; i += 1) {
+  it('escalates segment scraping from no alert to flag to block at thresholds', async () => {
+    // Jusqu'au seuil d'alerte inclus : aucune alerte.
+    for (let i = 1; i <= SEGMENT_ALERT_THRESHOLD; i += 1) {
       const result = await request(service, { path: `/seg-${i}.ts`, tsMs: 2_000 + i })
       expect(result.alerts).toHaveLength(0)
       expect(result.blocked).toBe(false)
     }
 
-    const flag = await request(service, { path: '/seg-9.ts', tsMs: 2_009 })
+    // Une de plus -> flag (pas encore bloqué).
+    const flag = await request(service, {
+      path: `/seg-${SEGMENT_ALERT_THRESHOLD + 1}.ts`,
+      tsMs: 2_000 + SEGMENT_ALERT_THRESHOLD + 1,
+    })
     expect(flag).toMatchObject({
       blocked: false,
       alerts: [{ type: 'segment_scrape', action: 'flag' }],
     })
 
-    for (let i = 10; i <= 20; i += 1) {
+    for (let i = SEGMENT_ALERT_THRESHOLD + 2; i <= SEGMENT_BLOCK_THRESHOLD; i += 1) {
       await request(service, { path: `/seg-${i}.ts`, tsMs: 2_000 + i })
     }
 
-    const block = await request(service, { path: '/seg-21.ts', tsMs: 2_021 })
+    // Au-delà du seuil de blocage -> block.
+    const block = await request(service, {
+      path: `/seg-${SEGMENT_BLOCK_THRESHOLD + 1}.ts`,
+      tsMs: 2_000 + SEGMENT_BLOCK_THRESHOLD + 1,
+    })
     expect(block).toMatchObject({
       blocked: true,
       alerts: [{ type: 'segment_scrape', action: 'block' }],
     })
   })
 
-  // Discrimine reellement l'exclusion : 8 vraies requetes .ts (= seuil, aucune alerte)
-  // PLUS un .tsx et un .ts au milieu du chemin. Le bon regex compte 8 -> aucune alerte.
-  // Un regex trop large (ex. /\.ts/) compterait 10 et declencherait une alerte.
-  // On agrege les alertes de TOUTES les requetes : sinon le dedup masquerait une
-  // alerte tiree a l'avant-derniere requete (la derniere reviendrait vide).
+  // Discrimine l'exclusion : SEGMENT_ALERT_THRESHOLD vraies requetes .ts (= seuil,
+  // aucune alerte) PLUS des leurres (.tsx, .ts au milieu du chemin). Le bon regex
+  // ne compte que les vraies -> pas d'alerte. Un regex trop large compterait les
+  // leurres -> dépasserait le seuil -> alerte (le test rougirait).
   it('does not count .tsx or path-embedded .ts as segments', async () => {
-    const paths = [
-      '/seg1.ts',
-      '/seg2.ts',
-      '/seg3.ts',
-      '/seg4.ts',
-      '/report.tsx',
-      '/a.ts/b',
-      '/seg5.ts',
-      '/seg6.ts',
-      '/seg7.ts',
-      '/seg8.ts',
-    ]
+    const paths: string[] = []
+    for (let i = 1; i <= SEGMENT_ALERT_THRESHOLD; i += 1) paths.push(`/seg-${i}.ts`)
+    paths.push('/report.tsx', '/a.ts/b') // leurres : ne doivent PAS compter
     const allAlerts = []
 
     for (const [index, path] of paths.entries()) {
@@ -124,21 +127,13 @@ describe('SecurityService', () => {
     expect(allAlerts).toEqual([])
   })
 
-  // Discrimine l'inverse : ?query et #fragment apres .ts comptent bien. 7 .ts simples
-  // + 1 ".ts?token" + 1 ".ts#frag" = 9 -> flag. Un regex en /\.ts$/ raterait les deux
-  // suffixes -> 7 -> aucune alerte, donc ce test rougirait.
+  // Discrimine l'inverse : ?query et #fragment apres .ts comptent bien.
+  // (seuil - 1) .ts simples + 1 ".ts?token" + 1 ".ts#frag" = seuil + 1 -> flag.
+  // Un regex en /\.ts$/ raterait les suffixes -> pas d'alerte (le test rougirait).
   it('counts .ts URLs with a query or fragment suffix', async () => {
-    const paths = [
-      '/seg1.ts',
-      '/seg2.ts',
-      '/seg3.ts',
-      '/seg4.ts',
-      '/seg5.ts',
-      '/seg6.ts',
-      '/seg7.ts',
-      '/seg8.ts?token=x',
-      '/seg9.ts#frag',
-    ]
+    const paths: string[] = []
+    for (let i = 1; i <= SEGMENT_ALERT_THRESHOLD - 1; i += 1) paths.push(`/seg-${i}.ts`)
+    paths.push('/segA.ts?token=x', '/segB.ts#frag')
     let latest: Awaited<ReturnType<SecurityService['recordRequest']>> | undefined
 
     for (const [index, path] of paths.entries()) {
@@ -154,7 +149,7 @@ describe('SecurityService', () => {
   it('tracks anonymous segment scraping by IP when no account is present', async () => {
     let latest: Awaited<ReturnType<SecurityService['recordRequest']>> | undefined
 
-    for (let i = 1; i <= 9; i += 1) {
+    for (let i = 1; i <= SEGMENT_ALERT_THRESHOLD + 1; i += 1) {
       latest = await service.recordRequest({
         ip: '203.0.113.77',
         path: `/anon-${i}.ts`,
@@ -168,15 +163,16 @@ describe('SecurityService', () => {
   })
 
   it('deduplicates identical alerts for 30 seconds and emits them again after the window', async () => {
-    for (let i = 1; i <= 8; i += 1) {
+    for (let i = 1; i <= SEGMENT_ALERT_THRESHOLD; i += 1) {
       await request(service, { path: `/dup-${i}.ts`, tsMs: 20_000 + i })
     }
 
-    const first = await request(service, { path: '/dup-9.ts', tsMs: 20_009 })
-    const duplicate = await request(service, { path: '/dup-10.ts', tsMs: 20_010 })
+    const firstTs = 20_000 + SEGMENT_ALERT_THRESHOLD + 1
+    const first = await request(service, { path: '/dup-a.ts', tsMs: firstTs })
+    const duplicate = await request(service, { path: '/dup-b.ts', tsMs: firstTs + 1 })
     const afterWindow = await request(service, {
-      path: '/dup-11.ts',
-      tsMs: 20_009 + 30_001,
+      path: '/dup-c.ts',
+      tsMs: firstTs + 30_001,
     })
 
     expect(first.alerts).toHaveLength(1)
@@ -185,13 +181,16 @@ describe('SecurityService', () => {
   })
 
   it('does not deduplicate a block escalation after a recent flag', async () => {
-    for (let i = 1; i <= 8; i += 1) {
+    for (let i = 1; i <= SEGMENT_ALERT_THRESHOLD; i += 1) {
       await request(service, { path: `/esc-${i}.ts`, tsMs: 40_000 + i })
     }
 
-    const flag = await request(service, { path: '/esc-9.ts', tsMs: 40_009 })
+    const flag = await request(service, {
+      path: `/esc-${SEGMENT_ALERT_THRESHOLD + 1}.ts`,
+      tsMs: 40_000 + SEGMENT_ALERT_THRESHOLD + 1,
+    })
     let block: Awaited<ReturnType<SecurityService['recordRequest']>> | undefined
-    for (let i = 10; i <= 21; i += 1) {
+    for (let i = SEGMENT_ALERT_THRESHOLD + 2; i <= SEGMENT_BLOCK_THRESHOLD + 1; i += 1) {
       block = await request(service, { path: `/esc-${i}.ts`, tsMs: 40_000 + i })
     }
 

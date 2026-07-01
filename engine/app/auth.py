@@ -1,7 +1,7 @@
 """Vérification du JWT émis par le Core (refus par défaut)."""
 
 import jwt
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 
 from . import config
 
@@ -29,3 +29,17 @@ def verify_token(authorization: str = Header(default="")) -> dict:
         )
     except jwt.PyJWTError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token invalide ou expiré")
+
+
+def require_service(user: dict = Depends(verify_token)) -> dict:
+    """Exige un token de SERVICE (role='service').
+
+    L'Engine n'est appelé QUE par le Core (service-à-service) : jamais par le front
+    ni par un utilisateur final. Sans ce contrôle, n'importe quel JWT valide du Core
+    (y compris celui d'un user lambda) pourrait déclencher des analyses coûteuses ou
+    lire des fichiers via /analyze-path. On refuse donc tout ce qui n'est pas 'service'
+    (le rôle 'dev' n'est présent que si l'auth est désactivée en local).
+    """
+    if user.get("role") not in ("service", "dev"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Réservé au service Core")
+    return user

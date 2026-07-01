@@ -21,5 +21,10 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
-  }
+  },
+  // Le Core écrit les rendus HLS chiffrés (.ts = segments MPEG-TS) et les clés
+  // dans media/ et secrets/. Ces .ts ne sont PAS du TypeScript : les exclure
+  // évite que tsc --watch tente de les compiler (erreurs "File appears to be binary"
+  // et redémarrages qui tuent le chiffrement en cours).
+  "exclude": ["node_modules", "dist", "media", "secrets"]
 }

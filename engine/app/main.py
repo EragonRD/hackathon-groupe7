@@ -19,8 +19,8 @@ import uuid
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 
-from . import pipeline
-from .auth import verify_token
+from . import config, pipeline
+from .auth import require_service
 from .nlp import search as search_mod
 from .output import save_outputs
 from .schemas import (
@@ -69,7 +69,7 @@ def _start_job(video_path: str, video_name: str, cleanup: bool) -> str:
 
 
 @app.post("/analyze", response_model=JobCreated)
-async def analyze(file: UploadFile = File(...), user: dict = Depends(verify_token)) -> JobCreated:
+async def analyze(file: UploadFile = File(...), user: dict = Depends(require_service)) -> JobCreated:
     suffix = os.path.splitext(file.filename or "video.mp4")[1] or ".mp4"
     fd, path = tempfile.mkstemp(suffix=suffix)
     with os.fdopen(fd, "wb") as out:
@@ -79,15 +79,23 @@ async def analyze(file: UploadFile = File(...), user: dict = Depends(verify_toke
 
 
 @app.post("/analyze-path", response_model=JobCreated)
-def analyze_path(req: AnalyzePathRequest, user: dict = Depends(verify_token)) -> JobCreated:
-    if not os.path.isfile(req.path):
+def analyze_path(req: AnalyzePathRequest, user: dict = Depends(require_service)) -> JobCreated:
+    # Endpoint de test/démo : DÉSACTIVÉ si aucun répertoire autorisé n'est configuré.
+    if not config.ANALYZE_PATH_BASE:
+        raise HTTPException(403, "/analyze-path désactivé (ANALYZE_PATH_BASE non défini)")
+    base = os.path.realpath(config.ANALYZE_PATH_BASE)
+    target = os.path.realpath(req.path)
+    # Anti-path-traversal : le fichier résolu doit être STRICTEMENT sous `base`.
+    if os.path.commonpath([base, target]) != base:
+        raise HTTPException(403, "Chemin hors du répertoire autorisé")
+    if not os.path.isfile(target):
         raise HTTPException(400, "Fichier introuvable")
-    job_id = _start_job(req.path, os.path.basename(req.path), cleanup=False)
+    job_id = _start_job(target, os.path.basename(target), cleanup=False)
     return JobCreated(job_id=job_id, status="processing")
 
 
 @app.get("/jobs/{job_id}", response_model=JobStatus)
-def job_status(job_id: str, user: dict = Depends(verify_token)) -> JobStatus:
+def job_status(job_id: str, user: dict = Depends(require_service)) -> JobStatus:
     job = JOBS.get(job_id)
     if not job:
         raise HTTPException(404, "Job inconnu")
@@ -101,7 +109,7 @@ def job_status(job_id: str, user: dict = Depends(verify_token)) -> JobStatus:
 
 
 @app.post("/search", response_model=SearchResponse)
-def search(req: SearchRequest, user: dict = Depends(verify_token)) -> SearchResponse:
+def search(req: SearchRequest, user: dict = Depends(require_service)) -> SearchResponse:
     job = JOBS.get(req.job_id)
     if not job or job["status"] != "done":
         raise HTTPException(404, "Job inconnu ou non terminé")

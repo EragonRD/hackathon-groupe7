@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt'
 import * as argon2 from 'argon2'
 import { AuthService } from './auth.service'
 import { UsersService } from './users.service'
+import { SessionService } from './session.service'
 
 jest.mock('argon2', () => {
   const actual = jest.requireActual<typeof import('argon2')>('argon2')
@@ -49,7 +50,7 @@ describe('AuthService', () => {
         ),
       ),
     }
-    service = new AuthService(users as UsersService, jwt)
+    service = new AuthService(users as UsersService, jwt, new SessionService(false))
   })
 
   afterEach(() => {
