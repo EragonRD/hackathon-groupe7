@@ -25,6 +25,7 @@ export interface SecurityRequestInput {
 }
 
 export interface SecurityTrafficEvent {
+  seq: number
   ts: string
   tsMs: number
   account?: string
@@ -69,6 +70,7 @@ export class SecurityService implements OnModuleInit {
   private readonly alertDedupe = new Map<string, number>()
   private proxyNetworks: ProxyNetwork[] = []
   private nextAlertId = 1
+  private eventSeq = 0
 
   async onModuleInit(): Promise<void> {
     await this.loadProxyList()
@@ -90,6 +92,7 @@ export class SecurityService implements OnModuleInit {
     this.trim(now)
 
     const event: SecurityTrafficEvent = {
+      seq: ++this.eventSeq,
       ts: new Date(now).toISOString(),
       tsMs: now,
       account: input.account === undefined ? undefined : String(input.account),
@@ -194,6 +197,41 @@ export class SecurityService implements OnModuleInit {
       },
       recentTraffic,
       alerts: activeAlerts.slice(-80).reverse(),
+    }
+  }
+
+  // Renvoie UNIQUEMENT ce qui a changé depuis les curseurs fournis (delta) :
+  // nouvelles alertes (id > afterAlertId) et nouveau trafic (seq > afterEventSeq).
+  // Le front garde les curseurs et n'ajoute que le neuf → « détecte les changements ».
+  getChanges(afterEventSeq: number, afterAlertId: number) {
+    const now = Date.now()
+    this.trim(now)
+
+    const newTraffic = this.traffic
+      .filter((e) => e.seq > afterEventSeq)
+      .slice(-100)
+      .map(({ tsMs: _tsMs, ...event }) => event)
+    const newAlerts = this.alerts
+      .filter((a) => Number(a.id) > afterAlertId)
+      .map(({ tsMs: _tsMs, ...alert }) => alert)
+
+    const uniqueIps = new Set(this.traffic.map((event) => event.ip))
+    const hasChanges = newTraffic.length > 0 || newAlerts.length > 0
+
+    return {
+      generatedAt: new Date(now).toISOString(),
+      hasChanges,
+      counters: {
+        recentRequests: this.traffic.length,
+        activeAlerts: this.alerts.length,
+        uniqueIps: uniqueIps.size,
+        segmentRequests: this.traffic.filter((e) => this.isSegmentRequest(e.path)).length,
+      },
+      newTraffic,
+      newAlerts,
+      // Curseurs à renvoyer au prochain appel.
+      lastEventSeq: this.eventSeq,
+      lastAlertId: this.nextAlertId - 1,
     }
   }
 
@@ -312,6 +350,7 @@ export class SecurityService implements OnModuleInit {
   private isMonitoringPath(path: string): boolean {
     return (
       path.startsWith('/security/dashboard') ||
+      path.startsWith('/security/changes') ||
       path.startsWith('/security/watermark') ||
       path.startsWith('/security/bans') ||
       path.startsWith('/admin/audit')
