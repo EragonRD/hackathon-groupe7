@@ -21,12 +21,24 @@ const AdminPanel = lazy(() => import('./components/admin/AdminPanel.jsx'))
 // nettoie l'URL. Retourne { contentId, session } ou null.
 function parseGuestLink() {
   try {
-    const token = new URLSearchParams(window.location.search).get('guest')
+    // 1. Lien fraîchement ouvert : ?guest=<token> dans l'URL -> on le stocke et
+    //    on nettoie l'URL.
+    const fromUrl = new URLSearchParams(window.location.search).get('guest')
+    if (fromUrl) {
+      localStorage.setItem('hackathon_token', fromUrl)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    // 2. Rechargement : on retombe sur le token invité déjà stocké -> l'invité
+    //    revient dans sa session sans avoir à rouvrir le lien.
+    const token = fromUrl ?? localStorage.getItem('hackathon_token')
     if (!token) return null
-    localStorage.setItem('hackathon_token', token)
     const claims = JSON.parse(atob(token.split('.')[1]))
-    window.history.replaceState({}, '', window.location.pathname)
     if (claims?.role !== 'guest' || !claims.contentId) return null
+    // Token invité périmé : on le nettoie -> retour à l'accueil normal.
+    if (claims.exp && Date.now() / 1000 > claims.exp) {
+      localStorage.removeItem('hackathon_token')
+      return null
+    }
     return { contentId: claims.contentId, session: claims.session ?? claims.contentId }
   } catch {
     return null
