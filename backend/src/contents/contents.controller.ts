@@ -81,6 +81,9 @@ export class ContentsController {
         contentId: id,
         session: id,
         companyId: content.companyId,
+        // Qui a invité : sert à donner accès à ce membre (et aux admins de son
+        // entreprise) si l'invité téléverse une vidéo pendant la session.
+        invitedBy: req.user!.username,
       },
       { expiresIn: ttl as StringValue },
     )

@@ -10,6 +10,7 @@ export interface JwtUser {
   // sans compte. `exp` (posé par signAsync) borne la durée de validité.
   contentId?: string
   session?: string
+  invitedBy?: string // token invité : username du membre qui a généré le lien
   iat?: number
   exp?: number
 }
