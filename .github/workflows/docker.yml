@@ -3,7 +3,9 @@ name: Build and Push to GHCR
 on:
   push:
     branches:
-      - backend-security # L'action se déclenche à chaque push sur la branche backend-security
+      - backend-security # push sur la branche backend-security (P2)
+      - master # push/merge sur master -> rebuild des images :latest (prod)
+  workflow_dispatch: {} # declenchement manuel depuis l'onglet Actions
 
 jobs:
   build:
