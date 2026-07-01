@@ -29,8 +29,42 @@ la session précédente est expulsée et voit le message
 - **Guard** : `sid` présent + != actif -> `401 'session_superseded'`.
 - **Front** : `authFetch` distingue `session_superseded` du 401 normal (expiration) et
   propage la raison ; **heartbeat** `/auth/me` (15 s) pour l'expulsion des sessions inactives.
-- **Hardening** (si activé) : `issueSession` révoque les refresh tokens précédents du compte.
+- ~~**Hardening** (si activé) : `issueSession` révoque les refresh tokens précédents du compte.~~
+  **RÉVISÉ le 2026-07-01 (commit `55a00fd`)** — voir « Révision » ci-dessous.
 - Invités inchangés (pas de `sid` -> guard ignore).
+
+## Révision — reconnexion sans identifiants (2026-07-01, commit `55a00fd`)
+### Ce qui change
+- `issueSession` **ne révoque plus** les refresh tokens précédents du compte.
+- Une session expulsée conserve son refresh token et peut « **Se reconnecter** »
+  sans redonner ses identifiants : `reconnect()` (front) relance le refresh, qui
+  passe par `issueSession` -> **nouveau `sid` actif** -> ce poste **redevient la
+  session active** (et supersède à son tour celui qui l'avait expulsé).
+- Front : drapeau `superseded` qui **bloque le refresh AUTOMATIQUE** (heartbeat,
+  `authFetch`) ; seul `reconnect()` explicite le débloque. Tokens **conservés**
+  au lieu d'être purgés au 401 `session_superseded`.
+
+### Pourquoi
+- UX : une expulsion accidentelle (2e onglet ouvert par erreur) se répare en un
+  clic, sans ressaisir mot de passe.
+
+### Conséquence sécurité (ASSUMÉE — à connaître pour l'éval Pôle 2 Zero-Trust)
+- Le verrou mono-session ne repose **plus que sur le `sid`** de l'access token.
+  Les refresh tokens antérieurs restent **valides jusqu'à leur TTL** : une 2e
+  session (ou un onglet compromis) peut **reprendre la main** via son refresh
+  token tant qu'il n'a pas expiré. « Le dernier login gagne » devient donc « le
+  dernier à cliquer *Se reconnecter* gagne ».
+- **Boucle de ping-pong** possible : deux postes qui cliquent « Se reconnecter »
+  s'expulsent mutuellement en boucle. Atténué (pas supprimé) par le gel du
+  heartbeat côté client tant que l'alerte d'expulsion est affichée (`kicked`).
+
+### Si on veut re-durcir (non fait)
+- Révoquer les refresh tokens à l'expulsion ET n'autoriser `reconnect()` que via
+  le refresh token du poste **courant** (déjà le cas), au prix de perdre la
+  reprise après expiration de l'access token.
+- Lier le refresh token au `sid` : un refresh ne régénère un access token que si
+  son `sid` est encore l'actif -> supprime la reprise silencieuse d'un ancien
+  onglet, mais casse aussi la reconnexion volontaire. Arbitrage à trancher.
 
 ## Risques
 - **Redémarrage serveur** : sessions superseded avant redémarrage redeviennent valides
@@ -52,7 +86,9 @@ la session précédente est expulsée et voit le message
 - [x] Lint + tests (jest / vitest)
 
 ## Avancement
-Implémenté. Voir Résumé ci-dessous. Non commité (validation requise).
+Implémenté et commité (`571c082`). Révisé le 2026-07-01 (`55a00fd`) : reconnexion
+sans identifiants — voir section « Révision » (retire la révocation des refresh
+tokens, arbitrage sécurité assumé).
 
 ## Résumé non-technique
 En production, un compte ne peut être ouvert qu'à un seul endroit. Si on se

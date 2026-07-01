@@ -44,17 +44,23 @@ export class NotesController {
     return { notes: this.notes.replace(session, body.notes) }
   }
 
-  // Accès aux notes d'une session : si la session correspond à un CONTENU connu,
-  // on applique le contrôle d'accès de ce contenu (membre autorisé, ou invité dont
-  // le token est scopé à cette session). Sinon (session ad-hoc / vidéo locale),
-  // tout utilisateur authentifié est admis.
+  // Accès aux notes d'une session.
+  //
+  // INVITÉ (role 'guest') : TOUJOURS confiné à la portée de son token
+  //   (`session` / `contentId`), que la session soit un contenu connu ou une
+  //   session ad-hoc. Sans ce cadrage, un invité pourrait lire/écrire (`PUT`)
+  //   les notes de n'importe quelle session ad-hoc en devinant son nom.
+  //
+  // COMPTE réel (user/admin/superadmin) : si la session correspond à un CONTENU
+  //   connu, on applique son contrôle d'accès (membre autorisé). Sinon (session
+  //   ad-hoc / vidéo locale, hors du registre de contenus), on l'admet.
   private assertAccess(session: string, user: JwtUser): void {
-    const content = this.contents.find(session)
-    if (!content) return
     if (user.role === 'guest') {
       if (user.session === session || user.contentId === session) return
       throw new ForbiddenException('Accès refusé à cette session')
     }
+    const content = this.contents.find(session)
+    if (!content) return
     if (!this.contents.isAllowed(session, user)) {
       throw new ForbiddenException('Accès refusé à cette session')
     }
