@@ -191,7 +191,7 @@ export default function App() {
       user={user}
       onLogout={handleLogout}
       onBack={showBack ? goToCatalogue : undefined}
-      onHome={goToCatalogue}
+      onHome={isGuest ? undefined : goToCatalogue}
       onOpenDocs={() => setView({ name: 'docs' })}
       title={titles[view.name]}
       right={
