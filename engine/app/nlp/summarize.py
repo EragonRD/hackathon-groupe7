@@ -1,9 +1,11 @@
-"""Résumé / chapitres / mots-clés / traduction — baseline améliorée (T21/T22).
+"""Résumé / chapitres / mots-clés — baseline améliorée (T21/T22).
 
 - résumé dans la **langue source** (cohérence) ;
-- traduction **par chunks** + prompt strict (évite l'écho du texte source) ;
-- chapitres : échantillonnage couvrant + parsing JSON robuste, repli seulement si échec ;
+- chapitres : échantillonnage couvrant + parsing JSON robuste, repli seulement si échec,
+  1er chapitre forcé à 0 (contrat P3-A) ;
 - mots-clés : **MMR** (diversité) + dédup des sous-chaînes.
+
+NB : la traduction multilingue est assurée par `nlp/translate.py` (NLLB-200), pas ici.
 """
 
 import json
@@ -32,11 +34,6 @@ def _chat(prompt: str, max_tokens: int = 256, temperature: float = 0.2) -> str:
     return out["choices"][0]["message"]["content"].strip()
 
 
-def _chunk_text(text: str, max_words: int = 450) -> list[str]:
-    words = text.split()
-    return [" ".join(words[i : i + max_words]) for i in range(0, len(words), max_words)]
-
-
 def summarize(transcript: str, language: str = "fr") -> str:
     if not transcript:
         return ""
@@ -47,24 +44,6 @@ def summarize(transcript: str, language: str = "fr") -> str:
         + transcript[:4000]
     )
     return _chat(prompt, max_tokens=200)
-
-
-def translate(transcript: str, source_lang: str, max_chunks: int = 6) -> dict:
-    if not transcript:
-        return {"lang": "en", "text": ""}
-    target = "fr" if (source_lang or "").startswith("en") else "en"
-    name = _lang_name(target)
-    chunks = _chunk_text(transcript, 450)[:max_chunks]
-    parts = []
-    for ch in chunks:
-        prompt = (
-            f"Traduis le texte ci-dessous en {name}. "
-            f"Réponds UNIQUEMENT avec la traduction en {name}, "
-            f"sans répéter le texte original et sans commentaire.\n\n"
-            f"Texte :\n{ch}\n\nTraduction en {name} :"
-        )
-        parts.append(_chat(prompt, max_tokens=600, temperature=0.1))
-    return {"lang": target, "text": " ".join(p for p in parts if p).strip()}
 
 
 def extract_keywords(transcript: str, top_n: int = 8) -> list[str]:
@@ -103,7 +82,11 @@ def make_chapters(segments: list[dict], max_chapters: int = 6) -> list[dict]:
         + timeline
     )
     chapters = _parse_chapters(_chat(prompt, max_tokens=300, temperature=0.1), segments)
-    return chapters or _fallback_chapters(segments, max_chapters)
+    chapters = chapters or _fallback_chapters(segments, max_chapters)
+    # Contrat P3-A : le 1er chapitre commence toujours à 0 (le LLM ne le garantit pas).
+    if chapters:
+        chapters[0]["start"] = 0.0
+    return chapters
 
 
 def _sample_segments(segments: list[dict], n: int) -> list[dict]:
