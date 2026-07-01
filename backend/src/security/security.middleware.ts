@@ -13,6 +13,13 @@ export class SecurityMiddleware implements NestMiddleware {
   ) {}
 
   async use(req: RequestWithUser, res: Response, next: NextFunction): Promise<void> {
+    // IP bannie (action admin) : on coupe tout de suite.
+    const ip = extractClientIp(req)
+    if (this.security.isBanned(ip)) {
+      res.status(403).json({ statusCode: 403, message: 'IP bannie' })
+      return
+    }
+
     const user = req.user ?? (await this.verifyTokenIfPresent(req))
     if (user && !req.user) {
       req.user = user

@@ -25,6 +25,7 @@ export interface SecurityRequestInput {
 }
 
 export interface SecurityTrafficEvent {
+  seq: number
   ts: string
   tsMs: number
   account?: string
@@ -62,11 +63,14 @@ export class SecurityService implements OnModuleInit {
   private readonly proxyListPath = backendPath('data', 'proxy-ips.txt')
   private readonly alertLogPath = backendPath('logs', 'security-alerts.log')
   private alertDirReady = false
+  // IP bannies manuellement depuis le dashboard admin.
+  private readonly bans = new Map<string, { reason: string; at: string }>()
   private readonly traffic: SecurityTrafficEvent[] = []
   private readonly alerts: StoredAlert[] = []
   private readonly alertDedupe = new Map<string, number>()
   private proxyNetworks: ProxyNetwork[] = []
   private nextAlertId = 1
+  private eventSeq = 0
 
   async onModuleInit(): Promise<void> {
     await this.loadProxyList()
@@ -76,10 +80,19 @@ export class SecurityService implements OnModuleInit {
     blocked: boolean
     alerts: SecurityAlert[]
   }> {
+    // Anti-bruit : on ne compte PAS les endpoints de surveillance eux-mêmes
+    // (le dashboard se poll toutes les 2 s) — sinon l'« activité récente » et les
+    // compteurs se remplissent de leurs propres appels. Le contrôle de ban, lui,
+    // a déjà eu lieu en amont (middleware), donc rien n'est affaibli.
+    if (this.isMonitoringPath(input.path)) {
+      return { blocked: false, alerts: [] }
+    }
+
     const now = input.tsMs ?? Date.now()
     this.trim(now)
 
     const event: SecurityTrafficEvent = {
+      seq: ++this.eventSeq,
       ts: new Date(now).toISOString(),
       tsMs: now,
       account: input.account === undefined ? undefined : String(input.account),
@@ -187,6 +200,65 @@ export class SecurityService implements OnModuleInit {
     }
   }
 
+  // Renvoie UNIQUEMENT ce qui a changé depuis les curseurs fournis (delta) :
+  // nouvelles alertes (id > afterAlertId) et nouveau trafic (seq > afterEventSeq).
+  // Le front garde les curseurs et n'ajoute que le neuf → « détecte les changements ».
+  getChanges(afterEventSeq: number, afterAlertId: number) {
+    const now = Date.now()
+    this.trim(now)
+
+    const newTraffic = this.traffic
+      .filter((e) => e.seq > afterEventSeq)
+      .slice(-100)
+      .map(({ tsMs: _tsMs, ...event }) => event)
+    const newAlerts = this.alerts
+      .filter((a) => Number(a.id) > afterAlertId)
+      .map(({ tsMs: _tsMs, ...alert }) => alert)
+
+    const uniqueIps = new Set(this.traffic.map((event) => event.ip))
+    const hasChanges = newTraffic.length > 0 || newAlerts.length > 0
+
+    return {
+      generatedAt: new Date(now).toISOString(),
+      hasChanges,
+      counters: {
+        recentRequests: this.traffic.length,
+        activeAlerts: this.alerts.length,
+        uniqueIps: uniqueIps.size,
+        segmentRequests: this.traffic.filter((e) => this.isSegmentRequest(e.path)).length,
+      },
+      newTraffic,
+      newAlerts,
+      // Curseurs à renvoyer au prochain appel.
+      lastEventSeq: this.eventSeq,
+      lastAlertId: this.nextAlertId - 1,
+    }
+  }
+
+  // --- Bans d'IP (action admin depuis le dashboard) ---
+  isBanned(ip: string): boolean {
+    return this.bans.has(ip)
+  }
+
+  banIp(
+    ip: string,
+    reason: string,
+    nowIso: string,
+  ): { ip: string; reason: string; at: string } {
+    const entry = { reason: reason || 'Banni manuellement', at: nowIso }
+    this.bans.set(ip, entry)
+    this.logger.warn(`IP bannie: ${ip} (${entry.reason})`)
+    return { ip, ...entry }
+  }
+
+  unbanIp(ip: string): boolean {
+    return this.bans.delete(ip)
+  }
+
+  listBans(): Array<{ ip: string; reason: string; at: string }> {
+    return [...this.bans.entries()].map(([ip, e]) => ({ ip, ...e }))
+  }
+
   private async loadProxyList(): Promise<void> {
     try {
       const content = await readFile(this.proxyListPath, 'utf8')
@@ -272,6 +344,17 @@ export class SecurityService implements OnModuleInit {
 
   private isSegmentRequest(path: string): boolean {
     return /\.ts(?:[?#]|$)/.test(path)
+  }
+
+  // Endpoints de surveillance/admin pollés régulièrement : exclus de l'activité.
+  private isMonitoringPath(path: string): boolean {
+    return (
+      path.startsWith('/security/dashboard') ||
+      path.startsWith('/security/changes') ||
+      path.startsWith('/security/watermark') ||
+      path.startsWith('/security/bans') ||
+      path.startsWith('/admin/audit')
+    )
   }
 
   private findProxyMatch(ip: string): string | undefined {

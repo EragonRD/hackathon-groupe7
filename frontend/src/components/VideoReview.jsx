@@ -21,6 +21,8 @@ import {
   CheckCircle,
   X,
 } from '@phosphor-icons/react'
+import Hls from 'hls.js'
+import { getToken } from '../auth'
 import DrawingCanvas from './DrawingCanvas'
 import CommentPanel from './CommentPanel'
 import { useReview } from '../lib/useReview'
@@ -581,6 +583,30 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
     [notes],
   )
 
+  // 🔐 Lecture du flux HLS CHIFFRÉ (Zero-Trust) : hls.js alimente l'élément vidéo
+  // et joint le JWT UNIQUEMENT sur la requête de clé (/keys/…). Un fichier direct
+  // (.mp4) reste géré par l'attribut src.
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !source || !source.endsWith('.m3u8')) return
+    if (!Hls.isSupported()) {
+      // Safari : HLS natif (la clé ne pourra pas porter le token → login requis côté serveur).
+      v.src = source
+      return
+    }
+    const hls = new Hls({
+      xhrSetup: (xhr, url) => {
+        if (url.includes('/keys/')) {
+          const token = getToken()
+          if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+        }
+      },
+    })
+    hls.loadSource(source)
+    hls.attachMedia(v)
+    return () => hls.destroy()
+  }, [source])
+
   // Nom du présentateur courant (pour le badge).
   const presenterName = isPresenter
     ? self.name
@@ -594,7 +620,9 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
             <video
               ref={videoRef}
               className="video-el"
-              src={source}
+              /* Pour le HLS (.m3u8) c'est hls.js qui alimente l'élément (voir effet
+                 ci-dessus) ; pour un fichier direct on garde l'attribut src. */
+              src={source && source.endsWith('.m3u8') ? undefined : source}
               playsInline
               preload="metadata"
             />

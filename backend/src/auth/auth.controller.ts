@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Post,
   Query,
   Req,
@@ -32,6 +33,21 @@ export class AuthController {
       throw new UnauthorizedException('username et password requis')
     }
     return this.auth.login(body.username, body.password, extractClientIp(req))
+  }
+
+  // POST /auth/refresh  { refreshToken }  ->  nouvel access token (+ rotation refresh)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('refresh')
+  refresh(@Body() body: { refreshToken?: string }) {
+    if (!body?.refreshToken) throw new UnauthorizedException('refreshToken requis')
+    return this.auth.refresh(body.refreshToken)
+  }
+
+  // POST /auth/logout  { refreshToken }  -> révoque le refresh token (vrai logout)
+  @Post('logout')
+  @HttpCode(204)
+  logout(@Body() body: { refreshToken?: string }): void {
+    if (body?.refreshToken) this.auth.logout(body.refreshToken)
   }
 
   // GET /auth/me  (route protégée d'exemple) -> l'utilisateur courant.

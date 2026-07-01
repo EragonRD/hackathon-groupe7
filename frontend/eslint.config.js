@@ -66,6 +66,16 @@ export default tseslint.config(
     },
   },
 
+  // Fichiers de config (vite/vitest) : contexte Node -> autorise process, etc.
+  {
+    files: ['*.config.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+
   // Prettier configuration. This must be the LAST entry in the array
   // to ensure it overrides any conflicting style rules from other configs.
   eslintPluginPrettier,

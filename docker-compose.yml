@@ -21,11 +21,18 @@ services:
       MAILJET_FROM_EMAIL: ${MAILJET_FROM_EMAIL:-}
       MAILJET_FROM_NAME: ${MAILJET_FROM_NAME:-Plateforme Vidéo}
       MAILJET_SANDBOX: ${MAILJET_SANDBOX:-false}
+      # Dossier des rendus HLS chiffrés servis par le Core (/videos/:id).
+      HLS_DIR: /app/media/hls
     volumes:
-      - ./backend/secrets:/app/secrets:ro
-      - ./backend/logs:/app/logs
-      # Persistance metier (users, companies, contents) : survit au redemarrage.
+      # Clés AES des vidéos chiffrées — volume nommé (survit aux rebuilds ; docker cp pour injecter)
+      - poulpium_secrets:/app/secrets
+      # Logs d'audit (key-access.log, security-alerts.log)
+      - poulpium_logs:/app/logs
+      # Persistance métier (users, companies, contents) + liste IP proxy.
+      # RW : le Core y écrit les JSON au runtime (users/companies/contents).
       - ./backend/data:/app/data
+      # Vidéos HLS chiffrées (générées par scripts/encrypt-hls.sh) servies par le Core
+      - ./media/hls:/app/media/hls:ro
     depends_on:
       - hls
 
@@ -43,3 +50,8 @@ services:
     volumes:
       - ./media/hls:/usr/share/nginx/html/hls:ro
       - ./nginx/hls.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  poulpium_secrets:
+    # Stocker les clés AES : docker cp <fichier>.key <container>:/app/secrets/
+  poulpium_logs:
