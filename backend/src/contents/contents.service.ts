@@ -46,6 +46,17 @@ export class ContentsService {
     return this.list().filter((c) => c.companyId === companyId)
   }
 
+  // Catalogue d'un utilisateur : les contenus de SON entreprise auxquels il est
+  // explicitement autorisé (révoqués inclus, pour les afficher comme indisponibles).
+  // Un compte sans entreprise (superadmin) n'a aucun contenu.
+  listForUser(user: JwtUser): Content[] {
+    if (!user.companyId) return []
+    return this.list().filter(
+      (c) =>
+        c.companyId === user.companyId && c.allowedUsernames.includes(user.username),
+    )
+  }
+
   find(id: string): Content | undefined {
     return this.contents.get(id)
   }
