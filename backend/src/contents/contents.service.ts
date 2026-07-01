@@ -3,12 +3,15 @@ import { randomUUID } from 'crypto'
 import type { JwtUser } from '../common/request-context'
 import { loadJson, saveJson } from '../common/json-store'
 
+export type ContentStatus = 'ready' | 'processing' | 'failed'
+
 export interface Content {
   id: string
   title: string
   companyId: string // entreprise propriétaire (tenant)
   allowedUsernames: string[]
   revoked: boolean
+  status: ContentStatus // 'processing' pendant le chiffrement de l'upload
 }
 
 const STORE = 'contents.json'
@@ -20,6 +23,7 @@ const SEED: Content[] = [
     companyId: 'demo',
     allowedUsernames: ['alice', 'bob', 'carol'],
     revoked: false,
+    status: 'ready',
   },
 ]
 
@@ -32,9 +36,13 @@ export class ContentsService {
 
   constructor() {
     // Charge le disque ; à défaut (premier lancement), sème et persiste.
-    const stored = loadJson<Content[] | null>(STORE, null)
-    const initial = stored ?? SEED
-    for (const c of initial) this.contents.set(c.id, this.clone(c))
+    type StoredContent = Omit<Content, 'status'> & { status?: ContentStatus }
+    const stored = loadJson<StoredContent[] | null>(STORE, null)
+    const initial: StoredContent[] = stored ?? SEED
+    // Normalise : les contenus persistés avant l'ajout du champ `status` sont `ready`.
+    for (const c of initial) {
+      this.contents.set(c.id, this.clone({ ...c, status: c.status ?? 'ready' }))
+    }
     if (!stored) this.persist()
   }
 
@@ -52,8 +60,7 @@ export class ContentsService {
   listForUser(user: JwtUser): Content[] {
     if (!user.companyId) return []
     return this.list().filter(
-      (c) =>
-        c.companyId === user.companyId && c.allowedUsernames.includes(user.username),
+      (c) => c.companyId === user.companyId && c.allowedUsernames.includes(user.username),
     )
   }
 
@@ -69,10 +76,40 @@ export class ContentsService {
       companyId: input.companyId,
       allowedUsernames: [],
       revoked: false,
+      status: 'ready',
     }
     this.contents.set(id, content)
     this.persist()
     return this.clone(content)
+  }
+
+  // Contenu issu d'un UPLOAD : id généré, statut `processing` (le chiffrement suit),
+  // et l'auteur (admin) est autorisé d'office pour pouvoir le visionner une fois prêt.
+  createUploaded(input: {
+    title: string
+    companyId: string
+    ownerUsername: string
+  }): Content {
+    const id = randomUUID().slice(0, 8)
+    const content: Content = {
+      id,
+      title: input.title,
+      companyId: input.companyId,
+      allowedUsernames: [input.ownerUsername],
+      revoked: false,
+      status: 'processing',
+    }
+    this.contents.set(id, content)
+    this.persist()
+    return this.clone(content)
+  }
+
+  setStatus(id: string, status: ContentStatus): Content | undefined {
+    const c = this.contents.get(id)
+    if (!c) return undefined
+    c.status = status
+    this.persist()
+    return this.clone(c)
   }
 
   // Accès à la clé : même entreprise, non révoqué, et explicitement autorisé.

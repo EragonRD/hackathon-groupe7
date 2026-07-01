@@ -31,8 +31,8 @@ services:
       # Persistance métier (users, companies, contents) + liste IP proxy.
       # RW : le Core y écrit les JSON au runtime (users/companies/contents).
       - ./backend/data:/app/data
-      # Vidéos HLS chiffrées (générées par scripts/encrypt-hls.sh) servies par le Core
-      - ./media/hls:/app/media/hls:ro
+      # Vidéos HLS chiffrées — RW : le Core y ÉCRIT les uploads chiffrés et les sert
+      - ./media/hls:/app/media/hls
     depends_on:
       - hls
 
