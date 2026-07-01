@@ -8,6 +8,7 @@ import {
   HardDrive,
 } from '@phosphor-icons/react'
 import { authFetch } from '../auth'
+import { uploadContent, grantAccess } from '../admin'
 import { formatTime } from '../lib/format'
 
 const CATEGORIES = [
@@ -40,6 +41,7 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [error, setError] = useState(null)
   const [duration, setDuration] = useState(null)
   const [videoUrl, setVideoUrl] = useState(null)
   const [posterUrl, setPosterUrl] = useState(null)
@@ -149,26 +151,29 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
   }
 
   const handleConfirm = useCallback(() => {
+    if (!file) return
     setProcessing(true)
     setProgress(0)
-    const interval = setInterval(() => {
-      setProgress((p) => {
-        const next = p + Math.random() * 18
-        return next >= 100 ? 100 : next
-      })
-    }, 180)
-    async function finish() {
-      await new Promise((r) => setTimeout(r, 900))
-      clearInterval(interval)
-      setProgress(100)
-      await new Promise((r) => setTimeout(r, 300))
-      onConfirm({
-        title: title.trim() || nameFromFile(file),
-        category,
-        invited,
-      })
+    setError(null)
+    async function run() {
+      try {
+        // Upload réel : le Core chiffre en HLS AES-128 en tâche de fond.
+        const content = await uploadContent({
+          file,
+          title: title.trim() || nameFromFile(file),
+          onProgress: setProgress,
+        })
+        // Donner accès aux collaborateurs invités (même entreprise) — best effort.
+        await Promise.all(
+          invited.map((u) => grantAccess(content.id, u).catch(() => null)),
+        )
+        onConfirm({ ...content, category, invited })
+      } catch (e) {
+        setError(e.message || 'Upload échoué.')
+        setProcessing(false)
+      }
     }
-    finish()
+    run()
   }, [title, file, category, invited, onConfirm])
 
   if (processing) {
@@ -318,6 +323,16 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
           </div>
         </div>
 
+        {error && (
+          <p
+            className="upload-error"
+            role="alert"
+            style={{ color: 'var(--danger, #ff5b5b)' }}
+          >
+            {error}
+          </p>
+        )}
+
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onCancel}>
             Annuler
@@ -328,7 +343,7 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
             disabled={!title.trim()}
           >
             <CaretRight size={15} weight="bold" />
-            Ouvrir la revue
+            Chiffrer et publier
           </button>
         </div>
       </div>
