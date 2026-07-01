@@ -7,8 +7,13 @@ const WINDOW_MS = 5 * 60 * 1000
 const ALERT_TTL_MS = 10 * 60 * 1000
 const MULTI_SESSION_IP_THRESHOLD = 3
 const SEGMENT_WINDOW_MS = 60 * 1000
-const SEGMENT_ALERT_THRESHOLD = 8
-const SEGMENT_BLOCK_THRESHOLD = 20
+// Seuils calibrés pour NE PAS bloquer un visionnage légitime : le HLS télécharge
+// beaucoup de segments .ts (buffer d'avance + refetch au seek), et les segments
+// ne portant pas de token, ils sont comptés PAR IP (plusieurs spectateurs
+// derrière un même NAT partagent le compteur). On ne bloque qu'un débit
+// clairement abusif (aspiration en masse), pas une lecture normale.
+export const SEGMENT_ALERT_THRESHOLD = 60
+export const SEGMENT_BLOCK_THRESHOLD = 120
 const ALERT_DEDUPE_MS = 30 * 1000
 const MAX_TRAFFIC_EVENTS = 2_000
 
