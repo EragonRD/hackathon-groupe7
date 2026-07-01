@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
+import { randomBytes } from 'crypto'
 import * as argon2 from 'argon2'
 import { UsersService } from './users.service'
 
@@ -16,6 +17,9 @@ const MAX_FAILS = 5
 const LOCK_MS = 5 * 60 * 1000
 // Borne mémoire : au-delà, on purge les entrées expirées (anti-OOM si spray d'usernames).
 const MAX_ATTEMPT_ENTRIES = 10_000
+
+// Refresh tokens : durée de vie et store révocable (vrai logout).
+const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 // Hash Argon2 « leurre » : sert à vérifier un mot de passe même pour un compte
 // inexistant, afin d'égaliser le temps de réponse (anti-énumération d'utilisateurs).
@@ -28,6 +32,12 @@ export class AuthService {
   private readonly attempts = new Map<
     string,
     { fails: number; lockedUntil: number; ts: number }
+  >()
+
+  // Store des refresh tokens (révocables) : token opaque -> session.
+  private readonly refreshTokens = new Map<
+    string,
+    { username: string; sub: number; expiresAt: number }
   >()
 
   constructor(
@@ -91,6 +101,29 @@ export class AuthService {
     return this.issueSession(updated!)
   }
 
+  // Rafraîchit l'access token depuis un refresh token valide (avec rotation).
+  async refresh(refreshToken: string) {
+    const now = Date.now()
+    const record = this.refreshTokens.get(refreshToken)
+    if (!record || record.expiresAt < now) {
+      if (record) this.refreshTokens.delete(refreshToken)
+      throw new UnauthorizedException('Refresh token invalide ou expiré')
+    }
+    const user = await this.users.findByUsername(record.username)
+    if (!user) {
+      this.refreshTokens.delete(refreshToken)
+      throw new UnauthorizedException('Compte introuvable')
+    }
+    // Rotation : l'ancien refresh est invalidé, un nouveau est émis.
+    this.refreshTokens.delete(refreshToken)
+    return this.issueSession(user)
+  }
+
+  // Vrai logout : révoque le refresh token (il ne pourra plus émettre d'access token).
+  logout(refreshToken: string): void {
+    this.refreshTokens.delete(refreshToken)
+  }
+
   private async issueSession(user: {
     id: number
     username: string
@@ -106,8 +139,10 @@ export class AuthService {
       mustChangePassword: user.mustChangePassword,
     }
     const accessToken = await this.jwt.signAsync(payload)
+    const refreshToken = this.createRefreshToken(user.id, user.username)
     return {
       accessToken,
+      refreshToken,
       user: {
         id: user.id,
         username: user.username,
@@ -116,6 +151,18 @@ export class AuthService {
         mustChangePassword: user.mustChangePassword,
       },
     }
+  }
+
+  private createRefreshToken(sub: number, username: string): string {
+    const now = Date.now()
+    // purge opportuniste des tokens expirés
+    if (this.refreshTokens.size > 10_000) {
+      for (const [t, r] of this.refreshTokens)
+        if (r.expiresAt < now) this.refreshTokens.delete(t)
+    }
+    const token = randomBytes(32).toString('base64url')
+    this.refreshTokens.set(token, { sub, username, expiresAt: now + REFRESH_TTL_MS })
+    return token
   }
 
   private registerFailure(key: string, now: number): void {

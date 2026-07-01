@@ -1,9 +1,14 @@
 import {
   All,
+  BadRequestException,
+  Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
+  Param,
+  Post,
   Req,
   UseGuards,
 } from '@nestjs/common'
@@ -32,6 +37,28 @@ export class SecurityController {
   @Get('dashboard')
   dashboard() {
     return this.security.getDashboard()
+  }
+
+  // --- Bans d'IP (admin) ---
+  @SkipThrottle()
+  @UseGuards(AuthGuard, AdminGuard)
+  @Get('bans')
+  listBans() {
+    return this.security.listBans()
+  }
+
+  @UseGuards(AuthGuard, AdminGuard)
+  @Post('ban')
+  banIp(@Body() body: { ip?: string; reason?: string }) {
+    const ip = body?.ip?.trim()
+    if (!ip) throw new BadRequestException('ip requise')
+    return this.security.banIp(ip, body.reason ?? '', new Date().toISOString())
+  }
+
+  @UseGuards(AuthGuard, AdminGuard)
+  @Delete('ban/:ip')
+  unbanIp(@Param('ip') ip: string) {
+    return { ip, removed: this.security.unbanIp(ip) }
   }
 
   @UseGuards(AuthGuard)

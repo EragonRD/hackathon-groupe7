@@ -8,5 +8,6 @@ import { KeysService } from './keys.service'
   imports: [AuthModule, ContentsModule],
   controllers: [KeysController],
   providers: [KeysService],
+  exports: [KeysService],
 })
 export class KeysModule {}

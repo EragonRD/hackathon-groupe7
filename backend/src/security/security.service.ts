@@ -62,6 +62,8 @@ export class SecurityService implements OnModuleInit {
   private readonly proxyListPath = backendPath('data', 'proxy-ips.txt')
   private readonly alertLogPath = backendPath('logs', 'security-alerts.log')
   private alertDirReady = false
+  // IP bannies manuellement depuis le dashboard admin.
+  private readonly bans = new Map<string, { reason: string; at: string }>()
   private readonly traffic: SecurityTrafficEvent[] = []
   private readonly alerts: StoredAlert[] = []
   private readonly alertDedupe = new Map<string, number>()
@@ -185,6 +187,30 @@ export class SecurityService implements OnModuleInit {
       recentTraffic,
       alerts: activeAlerts.slice(-80).reverse(),
     }
+  }
+
+  // --- Bans d'IP (action admin depuis le dashboard) ---
+  isBanned(ip: string): boolean {
+    return this.bans.has(ip)
+  }
+
+  banIp(
+    ip: string,
+    reason: string,
+    nowIso: string,
+  ): { ip: string; reason: string; at: string } {
+    const entry = { reason: reason || 'Banni manuellement', at: nowIso }
+    this.bans.set(ip, entry)
+    this.logger.warn(`IP bannie: ${ip} (${entry.reason})`)
+    return { ip, ...entry }
+  }
+
+  unbanIp(ip: string): boolean {
+    return this.bans.delete(ip)
+  }
+
+  listBans(): Array<{ ip: string; reason: string; at: string }> {
+    return [...this.bans.entries()].map(([ip, e]) => ({ ip, ...e }))
   }
 
   private async loadProxyList(): Promise<void> {

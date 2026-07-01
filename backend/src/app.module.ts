@@ -8,6 +8,7 @@ import { KeysModule } from './keys/keys.module'
 import { SecurityModule } from './security/security.module'
 import { ReviewModule } from './review/review.module'
 import { AdminModule } from './admin/admin.module'
+import { StreamModule } from './stream/stream.module'
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AdminModule } from './admin/admin.module'
     SecurityModule,
     ReviewModule,
     AdminModule,
+    StreamModule,
   ],
   controllers: [AppController],
   providers: [

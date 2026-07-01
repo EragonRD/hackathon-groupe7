@@ -22,6 +22,7 @@ import { CompaniesService } from '../companies/companies.service'
 import { ContentsService } from '../contents/contents.service'
 import type { Content } from '../contents/contents.service'
 import { EmailService } from '../email/email.service'
+import { KeysService } from '../keys/keys.service'
 import type { JwtUser, RequestWithUser } from '../common/request-context'
 
 const INVITE_TTL_MS = 24 * 60 * 60 * 1000 // 24 h
@@ -39,7 +40,20 @@ export class AdminController {
     private readonly companies: CompaniesService,
     private readonly contents: ContentsService,
     private readonly email: EmailService,
+    private readonly keys: KeysService,
   ) {}
+
+  // Journal d'accès aux clés (audit) — superadmin = tout ; admin = son entreprise.
+  @UseGuards(AdminGuard)
+  @Get('audit/keys')
+  keyAudit(@Req() req: RequestWithUser) {
+    const me = req.user!
+    if (me.role === 'superadmin') return this.keys.listRecentAccess()
+    const ids = new Set(
+      this.contents.listByCompany(me.companyId ?? null).map((c) => c.id),
+    )
+    return this.keys.listRecentAccess(ids)
+  }
 
   // ───────────────────────── SUPER-ADMIN ─────────────────────────
 
