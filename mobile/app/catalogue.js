@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, Image, SafeAreaView } from 'react-native';
 import { useRouter } from 'expo-router';
-import { PlayCircle, Shield, SignOut, Gear, ShieldCheck, Question } from 'phosphor-react-native';
+import { PlayCircle, Shield, SignOut } from 'phosphor-react-native';
+import NavBar from '../src/components/NavBar';
 import { SAMPLE, CATALOGUE_META } from '../src/data/videos';
 import { formatTime } from '../src/lib/format';
 import { useAuth } from '../src/lib/auth-context';
@@ -10,7 +11,6 @@ import { theme, globalStyles } from '../src/theme';
 export default function CatalogueScreen() {
   const router = useRouter();
   const { user, loading, signOut } = useAuth();
-  const admin = ['admin', 'superadmin'].includes(user?.role);
 
   useEffect(() => {
     if (!loading && !user) router.replace('/');
@@ -63,24 +63,9 @@ export default function CatalogueScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.topbar}>
         <Text style={styles.logo}>Poulpium</Text>
-        <View style={styles.topbarActions}>
-          {admin && (
-            <>
-              <Pressable onPress={() => router.push('/admin')} style={styles.iconBtn} hitSlop={6}>
-                <Gear size={20} color={theme.textDim} />
-              </Pressable>
-              <Pressable onPress={() => router.push('/dashboard')} style={styles.iconBtn} hitSlop={6}>
-                <ShieldCheck size={20} color={theme.textDim} />
-              </Pressable>
-            </>
-          )}
-          <Pressable onPress={() => router.push('/docs')} style={styles.iconBtn} hitSlop={6}>
-            <Question size={20} color={theme.textDim} />
-          </Pressable>
-          <Pressable onPress={handleLogout} style={styles.iconBtn} hitSlop={6}>
-            <SignOut size={20} color={theme.textDim} />
-          </Pressable>
-        </View>
+        <Pressable onPress={handleLogout} style={styles.iconBtn} hitSlop={6}>
+          <SignOut size={20} color={theme.textDim} />
+        </Pressable>
       </View>
 
       <FlatList
@@ -90,6 +75,7 @@ export default function CatalogueScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={<Text style={styles.sectionTitle}>Catalogue</Text>}
       />
+      <NavBar active="catalogue" />
     </SafeAreaView>
   );
 }

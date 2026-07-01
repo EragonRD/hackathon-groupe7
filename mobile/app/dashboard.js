@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator } f
 import { authFetch } from '../src/auth';
 import { theme, globalStyles } from '../src/theme';
 import ScreenHeader from '../src/components/ScreenHeader';
+import NavBar from '../src/components/NavBar';
 
 // Surveillance sécurité (lecture seule). Affiche les métriques renvoyées par
 // /security/dashboard sous forme de cartes clé/valeur.
@@ -44,6 +45,7 @@ export default function DashboardScreen() {
           ))}
         </ScrollView>
       )}
+      <NavBar active="dashboard" />
     </SafeAreaView>
   );
 }

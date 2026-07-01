@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { theme, globalStyles } from '../src/theme';
 import ScreenHeader from '../src/components/ScreenHeader';
+import NavBar from '../src/components/NavBar';
 
 const SECTIONS = [
   { t: 'Se connecter', d: 'Comptes de démo : alice (admin), bob, carol. Mot de passe : password.' },
@@ -23,6 +24,7 @@ export default function DocsScreen() {
           </View>
         ))}
       </ScrollView>
+      <NavBar active="docs" />
     </SafeAreaView>
   );
 }

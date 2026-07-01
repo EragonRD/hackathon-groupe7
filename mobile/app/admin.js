@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, SectionList, ActivityIndicator } 
 import { authFetch } from '../src/auth';
 import { theme, globalStyles } from '../src/theme';
 import ScreenHeader from '../src/components/ScreenHeader';
+import NavBar from '../src/components/NavBar';
 
 // Administration multi-tenant (lecture seule mobile). Le CRUD complet reste sur
 // le web ; ici on affiche utilisateurs et contenus autorisés par le Core.
@@ -51,6 +52,7 @@ export default function AdminScreen() {
           ListEmptyComponent={<Text style={styles.error}>Aucune donnée.</Text>}
         />
       )}
+      <NavBar active="admin" />
     </SafeAreaView>
   );
 }
