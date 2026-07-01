@@ -146,12 +146,14 @@ export class GuestUploadController {
       title?: string
     },
   ) {
+    // Null-check EN PREMIER : sans ça, `rm(file.path)` dans la branche d'erreur
+    // ci-dessous déréférencerait `file` undefined (TypeError -> 500).
+    if (!file) throw new BadRequestException('Aucun chunk reçu')
     const me = req.user!
     if (me.role !== 'guest' || !me.companyId) {
       void rm(file.path, { force: true }).catch(() => {})
       throw new ForbiddenException('Réservé aux invités')
     }
-    if (!file) throw new BadRequestException('Aucun chunk reçu')
 
     const chunkIndex = parseInt(body.chunkIndex, 10)
     const totalChunks = parseInt(body.totalChunks, 10)
@@ -169,6 +171,7 @@ export class GuestUploadController {
         totalChunks,
         uploadId,
         file.originalname,
+        me.username ?? me.companyId,
       )
 
       if (merge.completed && merge.path) {

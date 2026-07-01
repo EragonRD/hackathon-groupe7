@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { spawn } from 'child_process'
 import { randomBytes } from 'crypto'
 import { existsSync, createReadStream, createWriteStream } from 'fs'
-import { mkdir, rm, writeFile, readdir, rename } from 'fs/promises'
+import { mkdir, rm, writeFile, readdir, rename, stat } from 'fs/promises'
 import { extname, join } from 'path'
 import { tmpdir } from 'os'
 import { backendPath } from '../common/runtime-paths'
@@ -29,6 +29,19 @@ function parseMaxEncodes(raw: string | undefined): number {
 }
 const MAX_CONCURRENT_ENCODES = parseMaxEncodes(process.env.MAX_CONCURRENT_ENCODES)
 const UPLOAD_TMP = join(tmpdir(), 'poulpium-uploads')
+const CHUNKS_ROOT = join(UPLOAD_TMP, 'chunks')
+
+// Plafond de taille TOTALE d'un upload chunké. La limite `fileSize` de multer ne
+// borne QUE chaque chunk : sans ce plafond cumulatif, un client enverrait un nombre
+// illimité de chunks -> fichier fusionné de taille arbitraire (DoS/disque). Aligné
+// sur l'ancien /upload (1 Go).
+const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024
+// Garde-fou anti-abus sur le nombre de morceaux (évite un totalChunks aberrant).
+const MAX_CHUNKS = 4096
+// Durée de vie d'un dossier de chunks inactif : au-delà, un upload jamais terminé
+// (client parti) est considéré orphelin et purgé (voir sweepStaleChunks).
+const CHUNK_TTL_MS = 6 * 60 * 60 * 1000 // 6 h
+const CHUNK_SWEEP_MS = 60 * 60 * 1000 // balayage horaire
 
 @Injectable()
 export class UploadService implements OnModuleInit {
@@ -57,6 +70,11 @@ export class UploadService implements OnModuleInit {
         `Réconciliation démarrage : ${c.id} 'processing' -> '${done ? 'ready' : 'failed'}'`,
       )
     }
+
+    // Ménage des uploads chunkés abandonnés : au démarrage puis périodiquement.
+    // `unref()` : le timer ne maintient pas le process en vie (tests, arrêt propre).
+    void this.sweepStaleChunks()
+    setInterval(() => void this.sweepStaleChunks(), CHUNK_SWEEP_MS).unref()
   }
 
   // Acquiert un jeton (attend si tous les slots ffmpeg sont pris).
@@ -151,64 +169,122 @@ export class UploadService implements OnModuleInit {
   }
 
   // Stocke temporairement un morceau (chunk) de vidéo, puis le fusionne si tous sont là.
+  // `ownerKey` (identité de l'appelant) ISOLE les chunks par utilisateur : deux
+  // uploads ne peuvent pas se contaminer, même en cas de collision d'uploadId, et un
+  // tiers ne peut pas injecter de morceaux dans l'upload d'autrui.
   async handleChunk(
     tempFilePath: string,
     chunkIndex: number,
     totalChunks: number,
     uploadId: string,
     originalname: string,
+    ownerKey: string,
   ): Promise<{ completed: boolean; path?: string }> {
+    // Garde-fous d'entrée AVANT toute écriture disque : sur throw, le contrôleur
+    // supprime le fichier temporaire multer (encore intact ici, non renommé).
     if (!uploadId || !/^[a-zA-Z0-9_-]+$/.test(uploadId)) {
       throw new Error('uploadId invalide')
     }
+    if (!Number.isInteger(totalChunks) || totalChunks < 1 || totalChunks > MAX_CHUNKS) {
+      throw new Error('totalChunks invalide')
+    }
+    if (!Number.isInteger(chunkIndex) || chunkIndex < 0 || chunkIndex >= totalChunks) {
+      throw new Error('chunkIndex invalide')
+    }
 
-    const chunkDir = join(UPLOAD_TMP, 'chunks', uploadId)
+    const owner = ownerKey.replace(/[^a-zA-Z0-9_-]/g, '_') || 'anon'
+    const chunkDir = join(CHUNKS_ROOT, owner, uploadId)
     await mkdir(chunkDir, { recursive: true })
 
     const chunkPath = join(chunkDir, `${chunkIndex}.part`)
     await rename(tempFilePath, chunkPath)
 
-    const files = await readdir(chunkDir)
-    if (files.length === totalChunks) {
-      if (this.activeMerges.has(uploadId)) {
-        return { completed: false }
+    // Plafond cumulatif : borne le disque à MAX_UPLOAD_BYTES (+ 1 chunk) et rejette
+    // dès qu'un client tente de dépasser la limite de taille TOTALE.
+    const parts = await readdir(chunkDir)
+    let received = 0
+    for (const p of parts) received += (await stat(join(chunkDir, p))).size
+    if (received > MAX_UPLOAD_BYTES) {
+      await rm(chunkDir, { recursive: true, force: true }).catch(() => {})
+      throw new Error('Fichier trop volumineux')
+    }
+
+    if (parts.length !== totalChunks) return { completed: false }
+
+    // Verrou par upload isolé : `owner/uploadId` (pas seulement uploadId).
+    const mergeKey = `${owner}/${uploadId}`
+    if (this.activeMerges.has(mergeKey)) return { completed: false }
+
+    const expectedPaths = Array.from({ length: totalChunks }, (_, i) =>
+      join(chunkDir, `${i}.part`),
+    )
+    if (!expectedPaths.every((p) => existsSync(p))) return { completed: false }
+
+    this.activeMerges.add(mergeKey)
+    const ext = extname(originalname) || '.mp4'
+    const finalPath = join(UPLOAD_TMP, `${owner}-${uploadId}${ext}`)
+    const writeStream = createWriteStream(finalPath)
+    try {
+      for (const partPath of expectedPaths) {
+        await new Promise<void>((resolve, reject) => {
+          const readStream = createReadStream(partPath)
+          readStream.on('error', reject)
+          readStream.on('end', resolve)
+          readStream.pipe(writeStream, { end: false })
+        })
       }
-      const expectedPaths = Array.from({ length: totalChunks }, (_, i) =>
-        join(chunkDir, `${i}.part`),
-      )
-      const allExist = expectedPaths.every((p) => existsSync(p))
-      if (allExist) {
-        this.activeMerges.add(uploadId)
+      await new Promise<void>((resolve, reject) => {
+        writeStream.on('finish', resolve)
+        writeStream.on('error', reject)
+        writeStream.end()
+      })
+      await rm(chunkDir, { recursive: true, force: true }).catch(() => {})
+      return { completed: true, path: finalPath }
+    } catch (err) {
+      // Fusion échouée : on ferme le flux et on nettoie le fichier partiel + les
+      // chunks, pour ne rien laisser fuiter sur le disque.
+      writeStream.destroy()
+      await rm(finalPath, { force: true }).catch(() => {})
+      await rm(chunkDir, { recursive: true, force: true }).catch(() => {})
+      throw err
+    } finally {
+      this.activeMerges.delete(mergeKey)
+    }
+  }
+
+  // Purge des dossiers de chunks orphelins (upload jamais terminé : client parti).
+  // On se base sur la date de modification du dossier ; au-delà de CHUNK_TTL_MS,
+  // on supprime. Best-effort, jamais bloquant.
+  async sweepStaleChunks(): Promise<void> {
+    if (!existsSync(CHUNKS_ROOT)) return
+    const now = Date.now()
+    let owners: string[] = []
+    try {
+      owners = await readdir(CHUNKS_ROOT)
+    } catch {
+      return
+    }
+    for (const owner of owners) {
+      const ownerDir = join(CHUNKS_ROOT, owner)
+      let uploads: string[] = []
+      try {
+        uploads = await readdir(ownerDir)
+      } catch {
+        continue
+      }
+      for (const uploadId of uploads) {
+        const dir = join(ownerDir, uploadId)
         try {
-          const ext = extname(originalname) || '.mp4'
-          const finalPath = join(UPLOAD_TMP, `${uploadId}${ext}`)
-          const writeStream = createWriteStream(finalPath)
-
-          for (const partPath of expectedPaths) {
-            await new Promise<void>((resolve, reject) => {
-              const readStream = createReadStream(partPath)
-              readStream.pipe(writeStream, { end: false })
-              readStream.on('end', resolve)
-              readStream.on('error', reject)
-            })
+          const info = await stat(dir)
+          if (now - info.mtimeMs > CHUNK_TTL_MS) {
+            await rm(dir, { recursive: true, force: true }).catch(() => {})
+            this.logger.warn(`Chunks orphelins purgés : ${owner}/${uploadId}`)
           }
-          writeStream.end()
-
-          await new Promise<void>((resolve, reject) => {
-            writeStream.on('finish', resolve)
-            writeStream.on('error', reject)
-          })
-
-          await rm(chunkDir, { recursive: true, force: true }).catch(() => {})
-
-          return { completed: true, path: finalPath }
-        } finally {
-          this.activeMerges.delete(uploadId)
+        } catch {
+          /* dossier disparu entre-temps : rien à faire */
         }
       }
     }
-
-    return { completed: false }
   }
 
   private runFfmpeg(args: string[]): Promise<void> {

@@ -152,6 +152,23 @@ export class UploadController {
     if (!file) throw new BadRequestException('Aucun chunk reçu')
     const me = req.user!
 
+    // Entreprise cible résolue et VALIDÉE en amont (dès le 1er chunk) : inutile de
+    // laisser un upload complet se dérouler pour rejeter ensuite un companyId absent.
+    let companyId: string
+    if (me.role === 'superadmin') {
+      if (!body?.companyId || !this.companies.find(body.companyId)) {
+        void rm(file.path, { force: true }).catch(() => {})
+        throw new BadRequestException('companyId valide requis (superadmin)')
+      }
+      companyId = body.companyId
+    } else {
+      if (!me.companyId) {
+        void rm(file.path, { force: true }).catch(() => {})
+        throw new ForbiddenException('Aucune entreprise associée')
+      }
+      companyId = me.companyId
+    }
+
     const chunkIndex = parseInt(body.chunkIndex, 10)
     const totalChunks = parseInt(body.totalChunks, 10)
     const uploadId = body.uploadId
@@ -168,21 +185,10 @@ export class UploadController {
         totalChunks,
         uploadId,
         file.originalname,
+        me.username,
       )
 
       if (merge.completed && merge.path) {
-        // Traitement final similaire à uploadVideo
-        let companyId: string
-        if (me.role === 'superadmin') {
-          if (!body?.companyId || !this.companies.find(body.companyId)) {
-            throw new BadRequestException('companyId valide requis (superadmin)')
-          }
-          companyId = body.companyId
-        } else {
-          if (!me.companyId) throw new ForbiddenException('Aucune entreprise associée')
-          companyId = me.companyId
-        }
-
         const title = body?.title?.trim() || file.originalname
         const content = this.contents.createUploaded({
           title,
