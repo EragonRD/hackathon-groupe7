@@ -34,6 +34,12 @@ export default function Login({ onAuthed }) {
   // 'idle' | 'busy' | 'done' — pilote le retour visuel du bouton
   const [status, setStatus] = useState('idle')
   const [showPassword, setShowPassword] = useState(false)
+  const [poppedBubbles, setPoppedBubbles] = useState([])
+
+  function popBubble(idx) {
+    if (poppedBubbles.includes(idx)) return
+    setPoppedBubbles((prev) => [...prev, idx])
+  }
 
   const asideRef = useRef(null)
 
@@ -71,13 +77,21 @@ export default function Login({ onAuthed }) {
     <div className="login-screen">
       <aside className="login-aside" ref={asideRef} onPointerMove={handleAsideMove}>
         <span className="login-spotlight" aria-hidden="true" />
-        <div className="login-bubbles" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
+        <div className="login-bubbles" aria-hidden="true" style={{ pointerEvents: 'none' }}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <span
+              key={i}
+              className={poppedBubbles.includes(i) ? 'popped' : ''}
+              onClick={(e) => {
+                e.stopPropagation()
+                popBubble(i)
+              }}
+              style={{
+                pointerEvents: poppedBubbles.includes(i) ? 'none' : 'auto',
+                cursor: 'pointer'
+              }}
+            />
+          ))}
         </div>
 
         <div className="login-hero">
