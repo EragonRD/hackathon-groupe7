@@ -34,6 +34,21 @@ export async function getMetadata(contentId) {
   return { status: 'error', error: `Réponse inattendue (${res.status})` }
 }
 
+// Traduction À LA DEMANDE d'une langue (test temps réel). Réutilise le pipeline
+// Engine (segments déjà analysés). Renvoie { lang, text, segments:[{start,end,text}] }.
+export async function translateContent(contentId, lang) {
+  const res = await authFetch(`/contents/${encodeURIComponent(contentId)}/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lang }),
+  })
+  if (res.ok) return res.json()
+  if (res.status === 401) throw new Error('Session expirée. Reconnectez-vous.')
+  if (res.status === 409) throw new Error("L'analyse de ce contenu n'est pas terminée.")
+  const body = await res.json().catch(() => ({}))
+  throw new Error(body?.message ?? `Traduction indisponible (${res.status}).`)
+}
+
 // Génère un lien d'invité temporaire pour un contenu. ttl ∈ '15m' | '1h' | '24h'.
 // Renvoie { token, shareUrl, expiresAt }.
 export async function inviteGuest(contentId, ttl) {

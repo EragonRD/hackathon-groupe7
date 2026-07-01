@@ -5,11 +5,18 @@ Embeddings MiniLM multilingue + recherche cosine sur les segments.
 
 import numpy as np
 
+from .. import config
 from ..models import get_embedder
 
 
 def build_index(segments: list[dict]) -> np.ndarray:
-    """Retourne une matrice (n_segments, dim) d'embeddings normalisés."""
+    """Retourne une matrice (n_segments, dim) d'embeddings normalisés.
+
+    Mode API strict (`ENGINE_ALLOW_LOCAL_FALLBACK=false`) : aucun modèle local
+    n'est chargé/téléchargé -> index vide (recherche sémantique désactivée).
+    """
+    if not config.ALLOW_LOCAL_FALLBACK:
+        return np.zeros((0, 0), dtype="float32")
     texts = [s["text"] for s in segments] or [""]
     emb = get_embedder().encode(texts, normalize_embeddings=True)
     return np.asarray(emb, dtype="float32")

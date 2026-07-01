@@ -3,22 +3,28 @@ fastapi
 uvicorn[standard]
 python-multipart
 pydantic
+httpx  # clients IA distants (Groq / OpenRouter / Gemini / Mistral) — requis en mode API
+# nvidia-riva-client  # OPTIONNEL : transcription via NVIDIA Whisper (ENGINE_ASR_PROVIDER=nvidia)
 
-# === NLP 3A — transcription ===
-faster-whisper
-ffmpeg-python
-
-# === NLP 3A — LLM résumé/chapitres (llama.cpp) ===
-llama-cpp-python
-
-# === NLP 3A — embeddings / recherche / mots-clés ===
+# === NLP 3A — embeddings / recherche / mots-clés (TOUJOURS local) ===
 sentence-transformers
 keybert
 
-# === NLP 3A — traduction multilingue / sous-titres (NLLB-200) ===
+# ============================================================================
+# Modèles LOCAUX — requis UNIQUEMENT pour le repli offline
+# (ENGINE_ALLOW_LOCAL_FALLBACK=true ou ENGINE_*_PROVIDER=local).
+# En mode 100 % API (Groq/OpenRouter), ce bloc peut être retiré pour alléger.
+# ============================================================================
+# transcription locale
+faster-whisper
+# LLM résumé/chapitres local (llama.cpp)
+llama-cpp-python
+# traduction locale (NLLB-200)
 transformers
 sentencepiece
 sacremoses
+# extraction audio (utilisé par les deux modes)
+ffmpeg-python
 
 # === Data 3B — analyse & modèle ===
 pandas

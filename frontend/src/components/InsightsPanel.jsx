@@ -9,7 +9,21 @@ import {
   Sparkle,
 } from '@phosphor-icons/react'
 import { useMetadata } from '../lib/useMetadata'
+import { translateContent } from '../contents'
 import { formatTime } from '../lib/format'
+
+// Langues proposées pour la traduction à la demande (test temps réel).
+const TARGET_LANGS = [
+  ['en', 'Anglais'],
+  ['es', 'Espagnol'],
+  ['ar', 'Arabe'],
+  ['de', 'Allemand'],
+  ['it', 'Italien'],
+  ['pt', 'Portugais'],
+  ['zh', 'Chinois'],
+  ['ja', 'Japonais'],
+  ['ru', 'Russe'],
+]
 
 // Insights IA (Pôle 3) affichés SOUS le player (Bloc B, P1<->P3).
 // Résumé + chapitres + transcription cliquables (saut au timecode), mots-clés,
@@ -27,6 +41,25 @@ export default function InsightsPanel({
   const meta = metaProp ?? ownMeta
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  // Traduction à la demande (test temps réel).
+  const [transLang, setTransLang] = useState('en')
+  const [transBusy, setTransBusy] = useState(false)
+  const [transErr, setTransErr] = useState(null)
+  const [liveTrack, setLiveTrack] = useState(null)
+
+  const runTranslate = async () => {
+    if (!contentId || transBusy) return
+    setTransBusy(true)
+    setTransErr(null)
+    setLiveTrack(null)
+    try {
+      setLiveTrack(await translateContent(contentId, transLang))
+    } catch (e) {
+      setTransErr(e.message)
+    } finally {
+      setTransBusy(false)
+    }
+  }
 
   const data = meta.status === 'done' ? meta.data : null
   const segments = useMemo(() => data?.segments ?? [], [data])
@@ -197,12 +230,57 @@ export default function InsightsPanel({
                 </div>
               )}
 
-              {/* Traduction(s) */}
-              {translations.length > 0 && (
+              {/* Traduction : à la demande (temps réel) + pistes pré-calculées */}
+              {segments.length > 0 && (
                 <div className="insights-block">
                   <h4 className="insights-h">
                     <Translate size={13} weight="bold" /> Traduction
                   </h4>
+
+                  <div className="insights-translate-bar">
+                    <select
+                      className="insights-select"
+                      value={transLang}
+                      onChange={(e) => setTransLang(e.target.value)}
+                      disabled={transBusy}
+                    >
+                      {TARGET_LANGS.map(([code, name]) => (
+                        <option key={code} value={code}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="insights-translate-btn"
+                      onClick={runTranslate}
+                      disabled={transBusy}
+                    >
+                      {transBusy ? 'Traduction…' : 'Traduire'}
+                    </button>
+                  </div>
+
+                  {transErr && <p className="insights-error">{transErr}</p>}
+
+                  {liveTrack && (
+                    <ul className="insights-transcript">
+                      {liveTrack.segments.map((s, i) => (
+                        <li key={i}>
+                          <button
+                            type="button"
+                            className="insights-seg"
+                            onClick={() => onSeek?.(s.start)}
+                          >
+                            <span className="insights-tc">
+                              {formatTime(s.start ?? 0)}
+                            </span>
+                            <span className="insights-seg-text">{s.text}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
                   {translations.map((t, i) => (
                     <details key={i} className="insights-translation">
                       <summary>{(t.lang ?? '??').toUpperCase()}</summary>

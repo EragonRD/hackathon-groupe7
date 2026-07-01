@@ -5,7 +5,7 @@
   1er chapitre forcé à 0 (contrat P3-A) ;
 - mots-clés : **MMR** (diversité) + dédup des sous-chaînes.
 
-NB : la traduction multilingue est assurée par `nlp/translate.py` (NLLB-200), pas ici.
+NB : la traduction multilingue est assurée par `nlp/translate.py`, pas ici.
 """
 
 import json
@@ -13,7 +13,9 @@ import logging
 import math
 import re
 
-from ..models import get_embedder, get_llm
+from .. import config
+from ..models import get_embedder
+from . import remote
 
 log = logging.getLogger("engine.summarize")
 
@@ -27,22 +29,40 @@ def _lang_name(code: str) -> str:
     return LANG_NAMES.get((code or "")[:2], "la langue d'origine")
 
 
+def _chat_local(prompt: str, max_tokens: int, temperature: float) -> str:
+    from ..models import get_llm
+
+    llm = get_llm()
+    out = llm.create_chat_completion(
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+    return out["choices"][0]["message"]["content"].strip()
+
+
 def _chat(prompt: str, max_tokens: int = 256, temperature: float = 0.2) -> str:
-    # Dégradation gracieuse : si le LLM est indisponible (GGUF absent, wheel
-    # llama.cpp incompatible avec le CPU — ex. AVX512 sur Zen 3, RAM insuffisante),
-    # on renvoie "" au lieu de faire échouer toute l'analyse. Le résumé devient vide
-    # et make_chapters bascule sur son repli sans LLM. Transcription, mots-clés et
-    # traduction restent produits.
+    # Provider distant (Groq / OpenRouter) en priorité, repli local (llama.cpp).
+    # Dégradation gracieuse : si tout échoue, on renvoie "" au lieu de casser le job
+    # (résumé vide, make_chapters bascule sur son repli sans LLM ; transcription,
+    # mots-clés et traduction restent produits).
+    if remote.chat_available(config.LLM_PROVIDER):
+        try:
+            return remote.chat(
+                prompt, max_tokens=max_tokens, temperature=temperature,
+                provider=config.LLM_PROVIDER,
+            )
+        except remote.RemoteError as exc:
+            log.warning("LLM distant indisponible : %s", exc)
+            if not config.ALLOW_LOCAL_FALLBACK:
+                return ""
+    # Mode API strict : pas de LLM local.
+    if not config.ALLOW_LOCAL_FALLBACK:
+        return ""
     try:
-        llm = get_llm()
-        out = llm.create_chat_completion(
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-        return out["choices"][0]["message"]["content"].strip()
+        return _chat_local(prompt, max_tokens, temperature)
     except Exception as exc:  # noqa: BLE001 — on dégrade, on ne casse pas le job
-        log.warning("LLM indisponible, étape ignorée : %s", exc)
+        log.warning("LLM local indisponible, étape ignorée : %s", exc)
         return ""
 
 
@@ -59,7 +79,8 @@ def summarize(transcript: str, language: str = "fr") -> str:
 
 
 def extract_keywords(transcript: str, top_n: int = 8) -> list[str]:
-    if not transcript:
+    # Mode API strict : KeyBERT/MiniLM sont locaux -> désactivés (aucun téléchargement).
+    if not transcript or not config.ALLOW_LOCAL_FALLBACK:
         return []
     from keybert import KeyBERT
 

@@ -77,6 +77,13 @@ export class AnalysisService {
     return this.engine.search(rec.jobId, query, k)
   }
 
+  // Traduction à la demande d'une langue (l'analyse doit être terminée).
+  async translate(contentId: string, lang: string): Promise<unknown> {
+    const rec = this.records.get(contentId)
+    if (!rec?.jobId || rec.status !== 'done') return null
+    return this.engine.translate(rec.jobId, lang)
+  }
+
   private poll(contentId: string, jobId: string, startedAt: number): void {
     const tick = (): void => {
       void this.engine

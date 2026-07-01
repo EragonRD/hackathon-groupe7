@@ -80,4 +80,18 @@ export class EngineService {
       throw new Error(`service d'analyse IA en erreur (HTTP ${res.status} sur /search)`)
     return res.json()
   }
+
+  // Traduction À LA DEMANDE d'une langue (réutilise les segments déjà analysés).
+  async translate(jobId: string, lang: string): Promise<unknown> {
+    const res = await this.call('/translate', {
+      method: 'POST',
+      headers: { Authorization: await this.auth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: jobId, lang }),
+    })
+    if (res.status === 422)
+      throw new Error(`traduction indisponible pour la langue « ${lang} »`)
+    if (!res.ok)
+      throw new Error(`service d'analyse IA en erreur (HTTP ${res.status} sur /translate)`)
+    return res.json()
+  }
 }

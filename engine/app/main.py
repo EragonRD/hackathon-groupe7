@@ -22,6 +22,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from . import config, pipeline
 from .auth import require_service
 from .nlp import search as search_mod
+from .nlp import translate as translate_mod
 from .output import save_outputs
 from .schemas import (
     AnalyzePathRequest,
@@ -29,6 +30,8 @@ from .schemas import (
     JobStatus,
     SearchRequest,
     SearchResponse,
+    TranslateRequest,
+    TranslationTrack,
 )
 
 app = FastAPI(title="Engine — Pôle 3 (IA & Data)", version="0.2.0")
@@ -115,3 +118,22 @@ def search(req: SearchRequest, user: dict = Depends(require_service)) -> SearchR
         raise HTTPException(404, "Job inconnu ou non terminé")
     hits = search_mod.search(req.query, job["segments"], job["index"], req.k)
     return SearchResponse(query=req.query, hits=hits)
+
+
+@app.post("/translate", response_model=TranslationTrack)
+def translate(req: TranslateRequest, user: dict = Depends(require_service)) -> TranslationTrack:
+    """Traduction À LA DEMANDE d'une langue via le pipeline (segments déjà en cache).
+
+    Réutilise `translate_all` (même code que l'analyse). Permet au front de
+    déclencher/tester une langue en temps réel sans relancer toute l'analyse.
+    """
+    job = JOBS.get(req.job_id)
+    if not job or job["status"] != "done":
+        raise HTTPException(404, "Job inconnu ou non terminé")
+    result = job["result"]
+    tracks = translate_mod.translate_all(
+        result.get("transcript", ""), job["segments"], result.get("language", ""), [req.lang]
+    )
+    if not tracks:
+        raise HTTPException(422, f"Traduction indisponible pour la langue '{req.lang}'")
+    return TranslationTrack(**tracks[0])
