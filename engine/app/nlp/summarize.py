@@ -9,10 +9,13 @@ NB : la traduction multilingue est assurée par `nlp/translate.py` (NLLB-200), p
 """
 
 import json
+import logging
 import math
 import re
 
 from ..models import get_embedder, get_llm
+
+log = logging.getLogger("engine.summarize")
 
 LANG_NAMES = {
     "fr": "français", "en": "anglais", "es": "espagnol",
@@ -25,13 +28,22 @@ def _lang_name(code: str) -> str:
 
 
 def _chat(prompt: str, max_tokens: int = 256, temperature: float = 0.2) -> str:
-    llm = get_llm()
-    out = llm.create_chat_completion(
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    return out["choices"][0]["message"]["content"].strip()
+    # Dégradation gracieuse : si le LLM est indisponible (GGUF absent, wheel
+    # llama.cpp incompatible avec le CPU — ex. AVX512 sur Zen 3, RAM insuffisante),
+    # on renvoie "" au lieu de faire échouer toute l'analyse. Le résumé devient vide
+    # et make_chapters bascule sur son repli sans LLM. Transcription, mots-clés et
+    # traduction restent produits.
+    try:
+        llm = get_llm()
+        out = llm.create_chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return out["choices"][0]["message"]["content"].strip()
+    except Exception as exc:  # noqa: BLE001 — on dégrade, on ne casse pas le job
+        log.warning("LLM indisponible, étape ignorée : %s", exc)
+        return ""
 
 
 def summarize(transcript: str, language: str = "fr") -> str:
