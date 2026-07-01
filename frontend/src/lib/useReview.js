@@ -69,6 +69,8 @@ export function useReview({ session, user, mode }) {
   const presenterIdRef = useRef(presenterId)
   // Dernier état de lecture connu du présentateur (pour répondre aux retardataires).
   const lastPlaybackRef = useRef(null)
+  // Dernier commentaire sélectionné par le présentateur (miroir chez les invités).
+  const lastSelectRef = useRef(null)
   // Abonnés aux commandes de lecture distantes (VideoReview s'y branche).
   const playbackListenersRef = useRef(new Set())
   useEffect(() => {
@@ -167,6 +169,7 @@ export function useReview({ session, user, mode }) {
               payload: {
                 presenterId: selfRef.current.id,
                 playback: lastPlaybackRef.current,
+                selectedNoteId: lastSelectRef.current,
               },
             })
           }
@@ -229,6 +232,9 @@ export function useReview({ session, user, mode }) {
           if (msg.payload?.playback) {
             emitPlayback({ kind: 'state', ...msg.payload.playback })
           }
+          if (msg.payload?.selectedNoteId != null) {
+            emitPlayback({ kind: 'select', noteId: msg.payload.selectedNoteId })
+          }
           break
         case 'wt:playback':
           // On n'applique QUE les commandes du présentateur courant (anti-usurpation).
@@ -245,6 +251,13 @@ export function useReview({ session, user, mode }) {
           // Vitesse de lecture imposée par le présentateur.
           if (msg.from === presenterIdRef.current) {
             emitPlayback({ kind: 'rate', rate: msg.payload?.rate })
+          }
+          break
+        case 'wt:select':
+          // Le présentateur a sélectionné un commentaire -> les invités s'alignent
+          // (même note active = mêmes dessins affichés).
+          if (msg.from === presenterIdRef.current) {
+            emitPlayback({ kind: 'select', noteId: msg.payload?.noteId ?? null })
           }
           break
         default:
@@ -511,6 +524,20 @@ export function useReview({ session, user, mode }) {
     transportRef.current?.post({ type: 'wt:release', from: self.id })
   }, [self.id])
 
+  // Le présentateur diffuse le commentaire qu'il sélectionne -> les invités
+  // affichent la même note active (mêmes dessins), en plus du saut de lecture.
+  const sendSelect = useCallback(
+    (noteId) => {
+      lastSelectRef.current = noteId ?? null
+      transportRef.current?.post({
+        type: 'wt:select',
+        from: self.id,
+        payload: { noteId: noteId ?? null },
+      })
+    },
+    [self.id],
+  )
+
   // Commande de lecture émise par le présentateur (play/pause/seek).
   const sendPlayback = useCallback(
     ({ action, position }) => {
@@ -579,6 +606,7 @@ export function useReview({ session, user, mode }) {
     isPresenter,
     claimPresenter,
     releasePresenter,
+    sendSelect,
     sendPlayback,
     sendHeartbeat,
     sendRate,
