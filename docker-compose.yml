@@ -53,7 +53,28 @@ services:
       - ./media/hls:/usr/share/nginx/html/hls:ro
       - ./nginx/hls.conf:/etc/nginx/conf.d/default.conf:ro
 
+  # Engine IA (Pôle 3) — FastAPI CPU-only. Le Core l'appelle via http://engine:8000
+  # avec un token de service signé au MÊME JWT_SECRET (HS256).
+  engine:
+    build: ./engine
+    environment:
+      # DOIT matcher le secret du core (le Core signe un token de service).
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET requis}"
+      # Optionnel : évite le rate-limit HuggingFace au 1er téléchargement des modèles.
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      # Cache des modèles HF (Whisper/MiniLM/NLLB) — évite de re-télécharger (~Go)
+      - poulpium_hf_cache:/root/.cache/huggingface
+      # Sorties d'analyse
+      - poulpium_engine_out:/engine/outputs
+    restart: always
+    # Décommenter pour débugger l'Engine directement depuis l'hôte :
+    # ports:
+    #   - "8000:8000"
+
 volumes:
   poulpium_secrets:
     # Stocker les clés AES : docker cp <fichier>.key <container>:/app/secrets/
   poulpium_logs:
+  poulpium_hf_cache:
+  poulpium_engine_out:
