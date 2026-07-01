@@ -309,12 +309,15 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
   }
 
   function selectNote(note) {
-    if (following) return // invité : la sélection est pilotée par le présentateur
     setActiveId(note.id)
     setDraftShapes([])
     setPinnedTime(null)
     setText('')
     setEditingId(null)
+    // Invité en suivi (souvent un client) : sélection LOCALE pour consulter la
+    // remarque et ses dessins, SANS toucher à la lecture (pilotée par le
+    // présentateur) ni rediffuser. Le présentateur peut réaligner via wt:select.
+    if (following) return
     seekTo(note.time)
     pause()
     // Présentateur : les invités affichent la même note active (mêmes dessins).
