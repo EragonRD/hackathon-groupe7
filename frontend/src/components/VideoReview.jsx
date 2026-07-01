@@ -61,8 +61,10 @@ const SWATCHES = [
   { name: 'Blanc', value: '#f4f6fa' },
 ]
 
-// Seuil de recalage (s) : en dessous on ne touche à rien (éviter le saccadé).
-const DRIFT_THRESHOLD = 0.4
+// Seuil de recalage (s) : en dessous on ne touche à rien. Tolérant car sur un
+// flux HLS chiffré un seek coûte cher (fetch + déchiffrement du segment) ; un
+// seuil trop serré provoquerait des re-seeks en boucle (bégaiement).
+const DRIFT_THRESHOLD = 1.5
 const HEARTBEAT_MS = 2000
 
 export default function VideoReview({ source, session, user, onPeersUpdate }) {
@@ -474,8 +476,11 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
         beginApplyingRemote()
         v.play().catch(() => {})
       }
-      // Recalage de position seulement en lecture.
-      if (!d.paused) {
+      // Recalage de position seulement en lecture, ET si la vidéo n'est pas déjà
+      // en train de chercher/bufferiser (readyState >= HAVE_FUTURE_DATA). Sinon,
+      // sur du HLS chiffré, on empilerait les seeks pendant le buffering -> le
+      // player n'arrive jamais à reprendre. On laisse le buffering se terminer.
+      if (!d.paused && !v.seeking && v.readyState >= 3) {
         const expected = d.position + (Date.now() - d.receivedAt) / 1000
         if (Math.abs(v.currentTime - expected) > DRIFT_THRESHOLD) {
           beginApplyingRemote()
