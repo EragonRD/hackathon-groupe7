@@ -1,7 +1,11 @@
 // Petit helper d'authentification (point de départ — adaptez-le à votre app).
 // Il parle au Core NestJS (`backend/`) : login, stockage du token, fetch authentifié.
 
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+// URL du Core. En dev, defaut sur :3000. En build PROD, defaut sur MEME ORIGINE
+// (chaine vide -> requetes relatives -> nginx proxifie vers le Core) : pas besoin
+// de configurer VITE_API_URL en prod derriere le reverse-proxy.
+const API =
+  import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:3000')
 const TOKEN_KEY = 'hackathon_token'
 
 export async function login(username, password) {

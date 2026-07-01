@@ -56,7 +56,12 @@ function broadcastTransport(session) {
 // (jamais à l'émetteur -> pas d'écho serveur). Même contrat que l'adapter
 // BroadcastChannel, donc l'UI est identique.
 function socketTransport(session, { url } = {}) {
-  const API = url ?? import.meta.env?.VITE_API_URL ?? 'http://localhost:3000'
+  // Même logique que auth.js : PROD -> même origine (nginx proxifie /socket.io),
+  // dev -> :3000. `io(undefined)` se connecte à l'origine courante.
+  const API =
+    url ??
+    import.meta.env?.VITE_API_URL ??
+    (import.meta.env?.PROD ? '' : 'http://localhost:3000')
   // Token d'auth (handshake) : identité best-effort côté Core. Clé partagée
   // avec auth.js. Lecture défensive (mode privé / quota).
   let token = null
@@ -72,7 +77,8 @@ function socketTransport(session, { url } = {}) {
   // Import dynamique : aucun coût/connexion tant que ce mode n'est pas choisi.
   import('socket.io-client')
     .then(({ io }) => {
-      socket = io(API, {
+      // '' (prod same-origin) -> undefined -> socket.io se connecte à l'origine.
+      socket = io(API || undefined, {
         transports: ['websocket', 'polling'],
         auth: { token },
         query: { session },
