@@ -9,7 +9,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   CaretLeft, Play, Pause, ChatText, Cursor, PencilSimple, ArrowUpRight, Rectangle,
-  CircleIcon, TextT, Eraser, Broadcast, DownloadSimple, UploadSimple, Trash, PaperPlaneRight,
+  CircleIcon, TextT, Eraser, Broadcast, DownloadSimple, UploadSimple, Trash, PaperPlaneRight, Sparkle,
+  Heart, CheckCircle,
 } from 'phosphor-react-native';
 // NB: phosphor-react-native 3.x n'exporte pas l'alias simple `Circle`
 // (seulement `CircleIcon`), contrairement aux autres icônes.
@@ -17,6 +18,7 @@ import { useReview } from '../../src/lib/useReview';
 import { useAuth } from '../../src/lib/auth-context';
 import SecureVideo from '../../src/components/SecureVideo';
 import DrawingLayer from '../../src/components/DrawingLayer';
+import InsightsPanel from '../../src/components/InsightsPanel';
 import { theme, globalStyles } from '../../src/theme';
 import { formatTime, initials } from '../../src/lib/format';
 
@@ -47,13 +49,18 @@ export default function ReviewScreen() {
   const [color, setColor] = useState(theme.ink.red);
   const [draftShapes, setDraftShapes] = useState([]);
   const [showComments, setShowComments] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
   const [commentText, setCommentText] = useState('');
+  const [commentFilter, setCommentFilter] = useState('all'); // all | unresolved | mine
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyText, setReplyText] = useState('');
   const [pendingText, setPendingText] = useState(null); // { x, y } en attente de saisie
   const [textValue, setTextValue] = useState('');
   const [barW, setBarW] = useState(1);
 
   const {
-    notes, peers, addNote, removeNote, replaceNotes, sendCursor,
+    self, notes, peers, addNote, removeNote, replaceNotes, sendCursor,
+    resolveNote, toggleLike, addReply, deleteReply,
     presenterId, isPresenter, claimPresenter, releasePresenter,
     sendPlayback, sendHeartbeat, subscribePlayback,
   } = useReview({ session, user, mode: 'socket' });
@@ -155,6 +162,23 @@ export default function ReviewScreen() {
   const committedShapes = notes
     .filter((n) => Math.abs(n.time - currentTime) <= SHAPE_WINDOW)
     .flatMap((n) => n.shapes || []);
+
+  // Commentaires : filtres + droits (auteur ou admin) + réponses.
+  const isAdmin = ['admin', 'superadmin'].includes(user?.role);
+  const canModify = (n) => n.author?.id === self.id || isAdmin;
+  const liked = (n) => (n.likes || []).some((l) => l.id === self.id);
+  const visibleNotes = notes.filter((n) => {
+    if (commentFilter === 'unresolved') return !n.resolved;
+    if (commentFilter === 'mine') return n.author?.id === self.id;
+    return true;
+  });
+  const submitReply = (noteId) => {
+    const t = replyText.trim();
+    if (!t) return;
+    addReply(noteId, t);
+    setReplyText('');
+    setReplyingTo(null);
+  };
 
   const exportNotes = async () => {
     try {
@@ -317,7 +341,17 @@ export default function ReviewScreen() {
           <UploadSimple size={16} color={theme.textDim} />
           <Text style={styles.actionText}>Import</Text>
         </Pressable>
-        <Pressable onPress={() => setShowComments((s) => !s)} style={[styles.actionBtn, showComments && styles.toolBtnActive]}>
+        <Pressable
+          onPress={() => { setShowInsights((s) => !s); setShowComments(false); }}
+          style={[styles.actionBtn, showInsights && styles.toolBtnActive]}
+        >
+          <Sparkle size={16} color={showInsights ? theme.accent : theme.textDim} weight={showInsights ? 'fill' : 'regular'} />
+          <Text style={[styles.actionText, showInsights && { color: theme.accent }]}>IA</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => { setShowComments((s) => !s); setShowInsights(false); }}
+          style={[styles.actionBtn, showComments && styles.toolBtnActive]}
+        >
           <ChatText size={16} color={showComments ? theme.accent : theme.textDim} />
           <Text style={[styles.actionText, showComments && { color: theme.accent }]}>{notes.length}</Text>
         </Pressable>
@@ -326,24 +360,99 @@ export default function ReviewScreen() {
       {/* Panneau commentaires */}
       {showComments && (
         <View style={styles.commentsPanel}>
-          <FlatList
-            data={notes}
-            keyExtractor={(item) => item.id}
-            ListEmptyComponent={<Text style={styles.empty}>Aucun commentaire pour l’instant.</Text>}
-            renderItem={({ item }) => (
-              <Pressable onPress={() => seekTo(item.time)} onLongPress={() => removeNote(item.id)} style={styles.commentItem}>
-                <View style={[styles.commentAvatar, { backgroundColor: item.author?.color ?? theme.accent }]}>
-                  <Text style={styles.avatarText}>{initials(item.author?.name)}</Text>
-                </View>
-                <View style={styles.commentBody}>
-                  <View style={styles.commentHeader}>
-                    <Text style={styles.commentAuthor}>{item.author?.name ?? 'inconnu'}</Text>
-                    <Text style={[globalStyles.textMono, styles.commentTime]}>{formatTime(item.time)}</Text>
-                  </View>
-                  {item.text ? <Text style={styles.commentText}>{item.text}</Text> : null}
-                  {item.shapes?.length ? <Text style={styles.commentMeta}>{item.shapes.length} annotation(s)</Text> : null}
-                </View>
+          <View style={styles.filterRow}>
+            {[
+              { id: 'all', label: 'Tous' },
+              { id: 'unresolved', label: 'Non résolus' },
+              { id: 'mine', label: 'Les miens' },
+            ].map((f) => (
+              <Pressable
+                key={f.id}
+                onPress={() => setCommentFilter(f.id)}
+                style={[styles.filterTab, commentFilter === f.id && styles.filterTabActive]}
+              >
+                <Text style={[styles.filterText, commentFilter === f.id && { color: theme.accent }]}>{f.label}</Text>
               </Pressable>
+            ))}
+          </View>
+          <FlatList
+            data={visibleNotes}
+            keyExtractor={(item) => item.id}
+            ListEmptyComponent={<Text style={styles.empty}>Aucun commentaire.</Text>}
+            renderItem={({ item }) => (
+              <View style={[styles.commentItem, item.resolved && styles.commentItemResolved]}>
+                <Pressable
+                  onPress={() => seekTo(item.time)}
+                  style={[styles.commentAvatar, { backgroundColor: item.author?.color ?? theme.accent }]}
+                >
+                  <Text style={styles.avatarText}>{initials(item.author?.name)}</Text>
+                </Pressable>
+                <View style={styles.commentBody}>
+                  <Pressable onPress={() => seekTo(item.time)}>
+                    <View style={styles.commentHeader}>
+                      <Text style={styles.commentAuthor}>{item.author?.name ?? 'inconnu'}</Text>
+                      {item.resolved ? <Text style={styles.resolvedTag}>résolu</Text> : null}
+                      <Text style={[globalStyles.textMono, styles.commentTime]}>{formatTime(item.time)}</Text>
+                    </View>
+                    {item.text ? <Text style={styles.commentText}>{item.text}</Text> : null}
+                    {item.shapes?.length ? <Text style={styles.commentMeta}>{item.shapes.length} annotation(s)</Text> : null}
+                  </Pressable>
+
+                  {(item.replies || []).map((r) => (
+                    <View key={r.id} style={styles.replyItem}>
+                      <Text style={styles.replyAuthor}>{r.author?.name ?? '?'}</Text>
+                      <Text style={styles.replyText}>{r.text}</Text>
+                      {r.author?.id === self.id || isAdmin ? (
+                        <Pressable onPress={() => deleteReply(item.id, r.id)} hitSlop={6}>
+                          <Trash size={12} color={theme.textFaint} />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ))}
+
+                  <View style={styles.commentActions}>
+                    <Pressable onPress={() => toggleLike(item.id)} style={styles.cAction}>
+                      <Heart size={14} color={liked(item) ? theme.ink.red : theme.textFaint} weight={liked(item) ? 'fill' : 'regular'} />
+                      {item.likes?.length ? <Text style={styles.cActionText}>{item.likes.length}</Text> : null}
+                    </Pressable>
+                    <Pressable
+                      onPress={() => { setReplyingTo(replyingTo === item.id ? null : item.id); setReplyText(''); }}
+                      style={styles.cAction}
+                    >
+                      <ChatText size={14} color={theme.textFaint} />
+                      <Text style={styles.cActionText}>Répondre</Text>
+                    </Pressable>
+                    {canModify(item) ? (
+                      <Pressable onPress={() => resolveNote(item.id, !item.resolved)} style={styles.cAction}>
+                        <CheckCircle size={14} color={item.resolved ? theme.ok : theme.textFaint} weight={item.resolved ? 'fill' : 'regular'} />
+                        <Text style={styles.cActionText}>{item.resolved ? 'Rouvrir' : 'Résoudre'}</Text>
+                      </Pressable>
+                    ) : null}
+                    {canModify(item) ? (
+                      <Pressable onPress={() => removeNote(item.id)} style={styles.cAction} hitSlop={6}>
+                        <Trash size={14} color={theme.textFaint} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+
+                  {replyingTo === item.id ? (
+                    <View style={styles.replyComposer}>
+                      <TextInput
+                        style={styles.replyInput}
+                        placeholder="Répondre…"
+                        placeholderTextColor={theme.textFaint}
+                        value={replyText}
+                        onChangeText={setReplyText}
+                        onSubmitEditing={() => submitReply(item.id)}
+                        autoFocus
+                      />
+                      <Pressable onPress={() => submitReply(item.id)} style={styles.replySend}>
+                        <PaperPlaneRight size={14} color={theme.accentInk} weight="fill" />
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
             )}
           />
           <View style={styles.composer}>
@@ -360,6 +469,11 @@ export default function ReviewScreen() {
             </Pressable>
           </View>
         </View>
+      )}
+
+      {/* Panneau Insights IA (Bloc B, P1<->P3) */}
+      {showInsights && (
+        <InsightsPanel contentId={id || 'poc'} onSeek={seekTo} currentTime={currentTime} />
       )}
 
       {/* Saisie de texte (outil "texte") */}
@@ -446,6 +560,21 @@ const styles = StyleSheet.create({
   composer: { flexDirection: 'row', padding: theme.space[3], backgroundColor: theme.bg2, alignItems: 'center' },
   commentInput: { flex: 1, backgroundColor: theme.bg1, color: theme.text, borderRadius: theme.radius.sm, paddingHorizontal: theme.space[3], paddingVertical: theme.space[2], marginRight: theme.space[2] },
   sendBtn: { backgroundColor: theme.accent, width: 40, height: 40, borderRadius: theme.radius.sm, alignItems: 'center', justifyContent: 'center' },
+  filterRow: { flexDirection: 'row', paddingHorizontal: theme.space[3], paddingTop: theme.space[2], gap: theme.space[2] },
+  filterTab: { paddingHorizontal: theme.space[3], paddingVertical: 5, borderRadius: theme.radius.pill, backgroundColor: theme.bg2 },
+  filterTabActive: { backgroundColor: theme.accentSoft },
+  filterText: { color: theme.textDim, fontSize: 12, fontWeight: '600' },
+  commentItemResolved: { opacity: 0.55 },
+  resolvedTag: { color: theme.ok, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', marginLeft: 6, borderWidth: 1, borderColor: theme.ok, borderRadius: theme.radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
+  replyItem: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingLeft: theme.space[3], borderLeftWidth: 2, borderLeftColor: theme.line, gap: 6 },
+  replyAuthor: { color: theme.textDim, fontSize: 12, fontWeight: '700' },
+  replyText: { color: theme.text, fontSize: 13, flex: 1 },
+  commentActions: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: theme.space[4] },
+  cAction: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  cActionText: { color: theme.textFaint, fontSize: 12 },
+  replyComposer: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: theme.space[2] },
+  replyInput: { flex: 1, backgroundColor: theme.bg2, color: theme.text, borderRadius: theme.radius.sm, paddingHorizontal: theme.space[3], paddingVertical: 6, fontSize: 13 },
+  replySend: { backgroundColor: theme.accent, width: 32, height: 32, borderRadius: theme.radius.sm, alignItems: 'center', justifyContent: 'center' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: theme.space[5] },
   modalCard: { width: '100%', backgroundColor: theme.bg2, borderRadius: theme.radius.md, padding: theme.space[4], borderWidth: 1, borderColor: theme.line },
   modalTitle: { color: theme.text, fontWeight: 'bold', fontSize: 15, marginBottom: theme.space[3] },
