@@ -99,6 +99,7 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
   const [duration, setDuration] = useState(0)
   const [ready, setReady] = useState(false)
   const [videoError, setVideoError] = useState(false)
+  const [playbackRate, setPlaybackRate] = useState(1)
 
   const [tool, setTool] = useState('cursor')
   const [color, setColor] = useState('#f5a623')
@@ -629,6 +630,13 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
     return () => hls.destroy()
   }, [source])
 
+  // --- Vitesse de lecture -------------------------------------------------
+  function setRate(rate) {
+    if (!videoRef.current) return
+    videoRef.current.playbackRate = rate
+    setPlaybackRate(rate)
+  }
+
   // Nom du présentateur courant (pour le badge).
   const presenterName = isPresenter
     ? self.name
@@ -860,6 +868,20 @@ export default function VideoReview({ source, session, user, onPeersUpdate }) {
                 <Broadcast size={13} /> Présenter
               </button>
             )}
+
+            <div style={{ display: 'flex', gap: '4px', marginLeft: '12px' }}>
+              {[0.5, 1, 1.5, 2].map((rate) => (
+                <button
+                  key={rate}
+                  className={`badge ${playbackRate === rate ? 'badge-accent' : 'wt-badge'}`}
+                  onClick={() => setRate(rate)}
+                  title={`Vitesse ${rate}x`}
+                  style={{ cursor: 'pointer', padding: '0 6px' }}
+                >
+                  {rate}x
+                </button>
+              ))}
+            </div>
 
             <div className="controls-spacer" />
 
