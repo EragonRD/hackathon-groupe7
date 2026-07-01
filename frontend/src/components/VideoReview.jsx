@@ -17,6 +17,10 @@ import {
   ArrowsOutSimple,
   ArrowsInSimple,
   ClosedCaptioning,
+  Gauge,
+  SpeakerHigh,
+  SpeakerLow,
+  SpeakerSlash,
 } from '@phosphor-icons/react'
 import Hls from 'hls.js'
 import { getToken } from '../auth'
@@ -168,6 +172,20 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
     )
     return seg?.text ?? ''
   }, [captionsOn, captionSegments, currentTime])
+
+  // --- Contrôles compacts : vitesse (menu déroulant) + volume (barre + %) -----
+  const [speedOpen, setSpeedOpen] = useState(false)
+  const [volume, setVolume] = useState(1)
+  const [muted, setMuted] = useState(false)
+  const [volOpen, setVolOpen] = useState(false)
+  // Applique volume/mute à l'élément <video> (persiste au changement de source HLS).
+  useEffect(() => {
+    const v = videoRef.current
+    if (v) {
+      v.volume = volume
+      v.muted = muted
+    }
+  }, [volume, muted, ready])
 
   // --- Réfs "fraîches" pour les handlers d'événements vidéo --------------
   const isPresenterRef = useRef(isPresenter)
@@ -323,6 +341,15 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
   }
 
   function selectNote(note) {
+    // Toggle : re-cliquer la note DÉJÀ active la désélectionne (masque son dessin).
+    if (activeId === note.id) {
+      setActiveId(null)
+      setDraftShapes([])
+      setEditingId(null)
+      // Présentateur : propage la désélection aux invités (vue partagée).
+      if (isPresenter) sendSelect(null)
+      return
+    }
     setActiveId(note.id)
     setDraftShapes([])
     setPinnedTime(null)
@@ -977,25 +1004,88 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
               </button>
             )}
 
-            <div style={{ display: 'flex', gap: '4px', marginLeft: '12px' }}>
-              {[0.5, 1, 1.5, 2].map((rate) => (
-                <button
-                  key={rate}
-                  className={`badge ${playbackRate === rate ? 'badge-accent' : 'wt-badge'}`}
-                  onClick={() => setRate(rate)}
-                  disabled={following}
-                  title={
-                    following ? 'Vitesse pilotée par le présentateur' : `Vitesse ${rate}x`
-                  }
-                  style={{
-                    cursor: following ? 'not-allowed' : 'pointer',
-                    padding: '0 6px',
-                    opacity: following ? 0.5 : 1,
+            {/* Volume : clic sur l'icône déploie une barre INLINE dans la navbar
+               (elle pousse la vitesse), remplie de 0 % à 100 %, avec une bulle du
+               niveau au survol. */}
+            <div className={`vol-inline${volOpen ? ' open' : ''}`}>
+              <button
+                className="badge wt-badge vol-btn"
+                onClick={() => setVolOpen((v) => !v)}
+                aria-label="Volume"
+                aria-expanded={volOpen}
+                title={`Volume ${Math.round((muted ? 0 : volume) * 100)}%`}
+              >
+                {muted || volume === 0 ? (
+                  <SpeakerSlash size={16} weight="fill" />
+                ) : volume < 0.5 ? (
+                  <SpeakerLow size={16} weight="fill" />
+                ) : (
+                  <SpeakerHigh size={16} weight="fill" />
+                )}
+              </button>
+              <div className="vol-track">
+                <input
+                  type="range"
+                  className="vol-slider"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={muted ? 0 : volume}
+                  onChange={(e) => {
+                    const val = Number(e.target.value)
+                    setVolume(val)
+                    setMuted(val === 0)
                   }}
+                  aria-label="Niveau du volume"
+                />
+                <span
+                  className="vol-bubble"
+                  style={{ left: `${Math.round((muted ? 0 : volume) * 100)}%` }}
                 >
-                  {rate}x
-                </button>
-              ))}
+                  {Math.round((muted ? 0 : volume) * 100)}%
+                </span>
+              </div>
+            </div>
+
+            {/* Vitesse : un bouton (vitesse active) qui déploie les 4 options. */}
+            <div className="ctrl-menu">
+              {speedOpen && (
+                <div className="ctrl-backdrop" onClick={() => setSpeedOpen(false)} />
+              )}
+              <button
+                className={`badge ${playbackRate !== 1 ? 'badge-accent' : 'wt-badge'}`}
+                onClick={() => !following && setSpeedOpen((v) => !v)}
+                disabled={following}
+                aria-expanded={speedOpen}
+                title={
+                  following ? 'Vitesse pilotée par le présentateur' : 'Vitesse de lecture'
+                }
+                style={{
+                  marginLeft: '8px',
+                  padding: '0 6px',
+                  opacity: following ? 0.5 : 1,
+                }}
+              >
+                <Gauge size={15} weight="bold" /> {playbackRate}x
+              </button>
+              {speedOpen && (
+                <div className="ctrl-pop ctrl-pop-speed" role="menu" aria-label="Vitesse">
+                  {[0.5, 1, 1.5, 2].map((rate) => (
+                    <button
+                      key={rate}
+                      role="menuitemradio"
+                      aria-checked={playbackRate === rate}
+                      className={`speed-opt${playbackRate === rate ? ' active' : ''}`}
+                      onClick={() => {
+                        setRate(rate)
+                        setSpeedOpen(false)
+                      }}
+                    >
+                      {rate}x
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {captionSegments.length > 0 && (
