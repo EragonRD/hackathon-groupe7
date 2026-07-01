@@ -2,14 +2,19 @@
 // principales de l'app authentifiée. Les onglets admin n'apparaissent qu'aux admins.
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { House, Gear, ShieldCheck, Question } from 'phosphor-react-native';
+import { House, Gear, ShieldCheck, Question, SignOut } from 'phosphor-react-native';
 import { useAuth } from '../lib/auth-context';
 import { theme } from '../theme';
 
 export default function NavBar({ active }) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const isAdmin = ['admin', 'superadmin'].includes(user?.role);
+
+  const logout = async () => {
+    await signOut();
+    router.replace('/');
+  };
 
   const tabs = [
     { id: 'catalogue', label: 'Accueil', Icon: House, route: '/catalogue' },
@@ -20,17 +25,18 @@ export default function NavBar({ active }) {
         ]
       : []),
     { id: 'docs', label: 'Aide', Icon: Question, route: '/docs' },
+    { id: 'logout', label: 'Quitter', Icon: SignOut, action: logout },
   ];
 
   return (
     <View style={styles.bar}>
-      {tabs.map(({ id, label, Icon, route }) => {
+      {tabs.map(({ id, label, Icon, route, action }) => {
         const on = id === active;
         return (
           <Pressable
             key={id}
             style={styles.tab}
-            onPress={() => !on && router.replace(route)}
+            onPress={() => (action ? action() : !on && router.replace(route))}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
           >
