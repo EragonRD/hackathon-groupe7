@@ -86,41 +86,68 @@ export const createContent = (payload) => request('/admin/contents', post(payloa
 // Upload d'une vidéo (multipart) avec progression. Le Core la chiffre en HLS
 // AES-128 en tâche de fond → le contenu revient en `status: 'processing'`.
 // onProgress(percent) est appelé pendant le transfert.
-export function uploadContent({ file, title, onProgress }) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open('POST', `${API}/admin/contents/upload`)
-    const token = getToken()
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable && onProgress) {
-        onProgress(Math.round((e.loaded / e.total) * 100))
-      }
-    }
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText))
-        } catch {
-          resolve(null)
+export async function uploadContent({ file, title, onProgress }) {
+  const CHUNK_SIZE = 10 * 1024 * 1024 // 10 Mo
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+  const uploadId = Math.random().toString(36).substring(2, 15) + Date.now().toString(36)
+
+  let lastResponse = null
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE
+    const end = Math.min(start + CHUNK_SIZE, file.size)
+    const chunk = file.slice(start, end)
+    const uploadedBefore = i * CHUNK_SIZE
+
+    lastResponse = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${API}/admin/contents/upload-chunk`)
+      const token = getToken()
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          const loaded = uploadedBefore + e.loaded
+          onProgress(Math.min(99, Math.round((loaded / file.size) * 100)))
         }
-        return
       }
-      let serverMsg = null
-      try {
-        const data = JSON.parse(xhr.responseText)
-        serverMsg = Array.isArray(data?.message) ? data.message.join(', ') : data?.message
-      } catch {
-        /* pas de corps JSON */
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText))
+          } catch {
+            resolve(null)
+          }
+        } else {
+          let serverMsg = null
+          try {
+            const data = JSON.parse(xhr.responseText)
+            serverMsg = Array.isArray(data?.message)
+              ? data.message.join(', ')
+              : data?.message
+          } catch {
+            /* pas de corps JSON */
+          }
+          reject(new Error(mapError(xhr.status, serverMsg)))
+        }
       }
-      reject(new Error(mapError(xhr.status, serverMsg)))
-    }
-    xhr.onerror = () => reject(new Error('Upload échoué (réseau).'))
-    const form = new FormData()
-    form.append('file', file)
-    form.append('title', title)
-    xhr.send(form)
-  })
+
+      xhr.onerror = () => reject(new Error('Upload échoué (réseau).'))
+
+      const form = new FormData()
+      form.append('file', chunk, file.name)
+      form.append('chunkIndex', i.toString())
+      form.append('totalChunks', totalChunks.toString())
+      form.append('uploadId', uploadId)
+      form.append('title', title)
+
+      xhr.send(form)
+    })
+  }
+
+  if (onProgress) onProgress(100)
+  return lastResponse
 }
 // Statut d'un contenu (processing/ready/failed) — pour suivre le chiffrement.
 export async function getContentStatus(id) {

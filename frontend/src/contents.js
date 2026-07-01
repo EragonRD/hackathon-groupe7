@@ -51,31 +51,59 @@ export async function inviteGuest(contentId, ttl) {
 // Upload par un INVITÉ (token guest) : la vidéo est ajoutée à l'entreprise de la
 // session et donnée au membre invitant + aux admins. « Fire-and-forget » : on
 // renvoie dès la réception (le chiffrement se fait en tâche de fond côté Core).
-export function uploadGuestContent({ file, title, onProgress }) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest()
-    xhr.open('POST', `${API}/contents/guest-upload`)
-    const token = getToken()
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable && onProgress)
-        onProgress(Math.round((e.loaded / e.total) * 100))
-    }
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText))
-        } catch {
-          resolve(null)
+export async function uploadGuestContent({ file, title, onProgress }) {
+  const CHUNK_SIZE = 10 * 1024 * 1024 // 10 Mo
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+  const uploadId = Math.random().toString(36).substring(2, 15) + Date.now().toString(36)
+
+  let lastResponse = null
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE
+    const end = Math.min(start + CHUNK_SIZE, file.size)
+    const chunk = file.slice(start, end)
+    const uploadedBefore = i * CHUNK_SIZE
+
+    lastResponse = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${API}/contents/guest-upload-chunk`)
+      const token = getToken()
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          const loaded = uploadedBefore + e.loaded
+          onProgress(Math.min(99, Math.round((loaded / file.size) * 100)))
         }
-        return
       }
-      reject(new Error(xhr.status === 403 ? 'Envoi non autorisé.' : "Échec de l'envoi."))
-    }
-    xhr.onerror = () => reject(new Error('Envoi échoué (réseau).'))
-    const form = new FormData()
-    form.append('file', file)
-    form.append('title', title)
-    xhr.send(form)
-  })
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText))
+          } catch {
+            resolve(null)
+          }
+        } else {
+          reject(
+            new Error(xhr.status === 403 ? 'Envoi non autorisé.' : "Échec de l'envoi."),
+          )
+        }
+      }
+
+      xhr.onerror = () => reject(new Error('Envoi échoué (réseau).'))
+
+      const form = new FormData()
+      form.append('file', chunk, file.name)
+      form.append('chunkIndex', i.toString())
+      form.append('totalChunks', totalChunks.toString())
+      form.append('uploadId', uploadId)
+      form.append('title', title)
+
+      xhr.send(form)
+    })
+  }
+
+  if (onProgress) onProgress(100)
+  return lastResponse
 }

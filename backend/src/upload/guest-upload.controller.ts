@@ -109,4 +109,103 @@ export class GuestUploadController {
       message: "Vidéo envoyée : disponible pour l'équipe après traitement.",
     }
   }
+
+  @Post('guest-upload-chunk')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          if (!existsSync(UPLOAD_TMP)) mkdirSync(UPLOAD_TMP, { recursive: true })
+          cb(null, UPLOAD_TMP)
+        },
+        filename: (_req, file, cb) =>
+          cb(
+            null,
+            `${randomBytes(12).toString('hex')}${extname(file.originalname) || '.part'}`,
+          ),
+      }),
+      limits: { fileSize: MAX_SIZE },
+      fileFilter: (_req, file, cb) => {
+        if (
+          /^video\//.test(file.mimetype) ||
+          file.mimetype === 'application/octet-stream'
+        )
+          cb(null, true)
+        else cb(new BadRequestException('Un fichier vidéo est requis (video/*)'), false)
+      },
+    }),
+  )
+  async guestUploadChunk(
+    @Req() req: RequestWithUser,
+    @UploadedFile() file: UploadedVideo,
+    @Body()
+    body: {
+      chunkIndex: string
+      totalChunks: string
+      uploadId: string
+      title?: string
+    },
+  ) {
+    const me = req.user!
+    if (me.role !== 'guest' || !me.companyId) {
+      void rm(file.path, { force: true }).catch(() => {})
+      throw new ForbiddenException('Réservé aux invités')
+    }
+    if (!file) throw new BadRequestException('Aucun chunk reçu')
+
+    const chunkIndex = parseInt(body.chunkIndex, 10)
+    const totalChunks = parseInt(body.totalChunks, 10)
+    const uploadId = body.uploadId
+
+    if (isNaN(chunkIndex) || isNaN(totalChunks) || !uploadId) {
+      void rm(file.path, { force: true }).catch(() => {})
+      throw new BadRequestException('Paramètres de chunk invalides')
+    }
+
+    try {
+      const merge = await this.upload.handleChunk(
+        file.path,
+        chunkIndex,
+        totalChunks,
+        uploadId,
+        file.originalname,
+      )
+
+      if (merge.completed && merge.path) {
+        const title = body?.title?.trim() || file.originalname
+        // Propriétaire = le membre qui a généré l'invitation (auto-autorisé).
+        const owner = me.invitedBy ?? me.companyId
+        const content = this.contents.createUploaded({
+          title,
+          companyId: me.companyId,
+          ownerUsername: owner,
+        })
+        // Accès OBLIGATOIRE aux admins de l'entreprise (en plus de l'invitant).
+        for (const u of this.users.listByCompany(me.companyId)) {
+          if (u.role === 'admin') this.contents.grantAccess(content.id, u.username)
+        }
+
+        const analysisSent = this.analysis.startFromFile(content.id, merge.path)
+        const encoded = this.upload.encryptInBackground(content.id, merge.path)
+        void Promise.allSettled([analysisSent, encoded]).finally(() => {
+          void rm(merge.path!, { force: true }).catch(() => {})
+        })
+
+        return {
+          id: content.id,
+          status: 'processing',
+          message: "Vidéo envoyée : disponible pour l'équipe après traitement.",
+        }
+      }
+
+      return {
+        status: 'uploading',
+        chunkIndex,
+        message: `Chunk ${chunkIndex + 1}/${totalChunks} reçu`,
+      }
+    } catch (err) {
+      void rm(file.path, { force: true }).catch(() => {})
+      throw new BadRequestException((err as Error).message)
+    }
+  }
 }
