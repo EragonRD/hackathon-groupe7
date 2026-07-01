@@ -17,7 +17,6 @@ import { diskStorage } from 'multer'
 import { tmpdir } from 'os'
 import { extname, join } from 'path'
 import { AuthGuard } from '../auth/auth.guard'
-import { AdminGuard } from '../auth/admin.guard'
 import { PasswordChangedGuard } from '../auth/password-changed.guard'
 import { CompaniesService } from '../companies/companies.service'
 import { ContentsService } from '../contents/contents.service'
@@ -36,8 +35,11 @@ interface UploadedVideo {
   size: number
 }
 
-// 📤 Upload d'une vidéo → chiffrement HLS async. Admin only, scoppé entreprise.
-@UseGuards(AuthGuard, PasswordChangedGuard, AdminGuard)
+// 📤 Upload d'une vidéo → chiffrement HLS async. Ouvert à TOUT membre authentifié
+// (user/admin/superadmin), scopé à SON entreprise : le contenu est créé dans la
+// companyId de l'appelant (superadmin : companyId explicite) et l'uploader est
+// auto-autorisé. Pas d'AdminGuard : un simple utilisateur peut contribuer une vidéo.
+@UseGuards(AuthGuard, PasswordChangedGuard)
 @Controller('admin/contents')
 export class UploadController {
   constructor(
