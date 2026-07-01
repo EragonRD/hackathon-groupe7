@@ -9,7 +9,7 @@
 | Squad | Sujet | Entrée → Sortie |
 |---|---|---|
 | **NLP** | 3A — Indexation & analyse sémantique | Vidéo → JSON (langue, transcript, segments horodatés, **traductions multilingues**, résumé, chapitres, mots-clés) |
-| **Data** | 3B — Audience & rétention | `../data/*.csv` → dashboard + modèle prédictif (à venir) |
+| **Data** | 3B — Audience & rétention | `../data/*.csv` → dashboard + modèle prédictif — voir [`dashboard/RECAP-P3B.md`](dashboard/RECAP-P3B.md) |
 
 ## Stack (CPU-only)
 | Besoin | Modèle / outil | Empreinte |
@@ -151,4 +151,5 @@ engine/
 | 00 — Setup CPU-only | ✅ |
 | 10 — API Engine (auth, jobs, orchestration) | ✅ testé E2E |
 | Traduction multilingue + sous-titres (NLLB) | ✅ |
-| 20/21/22 — affinage NLP · 30-33 — Data 3B | ❌ à venir (autres membres) |
+| 30-33 — Data 3B (rétention, modèle, dashboard) | ✅ F1=0.711 · Ridge MAE=0.069 ([RECAP](dashboard/RECAP-P3B.md)) |
+| 20/21/22 — affinage NLP | ❌ à venir (autres membres) |
