@@ -1,6 +1,6 @@
 # Engine — Pôle 3 · IA & Data (Groupe 7)
 
-**Microservice** Python/FastAPI de l'architecture *View / Core / Engine*. Transforme une vidéo en **JSON riche** (transcription, résumé, chapitres, mots-clés, **sous-titres multilingues**) et expose la **recherche sémantique**. 100 % local, CPU, sans clé API payante.
+**Microservice** Python/FastAPI de l'architecture *View / Core / Engine*. Transforme une vidéo en **JSON riche** (transcription, résumé, chapitres, mots-clés, **sous-titres multilingues**) et expose la **recherche sémantique** + la **traduction à la demande**. Calcul lourd **déporté sur API gratuites** (Groq par défaut ; OpenRouter / Gemini / Mistral / NVIDIA sélectionnables) avec **repli local** ; seul l'embedding (MiniLM) reste toujours local. Aucune clé API **payante**.
 
 > 📐 Schéma : [`docs/architecture.png`](docs/architecture.png) (source [`docs/architecture.md`](docs/architecture.md)).
 > 🔌 Interface pour le Core : [`docs/api-contract.md`](docs/api-contract.md).
@@ -11,17 +11,17 @@
 | **NLP** | 3A — Indexation & analyse sémantique | Vidéo → JSON (langue, transcript, segments horodatés, **traductions multilingues**, résumé, chapitres, mots-clés) |
 | **Data** | 3B — Audience & rétention | `../data/*.csv` → dashboard + modèle prédictif ✅ (voir [`docs/business-3b.md`](docs/business-3b.md)) |
 
-## Stack (CPU-only)
-| Besoin | Modèle / outil | Empreinte |
-|---|---|---|
-| API | FastAPI + Uvicorn | — |
-| Extraction audio | ffmpeg | — |
-| Transcription | faster-whisper `base` (int8) | ~140 Mo |
-| Résumé / chapitres | llama.cpp · **Qwen2.5-1.5B Q4_K_M** | ~1 Go |
-| Mots-clés | KeyBERT (MMR) | réutilise l'embedder |
-| Recherche sémantique | sentence-transformers · MiniLM multilingue | ~470 Mo |
-| **Traduction / sous-titres** | **NLLB-200-distilled-600M** (200 langues) | ~2,5 Go |
+## Stack (hybride : API distante + repli local)
+| Besoin | Défaut (distant) | Repli local | Empreinte locale |
+|---|---|---|---|
+| API | FastAPI + Uvicorn | — | — |
+| Extraction audio | ffmpeg | ffmpeg | — |
+| Transcription | **Groq** `whisper-large-v3-turbo` | **faster-whisper `small`** (int8, **UNIQUE modèle local de transcription**) + `langdetect` | ~480 Mo |
+| Résumé / chapitres | **Groq** `openai/gpt-oss-20b` | llama.cpp · Qwen2.5-1.5B Q4_K_M | ~1 Go |
+| Traduction / sous-titres | **Groq** `llama-4-scout` | NLLB-200-distilled-600M | ~2,5 Go |
+| Recherche sémantique + mots-clés | — | MiniLM multilingue (**toujours local**) + KeyBERT | ~470 Mo |
 
+> Providers par étape via `.env` (`ENGINE_ASR/LLM/TRANSLATE_PROVIDER`) — cf. [`.env.example`](.env.example).
 > Détail & justification : [`docs/model-selection.md`](docs/model-selection.md).
 
 ## Installation (opérationnel ✅)
@@ -36,7 +36,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt \
   --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 ```
-> Pré-requis système : `ffmpeg`. Modèles téléchargés au 1er usage (Whisper, MiniLM, NLLB) ; GGUF dans `models/`.
+> Pré-requis système : `ffmpeg`. **Config** : copier [`.env.example`](.env.example) → `.env` et renseigner les clés (Groq, etc.). En mode API (défaut), seul **MiniLM** se télécharge au 1er usage ; les modèles locaux de repli (Whisper `small`, NLLB, GGUF) ne se chargent qu'en repli/offline.
 
 > ⚠️ **Token Hugging Face (possiblement nécessaire).** Les modèles se téléchargent depuis le Hub.
 > En cas de **limite de débit** (`429` / *"unauthenticated requests"*) ou de modèle gated, exporte un token :
@@ -109,9 +109,14 @@ Code réutilisable : `app/data/` (rétention, détection, modèle, descriptif, c
 | `ENGINE_OUTPUT_DIR` | `engine/outputs` | dossier racine des sorties |
 | `FORCE` (CLI) | — | `FORCE=1` ignore le cache |
 | `HF_TOKEN` | — | token Hugging Face si rate-limit au téléchargement des modèles |
-| `WHISPER_MODEL` | `base` | modèle transcription |
-| `LLM_GGUF` | `models/qwen2.5-1.5b-instruct-q4_k_m.gguf` | LLM |
-| `LLM_THREADS` | `4` | threads llama.cpp |
+| `ENGINE_ASR_PROVIDER` | `groq` | `groq` \| `nvidia` \| `local` (transcription) |
+| `ENGINE_LLM_PROVIDER` | `groq` | `groq` \| `openrouter` \| `gemini` \| `mistral` \| `local` |
+| `ENGINE_TRANSLATE_PROVIDER` | `groq` | idem chat |
+| `ENGINE_ALLOW_LOCAL_FALLBACK` | `true` | `false` = 100 % API strict (aucun modèle local) |
+| `WHISPER_MODEL` | `small` | **unique** modèle local de transcription |
+| `WHISPER_CPU_THREADS` | `0` | 0 = auto ; plafonner (ex. 3) sur NAS |
+| `GROQ_TRANSLATE_MODEL` | `llama-4-scout` | modèle de traduction Groq |
+| `LLM_GGUF` | `models/qwen2.5-1.5b-instruct-q4_k_m.gguf` | LLM local (repli) |
 
 ## Performance (mesurée — i5-1145G7, CPU)
 | Vidéo | Total | Détail |

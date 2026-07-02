@@ -17,11 +17,12 @@ import tempfile
 import threading
 import uuid
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 
 from . import config, pipeline
 from .auth import require_service
 from .nlp import search as search_mod
+from .nlp import translate as translate_mod
 from .output import save_outputs
 from .schemas import (
     AnalyzePathRequest,
@@ -29,6 +30,8 @@ from .schemas import (
     JobStatus,
     SearchRequest,
     SearchResponse,
+    TranslateRequest,
+    TranslationTrack,
 )
 
 app = FastAPI(title="Engine — Pôle 3 (IA & Data)", version="0.2.0")
@@ -42,10 +45,14 @@ def health() -> dict:
     return {"status": "ok", "service": "engine", "pole": 3}
 
 
-def _run_job(job_id: str, video_path: str, video_name: str, cleanup: bool) -> None:
+def _run_job(
+    job_id: str, video_path: str, cache_key: str, display_name: str, cleanup: bool
+) -> None:
     try:
-        metadata, segments, index = pipeline.analyze(video_path, video_name)
-        out_dir = save_outputs(metadata, video_path)
+        metadata, segments, index = pipeline.analyze(
+            video_path, cache_key, display_name=display_name
+        )
+        out_dir = save_outputs(metadata, video_path, key=cache_key)
         JOBS[job_id].update(
             status="done", result=metadata, segments=segments, index=index, output_dir=out_dir
         )
@@ -59,22 +66,31 @@ def _run_job(job_id: str, video_path: str, video_name: str, cleanup: bool) -> No
                 pass
 
 
-def _start_job(video_path: str, video_name: str, cleanup: bool) -> str:
+def _start_job(video_path: str, cache_key: str, display_name: str, cleanup: bool) -> str:
     job_id = uuid.uuid4().hex
     JOBS[job_id] = {"status": "processing", "result": None, "error": None}
     threading.Thread(
-        target=_run_job, args=(job_id, video_path, video_name, cleanup), daemon=True
+        target=_run_job,
+        args=(job_id, video_path, cache_key, display_name, cleanup),
+        daemon=True,
     ).start()
     return job_id
 
 
 @app.post("/analyze", response_model=JobCreated)
-async def analyze(file: UploadFile = File(...), user: dict = Depends(require_service)) -> JobCreated:
+async def analyze(
+    file: UploadFile = File(...),
+    content_id: str = Form(default=""),
+    user: dict = Depends(require_service),
+) -> JobCreated:
     suffix = os.path.splitext(file.filename or "video.mp4")[1] or ".mp4"
     fd, path = tempfile.mkstemp(suffix=suffix)
     with os.fdopen(fd, "wb") as out:
         shutil.copyfileobj(file.file, out)
-    job_id = _start_job(path, file.filename or "video", cleanup=True)
+    display = file.filename or "video"
+    # Clé de cache = content_id (unique par contenu) si fourni, sinon le nom de fichier.
+    cache_key = content_id.strip() or display
+    job_id = _start_job(path, cache_key, display, cleanup=True)
     return JobCreated(job_id=job_id, status="processing")
 
 
@@ -90,7 +106,8 @@ def analyze_path(req: AnalyzePathRequest, user: dict = Depends(require_service))
         raise HTTPException(403, "Chemin hors du répertoire autorisé")
     if not os.path.isfile(target):
         raise HTTPException(400, "Fichier introuvable")
-    job_id = _start_job(target, os.path.basename(target), cleanup=False)
+    name = os.path.basename(target)
+    job_id = _start_job(target, name, name, cleanup=False)
     return JobCreated(job_id=job_id, status="processing")
 
 
@@ -115,3 +132,22 @@ def search(req: SearchRequest, user: dict = Depends(require_service)) -> SearchR
         raise HTTPException(404, "Job inconnu ou non terminé")
     hits = search_mod.search(req.query, job["segments"], job["index"], req.k)
     return SearchResponse(query=req.query, hits=hits)
+
+
+@app.post("/translate", response_model=TranslationTrack)
+def translate(req: TranslateRequest, user: dict = Depends(require_service)) -> TranslationTrack:
+    """Traduction À LA DEMANDE d'une langue via le pipeline (segments déjà en cache).
+
+    Réutilise `translate_all` (même code que l'analyse). Permet au front de
+    déclencher/tester une langue en temps réel sans relancer toute l'analyse.
+    """
+    job = JOBS.get(req.job_id)
+    if not job or job["status"] != "done":
+        raise HTTPException(404, "Job inconnu ou non terminé")
+    result = job["result"]
+    tracks = translate_mod.translate_all(
+        result.get("transcript", ""), job["segments"], result.get("language", ""), [req.lang]
+    )
+    if not tracks:
+        raise HTTPException(422, f"Traduction indisponible pour la langue '{req.lang}'")
+    return TranslationTrack(**tracks[0])

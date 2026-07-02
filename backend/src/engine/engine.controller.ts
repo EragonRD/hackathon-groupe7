@@ -68,6 +68,22 @@ export class EngineController {
     return this.analysis.search(id, body.query, body.k ?? 3)
   }
 
+  // Traduction À LA DEMANDE d'une langue (test temps réel côté front).
+  @Post(':id/translate')
+  async translate(
+    @Req() req: RequestWithUser,
+    @Param('id') id: string,
+    @Body() body: { lang?: string },
+  ) {
+    this.assertAccess(id, req.user!)
+    if (!body?.lang) throw new BadRequestException('lang requise')
+    const rec = this.analysis.get(id)
+    if (!rec || rec.status !== 'done') {
+      throw new ConflictException("L'analyse de ce contenu n'est pas terminée")
+    }
+    return this.analysis.translate(id, body.lang)
+  }
+
   // ACL identique à /keys : contenu existant, même entreprise, accès explicite.
   private assertAccess(id: string, user: JwtUser): void {
     const content = this.contents.find(id)

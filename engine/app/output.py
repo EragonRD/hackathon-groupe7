@@ -35,9 +35,14 @@ def load_meta(name: str, out_root: str | None = None) -> dict | None:
     return None
 
 
-def save_outputs(metadata: dict, video_path: str, out_root: str | None = None) -> str:
+def save_outputs(
+    metadata: dict, video_path: str, out_root: str | None = None, key: str | None = None
+) -> str:
+    # `key` = identifiant de DOSSIER (unique par contenu, ex. contentId) ; distinct
+    # du nom AFFICHÉ (metadata["video"] = vrai nom du fichier vidéo). Sans `key`,
+    # on retombe sur le nom affiché (compat CLI).
     name = metadata.get("video") or Path(video_path).name
-    stem = _safe(Path(name).stem)
+    stem = _safe(Path(key or name).stem)
     folder = Path(out_root or config.OUTPUT_DIR) / stem
     folder.mkdir(parents=True, exist_ok=True)
 

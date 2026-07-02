@@ -54,13 +54,20 @@ export class AnalysisService {
   // terminé) — pas à la fin de l'analyse : le polling se poursuit en arrière-plan.
   // Elle permet à l'appelant de savoir quand le fichier temporaire clair peut être
   // supprimé sans casser le stream d'upload (cf. upload.controller).
-  async startFromFile(contentId: string, filePath: string): Promise<void> {
+  async startFromFile(
+    contentId: string,
+    filePath: string,
+    filename = 'video.mp4',
+  ): Promise<void> {
     const existing = this.records.get(contentId)
     if (existing && (existing.status === 'done' || existing.status === 'processing'))
       return
     this.set(contentId, { status: 'processing' })
     try {
-      const jobId = await this.engine.analyzeFile(filePath)
+      // `filename` = vrai nom (affiché) ; `contentId` = clé de cache UNIQUE côté
+      // Engine. Sans ça, tous les uploads ("video.mp4") partageraient le MÊME cache
+      // -> toutes les vidéos renverraient la transcription de la première.
+      const jobId = await this.engine.analyzeFile(filePath, filename, contentId)
       this.set(contentId, { status: 'processing', jobId })
       this.poll(contentId, jobId, Date.now())
     } catch (e: unknown) {
@@ -75,6 +82,13 @@ export class AnalysisService {
     const rec = this.records.get(contentId)
     if (!rec?.jobId || rec.status !== 'done') return null
     return this.engine.search(rec.jobId, query, k)
+  }
+
+  // Traduction à la demande d'une langue (l'analyse doit être terminée).
+  async translate(contentId: string, lang: string): Promise<unknown> {
+    const rec = this.records.get(contentId)
+    if (!rec?.jobId || rec.status !== 'done') return null
+    return this.engine.translate(rec.jobId, lang)
   }
 
   private poll(contentId: string, jobId: string, startedAt: number): void {

@@ -14,16 +14,29 @@ import {
 // Core ; cette page rend la synthèse dans le front plutôt que seulement en .py.
 
 const STATS = [
-  { label: 'Détection zones d’ennui (F1)', value: '0.77', sub: 'précision 0.69 · rappel 0.86' },
+  {
+    label: 'Détection zones d’ennui (F1)',
+    value: '0.77',
+    sub: 'précision 0.69 · rappel 0.86',
+  },
   { label: 'Modèle rétention · MAE', value: '0.069', sub: 'Ridge (régularisé)' },
   { label: 'Modèle rétention · R²', value: '0.56', sub: 'Leave-One-Out CV' },
   { label: 'Baseline battue', value: '0.106', sub: 'MAE naïve → 0.069' },
 ]
 
 const ACTIONS = [
-  ['Zone d’ennui ponctuelle (pic de retours arrière / pauses / abandons)', 'Revoir le montage à cet endroit précis'],
-  ['Décrochage précoce (< 85 % passent les 10 premiers %)', 'Soigner l’accroche des premières secondes'],
-  ['Vidéo longue pour sa catégorie (> médiane et > 360 s)', 'Raccourcir ou découper en chapitres'],
+  [
+    'Zone d’ennui ponctuelle (pic de retours arrière / pauses / abandons)',
+    'Revoir le montage à cet endroit précis',
+  ],
+  [
+    'Décrochage précoce (< 85 % passent les 10 premiers %)',
+    'Soigner l’accroche des premières secondes',
+  ],
+  [
+    'Vidéo longue pour sa catégorie (> médiane et > 360 s)',
+    'Raccourcir ou découper en chapitres',
+  ],
   ['Chute finale (< 50 % atteignent la fin)', 'Déplacer l’information clé plus tôt'],
 ]
 
@@ -56,14 +69,13 @@ export default function RetentionSynthesisPanel() {
           <Target size={15} weight="bold" /> Détection des zones d’ennui
         </h3>
         <p>
-          Signal de friction par position combinant retours en arrière (poids fort),
-          chute locale de rétention, abandons et pauses. Régions au-dessus du quantile
-          0.92, en union avec les décrochages progressifs (perte cumulée ≥ 10 %).
+          Signal de friction par position combinant retours en arrière (poids fort), chute
+          locale de rétention, abandons et pauses. Régions au-dessus du quantile 0.92, en
+          union avec les décrochages progressifs (perte cumulée ≥ 10 %).
         </p>
         <p className="p3b-note">
-          <Info size={13} weight="bold" /> Le corrigé (ground truth) n’entre jamais
-          dans la détection : il sert uniquement à mesurer la qualité a posteriori
-          (F1 = 0.77).
+          <Info size={13} weight="bold" /> Le corrigé (ground truth) n’entre jamais dans
+          la détection : il sert uniquement à mesurer la qualité a posteriori (F1 = 0.77).
         </p>
       </section>
 
@@ -120,12 +132,12 @@ export default function RetentionSynthesisPanel() {
       <section className="p3b-section p3b-repro">
         <h3>Vue interactive complète</h3>
         <p>
-          Le détail par vidéo (courbes, hotspots, comparaison, recommandations auto)
-          vit dans le dashboard Streamlit et l’API JSON bonus, exécutés en local depuis{' '}
+          Le détail par vidéo (courbes, hotspots, comparaison, recommandations auto) vit
+          dans le dashboard Streamlit et l’API JSON bonus, exécutés en local depuis{' '}
           <code>engine/</code> :
         </p>
         <pre className="p3b-code">
-{`streamlit run dashboard/app.py                       # dashboard, 4 onglets
+          {`streamlit run dashboard/app.py                       # dashboard, 4 onglets
 uvicorn app.data.api.main:app --reload --port 8010   # API JSON, docs sur /docs`}
         </pre>
         <p className="p3b-note">

@@ -69,6 +69,11 @@ class SearchRequest(BaseModel):
     k: int = 3
 
 
+class TranslateRequest(BaseModel):
+    job_id: str
+    lang: str  # code ISO 639-1 cible (ex. "en", "es", "ar")
+
+
 class SearchHit(BaseModel):
     start: float
     end: float

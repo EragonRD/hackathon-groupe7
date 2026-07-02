@@ -1484,6 +1484,42 @@
   color: var(--text);
 }
 
+/* Traduction a la demande (test temps reel) */
+.insights-translate-bar {
+  display: flex;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+.insights-select {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  padding: 6px var(--s-2);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+.insights-translate-btn {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: var(--r-sm);
+  padding: 6px var(--s-3);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+.insights-translate-btn:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+.insights-translate-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* Curseurs des autres participants (présence temps réel) */
 .remote-cursor {
   position: absolute;
@@ -1607,6 +1643,23 @@
 
 .controls-spacer {
   flex: 1;
+}
+
+/* Selecteur de langue des sous-titres (traductions disponibles) */
+.caption-lang-select {
+  margin-left: 6px;
+  height: 26px;
+  background: var(--bg-2);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  padding: 0 var(--s-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+.caption-lang-select:hover {
+  border-color: var(--accent-line);
 }
 
 /* Contrôles compacts (vitesse / volume) : bouton + popover au-dessus. */

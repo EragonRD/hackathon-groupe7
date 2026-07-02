@@ -23,7 +23,10 @@ def get_whisper():
                 from faster_whisper import WhisperModel
 
                 _whisper = WhisperModel(
-                    config.WHISPER_MODEL, device="cpu", compute_type=config.WHISPER_COMPUTE
+                    config.WHISPER_MODEL,
+                    device="cpu",
+                    compute_type=config.WHISPER_COMPUTE,
+                    cpu_threads=config.WHISPER_CPU_THREADS,  # 0 = auto ; plafonner sur NAS
                 )
     return _whisper
 
