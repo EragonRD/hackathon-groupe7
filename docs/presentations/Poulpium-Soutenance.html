@@ -360,7 +360,6 @@
 
   /* ===== Galerie par pôle ===== */
   .gallery{display:flex;flex-direction:column;gap:clamp(14px,1.8vw,24px)}
-  .pole{--g1:var(--p1);--g2:var(--p1b)}
   .pole-h{display:flex;align-items:center;gap:13px;margin-bottom:12px}
   .pole-h .dot{width:11px;height:11px;border-radius:50%;background:var(--pc);box-shadow:0 0 16px var(--pc);flex:0 0 auto}
   .pole-h .pn{font-weight:800;font-size:clamp(15px,1.5vw,19px);letter-spacing:-.02em;white-space:nowrap}
@@ -1221,6 +1220,24 @@
   @media (max-width:900px){ .bgrid{grid-template-columns:1fr 1fr} }
 
 }
+@scope (.dpwill) {
+
+  .wkick{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:13px;text-transform:uppercase;letter-spacing:.16em;color:var(--ok);margin-bottom:16px}
+  .wkick .pip{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 14px var(--ok)}
+  .wh2{font-size:clamp(26px,3.4vw,46px);font-weight:800;letter-spacing:-.026em;line-height:1.04}
+  .wgrid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(12px,1.5vw,18px);margin-top:clamp(18px,2.4vw,30px)}
+  .wcard{border:1px solid var(--line-strong);border-top:3px solid var(--ok);border-radius:14px;padding:17px 18px;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--ok) 7%,var(--bg-1)),var(--bg-1))}
+  .wcard .wt{font-weight:800;font-size:15px;margin-bottom:7px;letter-spacing:-.01em}
+  .wcard p{color:var(--dim);font-size:13.5px;line-height:1.5;margin:0}
+  .wcard p b{color:var(--text);font-weight:600}
+  .wcard .mono{font-family:var(--mono);color:var(--ok)}
+  .wstats{display:flex;flex-wrap:wrap;gap:clamp(14px,2.2vw,36px);margin-top:clamp(16px,2vw,26px);align-items:baseline}
+  .wstat{display:flex;flex-direction:column;gap:3px}
+  .wstat b{font-family:var(--mono);font-size:clamp(20px,2.4vw,32px);font-weight:800;color:var(--ok);line-height:1}
+  .wstat span{font-size:12px;color:var(--faint)}
+
+}
 @scope (.dpdemo) {
 
   .dslide{align-items:center;text-align:center}
@@ -1365,19 +1382,6 @@
     </div>
   </div>
 </section><section class="slide">
-  <div class="kicker">Sujet A · ce que le sujet exige</div>
-  <h2>Chaque contrainte du sujet, tenue.</h2>
-  <div class="reqs scroll" style="max-height:64vh">
-    <div class="req"><div class="w"><span class="tick">✓</span> Dessin sur l'image + commentaires horodatés <span class="tag">fonctionnalité cœur</span></div>
-      <div class="g">7 outils (flèche, cadre, ellipse, trait libre, texte…), 6 couleurs. Chaque note est <b style="color:var(--text)">rattachée au timecode</b> ; le fil est trié par instant avec saut à la seconde.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> 2-3 utilisateurs en réseau local <span class="tag">temps réel</span></div>
-      <div class="g">Présence, curseurs distants, notes propagées. Transport abstrait : multi-fenêtres (offline) <b style="color:var(--text)">ou socket.io (LAN)</b>, même contrat. Anti-écho par <code>from</code>.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Greffe propre sur le lecteur, sans régression <span class="tag">intégration &amp; UX</span></div>
-      <div class="g">Lecteur custom (timeline à marqueurs, navigation clavier), états chargement / erreur / vide. Le calque d'annotation n'entrave jamais la lecture.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Composant réutilisable + export JSON propre <span class="tag">livrable</span></div>
-      <div class="g"><code>&lt;VideoReview&gt;</code> autonome (props <code>source</code> / <code>session</code> / <code>user</code>). Export <code>{ version, session, notes[] }</code>, coordonnées 0..1, documenté (<code>docs/P1-export-schema.md</code>).</div></div>
-  </div>
-</section><section class="slide">
   <div class="split">
     <div class="txt">
       <div class="kicker">Sujet A · Lecteur de Revue augmenté</div>
@@ -1470,23 +1474,6 @@
   </div>
   <p class="lede" style="margin-top:26px">Le back-end est le <b style="color:var(--text)">seul décideur</b> : qui voit quoi, qui reçoit quelle clé, qui a le droit d'analyser. Tout le reste demande la permission.</p>
 </section><section class="slide">
-  <div class="kicker">Sujet A · ce que le sujet exige</div>
-  <h2>Diffuser une vidéo que personne ne peut piller.</h2>
-  <div class="reqs scroll" style="max-height:66vh">
-    <div class="req"><div class="w"><span class="tick">✓</span> Diffusion HLS (playlist + segments) <span class="tag">exigé</span></div>
-      <div class="g">La vidéo est servie en HLS : un manifeste <code>index.m3u8</code> + des segments <code>.ts</code>, jamais un fichier unique téléchargeable.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Flux chiffré AES-128 <span class="tag">exigé</span></div>
-      <div class="g">À l'ingestion, ffmpeg chiffre chaque segment en AES-128 (<code>-hls_key_info_file</code>) avec une clé + IV propres au contenu.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Clé délivrée seulement sur token valide — refus par défaut <span class="tag">exigé</span></div>
-      <div class="g"><code>GET /keys/:id</code> gardé par le JWT + l'ACL. Sans token, expiré, mauvais tenant ou clé révoquée → <code>401 / 403 / 404</code>. C'est le serveur de clés éphémères.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Déploiement local en une commande <span class="tag">exigé</span></div>
-      <div class="g"><code>docker compose up</code> lance core + frontend + hls + engine. Aucune étape manuelle obscure.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Sans cloud payant <span class="tag">exigé</span></div>
-      <div class="g">Tout tourne en local (Docker). Aucune dépendance à un service payant.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Modèle de menace assumé <span class="tag">évalué</span></div>
-      <div class="g">Quoi protéger, contre quoi, hypothèses et limites — détaillé en fin de présentation (+ <code>docs/P2-threat-model.md</code>).</div></div>
-  </div>
-</section><section class="slide">
   <div class="split">
     <div class="txt">
       <div class="kicker">Sujet A · le cœur</div>
@@ -1516,44 +1503,6 @@
 }</div>
       </div>
     </div>
-  </div>
-</section><section class="slide">
-  <div class="kicker">Sujet A · la preuve demandée</div>
-  <h2>Avec token, ça lit. Sans, la clé est refusée.</h2>
-  <div class="term scroll" style="margin-top:24px;max-height:60vh">
-<span class="c"># 1) Sans token → refus par défaut</span>
-<span class="p">$</span> curl -s -o /dev/null -w "%{http_code}" /keys/poc
-<span class="no">401</span>  Unauthorized
-
-<span class="c"># 2) Bon utilisateur, bonne entreprise → clé délivrée</span>
-<span class="p">$</span> curl -H "Authorization: Bearer <span class="w">$ALICE</span>" /keys/poc
-<span class="ok">200</span>  ····clé AES-128 (binaire)····
-
-<span class="c"># 3) Utilisateur d'une AUTRE entreprise → on ne révèle rien</span>
-<span class="p">$</span> curl -H "Authorization: Bearer <span class="w">$EVE</span>" /keys/poc
-<span class="no">404</span>  Contenu introuvable
-
-<span class="c"># 4) Admin révoque la clé, en direct → lecture coupée</span>
-<span class="p">$</span> curl -X POST -H "Authorization: Bearer <span class="w">$ADMIN</span>" /admin/contents/poc/revoke
-<span class="p">$</span> curl -H "Authorization: Bearer <span class="w">$ALICE</span>" /keys/poc
-<span class="no">403</span>  Accès refusé pour ce contenu
-  </div>
-</section><section class="slide">
-  <div class="kicker">Sujet B · ce que le sujet exige</div>
-  <h2>Détecter et bloquer les abus en temps réel.</h2>
-  <div class="reqs scroll" style="max-height:66vh">
-    <div class="req"><div class="w"><span class="tick">✓</span> Détection temps réel + réaction visible <span class="tag">exigé</span></div>
-      <div class="g">Le trafic est analysé à chaque requête ; au-delà des seuils, la réaction est un <code>403</code> réel (le segment est refusé), pas un simple log.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Partage de compte à grande échelle <span class="tag">signal</span></div>
-      <div class="g">Multi-session : un même compte vu depuis <code>&gt; 3 IP</code> distinctes en 5 min → alerte.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Accès via VPN / proxies <span class="tag">signal</span></div>
-      <div class="g">Liste de réseaux (CIDR) de réputation : une IP qui matche est signalée (<code>proxy_ip</code>).</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Débit d'aspiration (scraping) <span class="tag">signal</span></div>
-      <div class="g">Segments <code>.ts</code> par acteur en fenêtre glissante 60 s : <code>&gt; 8</code> → alerte, <code>&gt; 20</code> → blocage.</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Démo avec scripts d'attaque (avant / après) <span class="tag">exigé</span></div>
-      <div class="g">Un script qui aspire les segments passe d'abord, puis se fait couper net dès le seuil franchi (via nginx <code>auth_request</code>).</div></div>
-    <div class="req"><div class="w"><span class="tick">✓</span> Règles documentées, limites assumées <span class="tag">évalué</span></div>
-      <div class="g">Seuils et faux positifs discutés dans <code>docs/P2-anti-scraping.md</code>.</div></div>
   </div>
 </section><section class="slide">
   <div class="split">
@@ -1657,11 +1606,12 @@ seg21+       <span class="no">403</span>  <span class="c"># …puis bloqué net<
     <div class="stop io"><div class="dot">▶</div><div class="nm">Vidéo</div><div class="ss">.mp4 / .m3u8</div></div>
     <div class="stop"><div class="dot">1</div><div class="nm">ffmpeg</div><div class="ss">extraction audio</div></div>
     <div class="stop"><div class="dot">2</div><div class="nm">Whisper</div><div class="ss">transcription<br>horodatée</div></div>
-    <div class="stop"><div class="dot">3</div><div class="nm">Qwen 2.5</div><div class="ss">résumé +<br>chapitres</div></div>
+    <div class="stop"><div class="dot">3</div><div class="nm">Qwen 2.5</div><div class="ss">llama.cpp ·<br>résumé + chapitres</div></div>
     <div class="stop"><div class="dot">4</div><div class="nm">NLLB-200</div><div class="ss">sous-titres<br>multilingues</div></div>
     <div class="stop io"><div class="dot">{}</div><div class="nm">JSON P3-A</div><div class="ss">+ index<br>sémantique</div></div>
   </div>
   <ul class="feat" style="margin-top:30px">
+    <li><b>llama.cpp</b><span> — résumé et chapitres générés par <span class="mono">Qwen 2.5</span> quantifié, exécuté via <b>llama.cpp</b> : 100 % local, in-process, sans clé d'API.</span></li>
     <li><b>Asynchrone</b><span> — l'API accepte la vidéo, renvoie un <span class="mono">job_id</span>, et le front interroge le statut (le Core ne bloque jamais).</span></li>
     <li><b>Mots-clés</b><span> — KeyBERT (MMR) réutilise l'embedder de la recherche : aucun modèle en plus.</span></li>
   </ul>
@@ -1863,97 +1813,20 @@ seg21+       <span class="no">403</span>  <span class="c"># …puis bloqué net<
       </ul>
     </div>
   </div>
-</section></div><div class="wp dpw"><section class="slide cover">
-  <div class="logo"><img src="assets/poulpium-mark.png" alt="Poulpium"><span class="word grad">Poulpium</span></div>
-  <div class="kicker"><span class="live"><span class="d"></span> en ligne</span> · déploiement prod</div>
-  <h1>En prod, <span class="grad">pour de vrai</span>.</h1>
-  <p class="lede">Pas une démo sur <span class="mono">localhost</span> : Poulpium tourne 24/7, accessible depuis Internet sur un vrai domaine, en HTTPS — et <b class="hl">sans ouvrir un seul port</b>.</p>
-  <p class="lede" style="margin-top:14px">→ <span class="url">https://poulpium.midjix-lab.com</span></p>
-  <div class="chips">
-    <span class="chip">Docker Compose</span><span class="chip">images GHCR</span>
-    <span class="chip">Cloudflare Tunnel</span><span class="chip">Watchtower</span>
+</section></div><div class="wp dpwill"><section class="slide">
+  <div class="wkick"><span class="pip"></span> Déploiement · Production</div>
+  <h2 class="wh2">En prod, pour de vrai — <span style="color:var(--ok)">en une commande</span>.</h2>
+  <div class="wgrid">
+    <div class="wcard"><div class="wt">Accessible partout, zéro port ouvert</div><p>Via un <b>Cloudflare Tunnel</b> : le trafic entre par Cloudflare, le serveur n'expose <b>aucun port</b>. HTTPS géré, surface d'attaque minimale.</p></div>
+    <div class="wcard"><div class="wt">Une commande, quatre services</div><p><span class="mono">docker compose up</span> lève 4 conteneurs — front, Core, HLS, Engine. Images tirées de <b>GHCR</b>, aucun build sur le serveur. 100 % local, zéro cloud payant.</p></div>
+    <div class="wcard"><div class="wt">Livraison continue</div><p>On <b>push</b> le code → l'image se reconstruit → <b>Watchtower</b> met à jour les conteneurs tout seul. Pas d'intervention manuelle sur le serveur.</p></div>
+    <div class="wcard"><div class="wt">Léger &amp; déjà en ligne</div><p>Quelques centaines de Mo de RAM, CPU quasi nul au repos. Exposé proprement, et <b>déjà visité</b>.</p></div>
   </div>
-  <div class="team">Hackathon ESTIAM — Groupe 7   ·   Déploiement &amp; Infra : William</div>
-</section><section class="slide">
-  <div class="split">
-    <div class="txt">
-      <div class="kicker">La topologie</div>
-      <h2>Accessible partout,<br><span class="grad">sans port ouvert</span>.</h2>
-      <p class="lede">Le conteneur <span class="mono">cloudflared</span> ouvre une connexion <b class="hl">sortante</b> vers Cloudflare : aucun port entrant, aucune IP publique exposée.</p>
-      <ul class="feat" style="margin-top:16px">
-        <li><b>Chemin</b><span> — Visiteur → Cloudflare (HTTPS) → tunnel → hôte Docker → frontend.</span></li>
-        <li><b>Route publiée</b><span> — <span class="mono">poulpium.midjix-lab.com</span> → <span class="mono">http://frontend:80</span>, le reste en 404.</span></li>
-      </ul>
-    </div>
-    <div class="media">
-      <div class="frame">
-        <div class="frame-bar"><i></i><i></i><i></i><span class="u">Cloudflare Zero Trust · Tunnel poulpium-prod</span></div>
-        <img src="assets/William_1.png" alt="Route publiée Cloudflare Tunnel vers frontend:80">
-      </div>
-      <div class="cap" style="color:var(--ok)">✓ capture réelle — la route publiée du tunnel poulpium-prod</div>
-    </div>
-  </div>
-</section><section class="slide">
-  <div class="split">
-    <div class="txt">
-      <div class="kicker"><span class="live"><span class="d"></span> 4 conteneurs</span> · la stack</div>
-      <h2>Une commande,<br>quatre services.</h2>
-      <p class="lede"><span class="mono">docker compose up</span> · images tirées de <b class="hl">GHCR</b> (le registre du dépôt), aucun build sur le serveur.</p>
-      <ul class="feat" style="margin-top:16px">
-        <li><b>frontend + core</b><span> — l'app : nginx + NestJS.</span></li>
-        <li><b>tunnel</b><span> — cloudflared, l'accès public sans port ouvert.</span></li>
-        <li><b>watchtower</b><span> — met à jour les images automatiquement.</span></li>
-      </ul>
-      <div class="cap">~87 Mo RAM au total sur 7,5 Go · CPU ~0 % au repos</div>
-    </div>
-    <div class="media">
-      <div class="frame">
-        <div class="frame-bar"><i></i><i></i><i></i><span class="u">Docker · poulpium — en cours d'exécution</span></div>
-        <img src="assets/William_4.png" alt="Stack Docker Poulpium : 4 conteneurs en cours d'exécution">
-      </div>
-      <div class="cap" style="color:var(--ok)">✓ capture réelle — les 4 conteneurs « En cours d'exécution »</div>
-    </div>
-  </div>
-</section><section class="slide">
-  <div class="split">
-    <div class="txt">
-      <div class="kicker">Livraison continue &amp; protection</div>
-      <h2>On <span class="grad">push</span>,<br>ça se met à jour.</h2>
-      <p class="lede"><b class="hl">Watchtower</b> surveille GHCR : image poussée → pull + redéploie, sans intervention manuelle.</p>
-      <ul class="feat" style="margin-top:16px">
-        <li><b>Cloudflare devant</b><span> — domaine, TLS auto, CDN, Zero Trust / Tunnels.</span></li>
-        <li><b>Anti-abus</b><span> — blocage bots / crawlers IA, « Under Attack » en un clic.</span></li>
-        <li><b>Zéro maintenance</b><span> — pas de reverse-proxy ni certbot à gérer.</span></li>
-      </ul>
-    </div>
-    <div class="media">
-      <div class="frame">
-        <div class="frame-bar"><i></i><i></i><i></i><span class="u">Cloudflare · midjix-lab.com — Zero Trust &amp; Tunnels</span></div>
-        <img src="assets/William_3.png" alt="Tableau de bord Cloudflare : domaine, Zero Trust, Tunnels">
-      </div>
-      <div class="cap" style="color:var(--ok)">✓ capture réelle — le domaine et le tunnel, côté Cloudflare</div>
-    </div>
-  </div>
-</section><section class="slide">
-  <div class="split">
-    <div class="txt">
-      <div class="kicker"><span class="live"><span class="d"></span> live</span> · en chiffres</div>
-      <h2>Léger, exposé proprement,<br>déjà visité.</h2>
-      <div class="stats" style="grid-template-columns:1fr 1fr;margin-top:22px">
-        <div class="metric"><div class="v">39</div><div class="l">visiteurs uniques</div><div class="s">sur 24 h</div></div>
-        <div class="metric"><div class="v">8,86k</div><div class="l">requêtes</div><div class="s">via le tunnel</div></div>
-        <div class="metric"><div class="v">87 Mo</div><div class="l">RAM totale</div><div class="s">4 conteneurs / 7,5 Go</div></div>
-        <div class="metric"><div class="v">0</div><div class="l">port ouvert</div><div class="s">tunnel sortant</div></div>
-      </div>
-      <p class="mono" style="margin-top:18px;color:var(--faint);font-size:12px">Poulpium · Déploiement — William · poulpium.midjix-lab.com</p>
-    </div>
-    <div class="media">
-      <div class="frame">
-        <div class="frame-bar"><i></i><i></i><i></i><span class="u">Cloudflare · Analytics — midjix-lab.com (24 h)</span></div>
-        <img src="assets/William_2.png" alt="Cloudflare Analytics : 39 visiteurs, 8,86k requêtes">
-      </div>
-      <div class="cap" style="color:var(--ok)">✓ capture réelle — les chiffres viennent de là (Cloudflare Analytics)</div>
-    </div>
+  <div class="wstats">
+    <div class="wstat"><b>4</b><span>conteneurs</span></div>
+    <div class="wstat"><b>0</b><span>port ouvert</span></div>
+    <div class="wstat"><b>1</b><span>commande</span></div>
+    <div class="wstat"><b>live</b><span>poulpium.midjix-lab.com</span></div>
   </div>
 </section></div><div class="wp dpdemo"><section class="slide dslide">
   <div class="dkick"><span class="pip"></span> Place à la démo</div>
@@ -1975,7 +1848,7 @@ seg21+       <span class="no">403</span>  <span class="c"># …puis bloqué net<
 </section></div></div>
 <div id="hud"><div id="bar"></div></div>
 <div id="dots"></div>
-<div id="counter"><b>01</b> / 31</div>
+<div id="counter"><b>01</b> / 23</div>
 <div id="brand-hud"><img src="assets/poulpium-mark.png" alt=""><span>Poulpium · Groupe 7</span></div>
 <script>
 const deck=document.getElementById('deck');

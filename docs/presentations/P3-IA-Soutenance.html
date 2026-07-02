@@ -259,11 +259,12 @@ const slides = [
     <div class="stop io"><div class="dot">▶</div><div class="nm">Vidéo</div><div class="ss">.mp4 / .m3u8</div></div>
     <div class="stop"><div class="dot">1</div><div class="nm">ffmpeg</div><div class="ss">extraction audio</div></div>
     <div class="stop"><div class="dot">2</div><div class="nm">Whisper</div><div class="ss">transcription<br>horodatée</div></div>
-    <div class="stop"><div class="dot">3</div><div class="nm">Qwen 2.5</div><div class="ss">résumé +<br>chapitres</div></div>
+    <div class="stop"><div class="dot">3</div><div class="nm">Qwen 2.5</div><div class="ss">llama.cpp ·<br>résumé + chapitres</div></div>
     <div class="stop"><div class="dot">4</div><div class="nm">NLLB-200</div><div class="ss">sous-titres<br>multilingues</div></div>
     <div class="stop io"><div class="dot">{}</div><div class="nm">JSON P3-A</div><div class="ss">+ index<br>sémantique</div></div>
   </div>
   <ul class="feat" style="margin-top:30px">
+    <li><b>llama.cpp</b><span> — résumé et chapitres générés par <span class="mono">Qwen 2.5</span> quantifié, exécuté via <b>llama.cpp</b> : 100 % local, in-process, sans clé d'API.</span></li>
     <li><b>Asynchrone</b><span> — l'API accepte la vidéo, renvoie un <span class="mono">job_id</span>, et le front interroge le statut (le Core ne bloque jamais).</span></li>
     <li><b>Mots-clés</b><span> — KeyBERT (MMR) réutilise l'embedder de la recherche : aucun modèle en plus.</span></li>
   </ul>
