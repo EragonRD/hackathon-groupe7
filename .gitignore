@@ -76,3 +76,4 @@ NOTES-REPRISE.local.md
 docs/feature-plans/engine-nas-90-recap.md
 docs/feature-plans/engine-groq-migration.md
 docker-compose.nas.yml
+start-stack.sh
