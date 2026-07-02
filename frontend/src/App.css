@@ -3905,9 +3905,19 @@
   max-height: 96px;
   overflow-y: auto;
 }
-/* Lien d'invitation : UNE seule ligne, TRONQUÉE avec "..." au bord de la card
-   (jamais de débordement ; le bouton Copier et le QR donnent l'URL complète). */
+/* Lien d'invitation : conteneur en GRILLE minmax(0,1fr) auto -> la colonne du
+   lien peut se réduire jusqu'à 0, ce qui GARANTIT la troncature "..." quel que
+   soit le contexte (le nowrap ne peut plus forcer la largeur du conteneur). */
+.copy-row.copy-row-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+/* Lien : UNE seule ligne, TRONQUÉE avec "..." au bord de la card. display:block
+   car text-overflow n'agit pas sur un inline (cas du <code> par défaut). */
 .copy-row-value.copy-link {
+  display: block;
+  min-width: 0;
   white-space: nowrap;
   word-break: normal;
   overflow-wrap: normal;
