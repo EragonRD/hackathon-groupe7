@@ -3236,6 +3236,12 @@
 .modal-card {
   width: 100%;
   max-width: 480px;
+  /* Hauteur bornée au viewport (mobile / écrans courts) : le corps scrolle
+     au lieu de déborder hors de l'écran. */
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border-radius: var(--r-lg);
   background: var(--bg-1);
   border: 1px solid var(--line-strong);
@@ -3250,6 +3256,7 @@
   border-bottom: 1px solid var(--line);
   font-weight: 700;
   font-size: 14px;
+  flex-shrink: 0;
 }
 .modal-close {
   margin-left: auto;
@@ -3259,6 +3266,21 @@
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
+  overflow-y: auto;
+}
+
+/* Téléphones : la modale prend l'espace utile, paddings resserrés. */
+@media (max-width: 560px) {
+  .modal-overlay {
+    padding: var(--s-3);
+  }
+  .modal-head {
+    padding: var(--s-3) var(--s-4);
+  }
+  .modal-body {
+    padding: var(--s-4);
+    gap: var(--s-4);
+  }
 }
 .modal-actions {
   display: flex;
@@ -3835,6 +3857,16 @@
   overflow-wrap: anywhere;
   max-height: 96px;
   overflow-y: auto;
+}
+/* Lien d'invitation : forcé sur UNE seule ligne, scrollable horizontalement
+   (le bouton Copier et le QR donnent accès à l'URL complète). */
+.copy-row-value.copy-link {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-height: none;
 }
 
 @media (max-width: 720px) {

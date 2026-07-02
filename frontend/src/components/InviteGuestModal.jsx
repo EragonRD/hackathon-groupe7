@@ -120,7 +120,9 @@ export default function InviteGuestModal({ content, onClose }) {
                 Lien prêt (valable {TTLS.find((t) => t.value === ttl)?.label})
               </span>
               <div className="copy-row">
-                <code className="copy-row-value">{link}</code>
+                <code className="copy-row-value copy-link" title={link}>
+                  {link}
+                </code>
                 <button
                   className="btn-icon"
                   onClick={copy}
