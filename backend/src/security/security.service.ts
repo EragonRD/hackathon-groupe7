@@ -5,6 +5,12 @@ import { backendPath } from '../common/runtime-paths'
 import { loadJson, saveJson } from '../common/json-store'
 
 const BANS_STORE = 'bans.json'
+// Seed INTÉGRÉ (indépendant du fichier data/proxy-ips.txt, qui peut être absent
+// en prod si data/ est un bind mount non amorcé). Uniquement des plages RFC 5737
+// réservées à la documentation : elles n'apparaissent JAMAIS comme IP cliente
+// réelle → sûres à flagger en dur, et garantissent que la démo/auto-test proxy_ip
+// fonctionne partout. Le fichier reste la source des VRAIES IP réputées.
+const DEMO_PROXY_SEED = ['192.0.2.0/24', '198.51.100.0/24', '203.0.113.0/24']
 const WINDOW_MS = 5 * 60 * 1000
 const ALERT_TTL_MS = 10 * 60 * 1000
 const MULTI_SESSION_IP_THRESHOLD = 3
@@ -296,19 +302,25 @@ export class SecurityService implements OnModuleInit {
   }
 
   private async loadProxyList(): Promise<void> {
+    let fileLines: string[] = []
     try {
-      const content = await readFile(this.proxyListPath, 'utf8')
-      this.proxyNetworks = content
+      fileLines = (await readFile(this.proxyListPath, 'utf8'))
         .split('\n')
         .map((line) => line.trim())
         .filter((line) => line && !line.startsWith('#'))
-        .map((line) => this.parseProxyNetwork(line))
-        .filter((network): network is ProxyNetwork => Boolean(network))
-      this.logger.log(`Liste proxy chargee: ${this.proxyNetworks.length} entrees`)
     } catch {
-      this.proxyNetworks = []
-      this.logger.warn(`Liste proxy absente: ${this.proxyListPath}`)
+      this.logger.warn(`Liste proxy absente: ${this.proxyListPath} (seed integre utilise)`)
     }
+
+    // Le seed intégré garantit la détection démo même sans fichier ; le fichier
+    // prime pour les vraies entrées (dédoublonnage par ligne brute).
+    const lines = [...new Set([...DEMO_PROXY_SEED, ...fileLines])]
+    this.proxyNetworks = lines
+      .map((line) => this.parseProxyNetwork(line))
+      .filter((network): network is ProxyNetwork => Boolean(network))
+    this.logger.log(
+      `Liste proxy chargee: ${this.proxyNetworks.length} entrees (${fileLines.length} fichier + seed)`,
+    )
   }
 
   private distinctIpsForAccount(account: string, now: number): string[] {

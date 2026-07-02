@@ -61,11 +61,20 @@ accès shell au serveur.
 - [✅] `security.controller.ts` — `POST /security/selftest` (admin)
 - [✅] `SecurityDashboard.jsx` — bouton + rendu des résultats
 - [✅] `App.css` — styles du panneau résultats
-- [❌] Vérif manuelle (backend up + clic bouton)
+- [✅] Vérif manuelle (backend up + endpoint réel)
 
 ## Avancement
 
-Implémentation livrée. Reste : lancer le backend et vérifier le bouton en réel.
+Livré et vérifié end-to-end. `POST /security/selftest` (admin) : 4/4 scénarios
+`pass`. Garde vérifié : bob `403`, anonyme `401`. `nest build` OK, `lint` front OK.
+
+Résultats réels observés :
+| Scénario | Verdict | Détail |
+|---|---|---|
+| flood | pass | HTTP 429 à la requête 101 (limite 100/60s) |
+| multi_session | pass | 4 IP distinctes / 300s |
+| proxy_ip | pass | IP ∈ 203.0.113.0/24 |
+| segment_scrape | pass | 61 req .ts / 60s |
 
 ## Résumé non-technique
 
