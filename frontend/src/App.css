@@ -1048,6 +1048,32 @@
   height: 100%;
   object-fit: cover;
 }
+/* Barre d'avancement du chiffrement HLS (carte en 'processing'). */
+.enc-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: var(--bg-inset);
+  z-index: 3;
+}
+.enc-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--dur) var(--ease);
+}
+/* Icône de chiffrement qui tourne (derrière prefers-reduced-motion). */
+@media (prefers-reduced-motion: no-preference) {
+  .vid-sub .spin {
+    animation: enc-spin 0.9s linear infinite;
+  }
+}
+@keyframes enc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .vid-thumb .play-badge {
   position: absolute;
   inset: 0;

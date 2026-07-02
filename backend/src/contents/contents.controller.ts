@@ -46,10 +46,16 @@ export class ContentsController {
       title: c.title,
       revoked: c.revoked,
       guestUpload: c.guestUpload ?? false, // vidéo déposée par un invité -> badge UI
-      // 'playable' = une clé AES est provisionnée pour ce contenu ET il n'est pas
-      // révoqué. Le flux HLS n'est pas vérifiable depuis le Core ; la présence de
-      // la clé (backend/secrets/<id>.key) est le signal fiable côté serveur.
-      playable: !c.revoked && existsSync(backendPath('secrets', `${c.id}.key`)),
+      status: c.status, // 'processing' | 'ready' | 'failed' (gating côté UI)
+      progress: this.contents.getProgress(c.id), // % de chiffrement (si en cours)
+      // 'playable' = chiffrement HLS TERMINÉ (status 'ready') ET non révoqué ET
+      // clé AES présente. On NE se fie PLUS à la seule présence de la clé : elle
+      // est écrite AU DÉBUT de l'encodage, donc "playable" passait à vrai trop tôt
+      // -> le flux était ouvert avant la fin du HLS (404 "source illisible").
+      playable:
+        !c.revoked &&
+        c.status === 'ready' &&
+        existsSync(backendPath('secrets', `${c.id}.key`)),
     }))
   }
 

@@ -159,7 +159,11 @@ export async function getContentStatus(id) {
   const list = await listMyContents()
   const item = (list || []).find((c) => c.id === id)
   if (!item) return null
-  return item.playable ? 'ready' : 'processing'
+  // Le serveur renvoie désormais le statut RÉEL du chiffrement ('processing' tant
+  // que l'encodage HLS n'est pas fini). On ne se fie plus à `playable` seul (la
+  // clé AES existe dès le début -> "prêt" trop tôt -> flux ouvert = 404 illisible).
+  if (item.status) return item.status // 'processing' | 'ready' | 'failed'
+  return item.playable ? 'ready' : 'processing' // repli anciens serveurs
 }
 
 // Poll jusqu'à `ready` (résout true) ou `failed`/timeout (résout false).

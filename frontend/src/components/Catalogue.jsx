@@ -9,6 +9,7 @@ import {
   Gear,
   Warning,
   UsersThree,
+  CircleNotch,
 } from '@phosphor-icons/react'
 import { isSuperAdmin } from '../auth'
 import { listMyContents } from '../contents'
@@ -61,6 +62,17 @@ export default function Catalogue({ onOpenSecure, onOpenAdmin }) {
       alive = false
     }
   }, [superadmin])
+
+  // Tant qu'une vidéo est en cours de chiffrement, on rafraîchit périodiquement
+  // pour faire avancer le % et basculer la carte en "prête" à la fin.
+  const hasProcessing = contents.some((c) => c.status === 'processing')
+  useEffect(() => {
+    if (superadmin || !hasProcessing) return undefined
+    const id = setInterval(() => {
+      reloadContents()
+    }, 2500)
+    return () => clearInterval(id)
+  }, [superadmin, hasProcessing, reloadContents])
 
   function handleFileSelected(file) {
     if (!file) return
@@ -188,29 +200,64 @@ export default function Catalogue({ onOpenSecure, onOpenAdmin }) {
 // Carte d'un contenu de l'organisation. Cliquable si `playable` (clé provisionnée
 // et non révoquée) ; sinon désactivée avec un badge d'état.
 function ContentCard({ content, onOpenSecure }) {
-  const API = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:3000')
+  const API =
+    import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:3000')
+
+  const processing = content.status === 'processing'
+  const failed = content.status === 'failed'
+  const pct = Math.max(0, Math.min(100, Math.round(content.progress ?? 0)))
 
   const unavailable = content.revoked
     ? { label: 'Accès suspendu', icon: LockKey }
-    : !content.playable
-      ? { label: 'Flux indisponible', icon: LockSimple }
-      : null
+    : processing
+      ? { label: `Chiffrement… ${pct}%`, icon: CircleNotch }
+      : failed
+        ? { label: 'Échec du chiffrement', icon: Warning }
+        : !content.playable
+          ? { label: 'Flux indisponible', icon: LockSimple }
+          : null
 
   if (unavailable) {
     const Icon = unavailable.icon
     return (
-      <button className="vid-card" disabled title={unavailable.label}>
+      <button
+        className="vid-card"
+        disabled
+        title={processing ? 'Chiffrement en cours — indisponible' : unavailable.label}
+      >
         <div className="vid-thumb">
-          {content.status === 'processing' ? (
+          {processing || failed ? (
             <FilmSlate size={34} weight="light" color="var(--text-faint)" />
           ) : (
-            <img src={`${API}/videos/${content.id}/thumbnail.jpg?t=${Date.now()}`} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => e.target.style.display='none'} />
+            <img
+              src={`${API}/videos/${content.id}/thumbnail.jpg`}
+              alt=""
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+              }}
+              onError={(e) => (e.target.style.display = 'none')}
+            />
+          )}
+          {processing && (
+            <div
+              className="enc-progress"
+              role="progressbar"
+              aria-valuenow={pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div className="enc-progress-fill" style={{ width: `${pct}%` }} />
+            </div>
           )}
         </div>
         <div className="vid-meta">
           <div className="vid-title">{content.title}</div>
           <div className="vid-sub">
-            <Icon size={13} weight="bold" />
+            <Icon size={13} weight="bold" className={processing ? 'spin' : undefined} />
             {unavailable.label}
             {content.guestUpload && (
               <span className="badge" title="Vidéo déposée par un invité">
@@ -228,7 +275,20 @@ function ContentCard({ content, onOpenSecure }) {
     <button className="vid-card" onClick={() => onOpenSecure(content)}>
       <div className="vid-thumb">
         <ShieldCheck size={34} weight="light" color="var(--accent-strong)" />
-        <img key={content.id} src={`${API}/videos/${content.id}/thumbnail.jpg?t=${Date.now()}`} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }} onError={(e) => e.target.style.display='none'} />
+        <img
+          key={content.id}
+          src={`${API}/videos/${content.id}/thumbnail.jpg`}
+          alt=""
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            zIndex: 1,
+          }}
+          onError={(e) => (e.target.style.display = 'none')}
+        />
         <div className="play-badge" style={{ zIndex: 2 }}>
           <Play size={40} weight="fill" />
         </div>

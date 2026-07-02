@@ -28,6 +28,9 @@ const SEED: Content[] = []
 @Injectable()
 export class ContentsService {
   private readonly contents = new Map<string, Content>()
+  // Avancement du chiffrement (0..100), TRANSITOIRE : gardé en mémoire seule
+  // (jamais persisté). Alimenté par UploadService pendant l'encodage HLS.
+  private readonly progress = new Map<string, number>()
 
   constructor() {
     // Charge le disque ; à défaut (premier lancement), sème et persiste.
@@ -105,8 +108,20 @@ export class ContentsService {
     const c = this.contents.get(id)
     if (!c) return undefined
     c.status = status
+    // Nettoie l'avancement dès que l'encodage est terminé (prêt ou échoué).
+    if (status !== 'processing') this.progress.delete(id)
     this.persist()
     return this.clone(c)
+  }
+
+  // Avancement du chiffrement (0..100). Borné et arrondi.
+  setProgress(id: string, pct: number): void {
+    if (!this.contents.has(id)) return
+    this.progress.set(id, Math.max(0, Math.min(100, Math.round(pct))))
+  }
+
+  getProgress(id: string): number | undefined {
+    return this.progress.get(id)
   }
 
   // Accès à la clé : même entreprise, non révoqué, et explicitement autorisé.

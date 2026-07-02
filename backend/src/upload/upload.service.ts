@@ -168,17 +168,31 @@ export class UploadService implements OnModuleInit {
     return resolved
   }
 
-  private getVideoMiddleTime(filePath: string): number {
+  // Durée totale de la vidéo (secondes) via ffprobe. 0 si indéterminable.
+  private getVideoDuration(filePath: string): number {
     try {
-      const ffprobePath = this.getBin('ffprobe-static', 'ffprobe');
+      const ffprobePath = this.getBin('ffprobe-static', 'ffprobe')
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { spawnSync } = require('child_process');
-      const proc = spawnSync(ffprobePath, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath]);
-      const duration = parseFloat(proc.stdout.toString().trim());
-      return isNaN(duration) ? 1 : duration / 2;
-    } catch (e) {
-      return 1;
+      const { spawnSync } = require('child_process')
+      const proc = spawnSync(ffprobePath, [
+        '-v',
+        'error',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'default=noprint_wrappers=1:nokey=1',
+        filePath,
+      ])
+      const duration = parseFloat(proc.stdout.toString().trim())
+      return isNaN(duration) ? 0 : duration
+    } catch {
+      return 0
     }
+  }
+
+  private getVideoMiddleTime(filePath: string): number {
+    const d = this.getVideoDuration(filePath)
+    return d > 0 ? d / 2 : 1
   }
 
   private async extractThumbnail(filePath: string, outDir: string): Promise<void> {
@@ -231,36 +245,50 @@ export class UploadService implements OnModuleInit {
     const keyInfoPath = join(outDir, 'key_info')
     await writeFile(keyInfoPath, `/keys/${contentId}\n${keyPath}\n${iv}\n`)
 
+    // Durée totale (pour convertir l'avancement ffmpeg en %). 0 = inconnue.
+    const durationSec = this.getVideoDuration(inputPath)
+    this.contents.setProgress(contentId, 0)
+
     // Attend un slot libre avant de lancer le ré-encodage (borne la charge CPU).
     await this.acquireEncodeSlot()
     try {
       await this.extractThumbnail(inputPath, outDir)
 
-      await this.runFfmpeg([
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-y',
-        '-i',
-        inputPath,
-        '-c:v',
-        'libx264',
-        '-preset',
-        'veryfast',
-        '-crf',
-        '23',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '128k',
-        '-hls_key_info_file',
-        keyInfoPath,
-        '-hls_time',
-        '4',
-        '-hls_playlist_type',
-        'vod',
-        join(outDir, 'index.m3u8'),
-      ])
+      await this.runFfmpeg(
+        [
+          '-hide_banner',
+          '-loglevel',
+          'error',
+          '-y',
+          '-progress',
+          'pipe:1', // avancement machine-lisible sur stdout
+          '-i',
+          inputPath,
+          '-c:v',
+          'libx264',
+          '-preset',
+          'veryfast',
+          '-crf',
+          '23',
+          '-c:a',
+          'aac',
+          '-b:a',
+          '128k',
+          '-hls_key_info_file',
+          keyInfoPath,
+          '-hls_time',
+          '4',
+          '-hls_playlist_type',
+          'vod',
+          join(outDir, 'index.m3u8'),
+        ],
+        (outSec) => {
+          if (durationSec > 0) {
+            // On plafonne à 99 % : le 100 % est posé avec le statut 'ready'.
+            this.contents.setProgress(contentId, Math.min(99, (outSec / durationSec) * 100))
+          }
+        },
+      )
     } finally {
       this.releaseEncodeSlot()
       await rm(keyInfoPath, { force: true }).catch(() => {})
@@ -386,14 +414,32 @@ export class UploadService implements OnModuleInit {
     }
   }
 
-  private runFfmpeg(args: string[]): Promise<void> {
+  // onProgress (optionnel) reçoit le temps encodé en SECONDES, lu sur la sortie
+  // `-progress pipe:1` de ffmpeg (lignes `out_time_us=` / `out_time_ms=`).
+  private runFfmpeg(args: string[], onProgress?: (outSec: number) => void): Promise<void> {
     return new Promise((resolve, reject) => {
-      const ffmpegPath = this.getBin('ffmpeg-static', 'ffmpeg');
+      const ffmpegPath = this.getBin('ffmpeg-static', 'ffmpeg')
       const proc = spawn(ffmpegPath, args)
       let stderr = ''
       proc.stderr.on('data', (d: Buffer) => {
         stderr += d.toString()
       })
+      if (onProgress) {
+        let buf = ''
+        proc.stdout?.on('data', (d: Buffer) => {
+          buf += d.toString()
+          const lines = buf.split('\n')
+          buf = lines.pop() ?? '' // garde la ligne partielle
+          for (const line of lines) {
+            // out_time_us (µs) ou out_time_ms (en réalité des µs chez ffmpeg).
+            const m = /^out_time_(us|ms)=(\d+)/.exec(line.trim())
+            if (m) {
+              const outSec = parseInt(m[2], 10) / 1_000_000
+              if (!isNaN(outSec)) onProgress(outSec)
+            }
+          }
+        })
+      }
       proc.on('error', (err) =>
         reject(new Error(`ffmpeg introuvable ou illisible : ${err.message}`)),
       )
