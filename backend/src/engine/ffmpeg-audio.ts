@@ -9,6 +9,11 @@ import { dirname, join } from 'path'
 // 2) repli sur le paquet npm `ffmpeg-static` (dev sans ffmpeg système).
 let cachedFfmpeg: string | null = null
 
+// Plafond d'exécution ffmpeg (extraction audio). Généreux (l'extraction audio
+// seule est rapide, même sur une longue vidéo) mais BORNÉ : au-delà, on considère
+// le process gelé et on le tue, pour ne jamais laisser l'analyse coincée.
+const FFMPEG_TIMEOUT_MS = 3 * 60 * 1000 // 5 min
+
 function probe(bin: string): boolean {
   try {
     const res = spawnSync(bin, ['-version'])
@@ -69,14 +74,38 @@ export async function extractAudioMp3(
   await new Promise<void>((resolve, reject) => {
     const proc = spawn(ffmpeg, args)
     let stderr = ''
+    let settled = false
+    const done = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn()
+    }
+    // Garde-fou anti-blocage : un ffmpeg qui GÈLE (fichier malformé, flux HLS qui
+    // stalle) ne se termine jamais -> sans ça, la Promise ne se résout pas et
+    // l'analyse reste « processing » à vie. On tue le process au-delà du délai.
+    const timer = setTimeout(() => {
+      proc.kill('SIGKILL')
+      done(() =>
+        reject(
+          new Error(`extraction audio ffmpeg: délai dépassé (${FFMPEG_TIMEOUT_MS} ms)`),
+        ),
+      )
+    }, FFMPEG_TIMEOUT_MS)
     proc.stderr.on('data', (d) => {
       stderr += d.toString()
     })
-    proc.on('error', (e) => reject(new Error(`ffmpeg introuvable : ${e.message}`)))
+    proc.on('error', (e) =>
+      done(() => reject(new Error(`ffmpeg introuvable : ${e.message}`))),
+    )
     proc.on('close', (code) =>
-      code === 0
-        ? resolve()
-        : reject(new Error(`extraction audio ffmpeg (code ${code}) : ${stderr.slice(-300)}`)),
+      done(() =>
+        code === 0
+          ? resolve()
+          : reject(
+            new Error(`extraction audio ffmpeg (code ${code}) : ${stderr.slice(-300)}`),
+          ),
+      ),
     )
   })
 
