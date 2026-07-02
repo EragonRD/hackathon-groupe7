@@ -1042,11 +1042,16 @@
   display: grid;
   place-items: center;
   overflow: hidden;
+  /* Rayon posé DIRECTEMENT sur la miniature : sur iOS Safari, l'overflow:hidden
+     de la carte ne clippe pas pendant le transform du hover -> coins carrés.
+     On arrondit donc le haut de la miniature elle-même. */
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 .vid-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: inherit;
 }
 /* Barre d'avancement du chiffrement HLS (carte en 'processing'). */
 .enc-progress {
@@ -1177,6 +1182,17 @@
     border-left: 0;
     border-top: 1px solid var(--line);
     max-height: none;
+  }
+  /* Zone commentaires : coule dans le scroll de la page (pas de scroll imbriqué
+     qui la tronquait). La liste et le compositeur s'affichent en entier. */
+  .comment-list {
+    overflow: visible;
+    flex: none;
+  }
+  .comment-actions,
+  .composer-actions,
+  .reply-composer-actions {
+    flex-wrap: wrap;
   }
 }
 
@@ -3841,15 +3857,23 @@
   flex-direction: column;
   align-items: center;
   gap: var(--s-2);
+  min-width: 0;
+  max-width: 100%;
 }
 /* Tuile blanche : un QR doit rester sombre-sur-clair pour un scan fiable
-   (exception assumée au thème sombre, comme la palette d'annotation). */
+   (exception assumée au thème sombre, comme la palette d'annotation).
+   Bornée à la largeur de la zone bleue : ne déborde jamais de la card. */
 .invite-qr-tile {
   padding: var(--s-3);
   background: #ffffff;
   border-radius: var(--r-md);
   line-height: 0;
   box-shadow: var(--shadow-1);
+  max-width: 100%;
+}
+.invite-qr-tile canvas {
+  max-width: 100%;
+  height: auto;
 }
 .invite-qr-hint {
   font-size: 12.5px;
@@ -3881,14 +3905,14 @@
   max-height: 96px;
   overflow-y: auto;
 }
-/* Lien d'invitation : forcé sur UNE seule ligne, scrollable horizontalement
-   (le bouton Copier et le QR donnent accès à l'URL complète). */
+/* Lien d'invitation : UNE seule ligne, TRONQUÉE avec "..." au bord de la card
+   (jamais de débordement ; le bouton Copier et le QR donnent l'URL complète). */
 .copy-row-value.copy-link {
   white-space: nowrap;
   word-break: normal;
   overflow-wrap: normal;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: hidden;
+  text-overflow: ellipsis;
   max-height: none;
 }
 
