@@ -179,10 +179,14 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
   )
 
   // Le calque affiche le brouillon en cours, sinon les dessins de la note active.
-  // Le brouillon reste visible pendant le tracé ; les dessins enregistrés se
-  // masquent via le bouton (showShapes).
-  const shapesToShow =
-    draftShapes.length > 0 ? draftShapes : showShapes ? (activeNote?.shapes ?? []) : []
+  // Bouton "œil" désactivé (showShapes=false) -> on masque TOUTE la feature de
+  // dessin : formes enregistrées ET brouillon (voir aussi la barre d'outils et
+  // le tool du calque, gatés plus bas).
+  const shapesToShow = !showShapes
+    ? []
+    : draftShapes.length > 0
+      ? draftShapes
+      : (activeNote?.shapes ?? [])
 
   // --- Sous-titres (transcription P3) incrustés sur la vidéo ----------------
   // Partagés avec InsightsPanel (meta passé en prop pour ne pas double-poller).
@@ -844,7 +848,7 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
               </div>
             )}
             <DrawingCanvas
-              tool={tool}
+              tool={showShapes ? tool : 'cursor'}
               color={color}
               shapes={shapesToShow}
               onAddShape={handleAddShape}
@@ -911,32 +915,36 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
           {fullscreen && (
             <div className="fs-toolbar">
               <div className="fs-toolbar-tools">
-                {TOOLS.map(({ id, label, Icon }) => (
-                  <button
-                    key={id}
-                    className={`tool-btn${tool === id ? ' active' : ''}`}
-                    onClick={() => setTool(id)}
-                    title={label}
-                    aria-label={label}
-                    aria-pressed={tool === id}
-                  >
-                    <Icon size={16} weight={tool === id ? 'fill' : 'regular'} />
-                  </button>
-                ))}
-                <span className="toolbar-sep" />
-                <div className="swatches">
-                  {SWATCHES.map((s) => (
-                    <button
-                      key={s.value}
-                      className={`swatch${color === s.value ? ' active' : ''}`}
-                      style={{ background: s.value }}
-                      onClick={() => setColor(s.value)}
-                      title={s.name}
-                      aria-label={`Couleur ${s.name}`}
-                    />
-                  ))}
-                </div>
-                <span className="toolbar-sep" />
+                {showShapes && (
+                  <>
+                    {TOOLS.map(({ id, label, Icon }) => (
+                      <button
+                        key={id}
+                        className={`tool-btn${tool === id ? ' active' : ''}`}
+                        onClick={() => setTool(id)}
+                        title={label}
+                        aria-label={label}
+                        aria-pressed={tool === id}
+                      >
+                        <Icon size={16} weight={tool === id ? 'fill' : 'regular'} />
+                      </button>
+                    ))}
+                    <span className="toolbar-sep" />
+                    <div className="swatches">
+                      {SWATCHES.map((s) => (
+                        <button
+                          key={s.value}
+                          className={`swatch${color === s.value ? ' active' : ''}`}
+                          style={{ background: s.value }}
+                          onClick={() => setColor(s.value)}
+                          title={s.name}
+                          aria-label={`Couleur ${s.name}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="toolbar-sep" />
+                  </>
+                )}
                 <button
                   className={`tool-btn${!showShapes ? ' active' : ''}`}
                   onClick={() => setShowShapes((v) => !v)}
@@ -946,21 +954,23 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
                 >
                   {showShapes ? <Eye size={16} /> : <EyeSlash size={16} weight="fill" />}
                 </button>
-                <button
-                  className="tool-btn"
-                  onClick={() => {
-                    if (activeId) {
-                      const note = notes.find((n) => n.id === activeId)
-                      if (note && note.shapes?.length) updateNoteShapes(note.id, [])
-                    } else {
-                      clearDraft()
-                    }
-                  }}
-                  title="Effacer tout"
-                  aria-label="Effacer tout"
-                >
-                  <TrashSimple size={16} />
-                </button>
+                {showShapes && (
+                  <button
+                    className="tool-btn"
+                    onClick={() => {
+                      if (activeId) {
+                        const note = notes.find((n) => n.id === activeId)
+                        if (note && note.shapes?.length) updateNoteShapes(note.id, [])
+                      } else {
+                        clearDraft()
+                      }
+                    }}
+                    title="Effacer tout"
+                    aria-label="Effacer tout"
+                  >
+                    <TrashSimple size={16} />
+                  </button>
+                )}
                 <button
                   className="tool-btn"
                   onClick={toggleFullscreen}
@@ -1181,59 +1191,65 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
 
             <div className="controls-spacer" />
 
-            {/* Barre d'outils d'annotation */}
-            <div className="toolbar" role="toolbar" aria-label="Outils d'annotation">
-              {TOOLS.map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  className={`tool-btn${tool === id ? ' active' : ''}`}
-                  onClick={() => setTool(id)}
-                  title={label}
-                  aria-label={label}
-                  aria-pressed={tool === id}
-                >
-                  <Icon size={17} weight={tool === id ? 'fill' : 'regular'} />
-                </button>
-              ))}
-              <span className="toolbar-sep" />
-              <div className="swatches">
-                {SWATCHES.map((s) => (
+            {/* Barre d'outils d'annotation (masquée quand la feature est coupée) */}
+            {showShapes && (
+              <div className="toolbar" role="toolbar" aria-label="Outils d'annotation">
+                {TOOLS.map(({ id, label, Icon }) => (
                   <button
-                    key={s.value}
-                    className={`swatch${color === s.value ? ' active' : ''}`}
-                    style={{ background: s.value }}
-                    onClick={() => setColor(s.value)}
-                    title={s.name}
-                    aria-label={`Couleur ${s.name}`}
-                  />
+                    key={id}
+                    className={`tool-btn${tool === id ? ' active' : ''}`}
+                    onClick={() => setTool(id)}
+                    title={label}
+                    aria-label={label}
+                    aria-pressed={tool === id}
+                  >
+                    <Icon size={17} weight={tool === id ? 'fill' : 'regular'} />
+                  </button>
                 ))}
+                <span className="toolbar-sep" />
+                <div className="swatches">
+                  {SWATCHES.map((s) => (
+                    <button
+                      key={s.value}
+                      className={`swatch${color === s.value ? ' active' : ''}`}
+                      style={{ background: s.value }}
+                      onClick={() => setColor(s.value)}
+                      title={s.name}
+                      aria-label={`Couleur ${s.name}`}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <button
-              className="btn-icon"
-              onClick={exportJSON}
-              title="Exporter en JSON"
-              aria-label="Exporter"
-            >
-              <DownloadSimple size={18} />
-            </button>
-            <button
-              className="btn-icon"
-              onClick={() => fileRef.current?.click()}
-              title="Importer un JSON"
-              aria-label="Importer"
-            >
-              <UploadSimple size={18} />
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json"
-              hidden
-              onChange={(e) => importJSON(e.target.files?.[0])}
-            />
-            <span className="toolbar-sep" />
+            {showShapes && (
+              <>
+                <button
+                  className="btn-icon"
+                  onClick={exportJSON}
+                  title="Exporter en JSON"
+                  aria-label="Exporter"
+                >
+                  <DownloadSimple size={18} />
+                </button>
+                <button
+                  className="btn-icon"
+                  onClick={() => fileRef.current?.click()}
+                  title="Importer un JSON"
+                  aria-label="Importer"
+                >
+                  <UploadSimple size={18} />
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="application/json"
+                  hidden
+                  onChange={(e) => importJSON(e.target.files?.[0])}
+                />
+                <span className="toolbar-sep" />
+              </>
+            )}
             <button
               className={`btn-icon${!showShapes ? ' active' : ''}`}
               onClick={() => setShowShapes((v) => !v)}
@@ -1243,21 +1259,23 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
             >
               {showShapes ? <Eye size={18} /> : <EyeSlash size={18} weight="fill" />}
             </button>
-            <button
-              className="btn-icon"
-              onClick={() => {
-                if (activeId) {
-                  const note = notes.find((n) => n.id === activeId)
-                  if (note && note.shapes?.length) updateNoteShapes(note.id, [])
-                } else {
-                  clearDraft()
-                }
-              }}
-              title="Effacer tous les dessins"
-              aria-label="Effacer les dessins"
-            >
-              <TrashSimple size={18} />
-            </button>
+            {showShapes && (
+              <button
+                className="btn-icon"
+                onClick={() => {
+                  if (activeId) {
+                    const note = notes.find((n) => n.id === activeId)
+                    if (note && note.shapes?.length) updateNoteShapes(note.id, [])
+                  } else {
+                    clearDraft()
+                  }
+                }}
+                title="Effacer tous les dessins"
+                aria-label="Effacer les dessins"
+              >
+                <TrashSimple size={18} />
+              </button>
+            )}
             <button
               className="btn-icon"
               onClick={toggleFullscreen}
