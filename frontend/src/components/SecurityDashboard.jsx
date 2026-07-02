@@ -10,6 +10,10 @@ import {
   FileCode,
   ArrowLeft,
   WarningCircle,
+  Play,
+  CheckCircle,
+  XCircle,
+  CircleNotch,
 } from '@phosphor-icons/react'
 import { authFetch } from '../auth'
 
@@ -46,6 +50,30 @@ export default function SecurityDashboard() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
   const [categoryView, setCategoryView] = useState(null)
+  const [selftest, setSelftest] = useState(null)
+  const [running, setRunning] = useState(false)
+  const [selftestError, setSelftestError] = useState(null)
+
+  async function runSelftest() {
+    setRunning(true)
+    setSelftestError(null)
+    try {
+      const res = await authFetch('/security/selftest', { method: 'POST' })
+      if (!res.ok) {
+        setSelftestError(
+          res.status === 403
+            ? 'Réservé aux administrateurs.'
+            : 'Auto-test momentanément indisponible.',
+        )
+        return
+      }
+      setSelftest(await res.json())
+    } catch {
+      setSelftestError('Service de test injoignable.')
+    } finally {
+      setRunning(false)
+    }
+  }
 
   useEffect(() => {
     let alive = true
@@ -100,11 +128,68 @@ export default function SecurityDashboard() {
             <h1>Surveillance</h1>
             <p>État de la diffusion et activité suspecte, en direct.</p>
           </div>
-          <span className="badge badge-accent">
-            <Pulse size={13} weight="fill" />
-            En direct
-          </span>
+          <div className="dash-head-actions">
+            <button
+              className="dash-selftest-btn"
+              onClick={runSelftest}
+              disabled={running}
+            >
+              {running ? (
+                <CircleNotch size={15} weight="bold" className="dash-spin" />
+              ) : (
+                <Play size={15} weight="fill" />
+              )}
+              {running ? 'Tests en cours…' : 'Lancer les tests d’attaque'}
+            </button>
+            <span className="badge badge-accent">
+              <Pulse size={13} weight="fill" />
+              En direct
+            </span>
+          </div>
         </div>
+
+        {(selftest || selftestError) && (
+          <section className="dash-card dash-selftest">
+            <h3>
+              Auto-test des attaques
+              {selftest && (
+                <span className="count">
+                  {' '}
+                  · {selftest.results.filter((r) => r.status === 'pass').length}/
+                  {selftest.results.length} détectées
+                </span>
+              )}
+            </h3>
+            {selftestError ? (
+              <div className="dash-ok">
+                <WarningCircle size={18} weight="fill" />
+                {selftestError}
+              </div>
+            ) : (
+              <ul className="dash-selftest-list">
+                {selftest.results.map((r) => (
+                  <li key={r.key} className={`dash-selftest-item ${r.status}`}>
+                    {r.status === 'pass' ? (
+                      <CheckCircle size={20} weight="fill" />
+                    ) : (
+                      <XCircle size={20} weight="fill" />
+                    )}
+                    <div className="dash-selftest-body">
+                      <span className="dash-selftest-name">
+                        {r.label}
+                        <span className="dash-selftest-verdict">
+                          {r.status === 'pass' ? 'détectée' : 'non détectée'}
+                        </span>
+                      </span>
+                      <span className="dash-selftest-detail">{r.detail}</span>
+                    </div>
+                    <span className="dash-selftest-ms tnum">{r.ms} ms</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         <div className="dash-counters">
           {COUNTERS.map((c) => (

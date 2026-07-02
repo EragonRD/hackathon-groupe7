@@ -3,11 +3,12 @@ import { AuthModule } from '../auth/auth.module'
 import { SecurityController } from './security.controller'
 import { SecurityMiddleware } from './security.middleware'
 import { SecurityService } from './security.service'
+import { SecuritySelftestService } from './selftest.service'
 
 @Module({
   imports: [AuthModule],
   controllers: [SecurityController],
-  providers: [SecurityService, SecurityMiddleware],
+  providers: [SecurityService, SecurityMiddleware, SecuritySelftestService],
   exports: [SecurityService],
 })
 export class SecurityModule implements NestModule {

@@ -24,12 +24,14 @@ import {
 } from '../common/request-context'
 import type { JwtUser, RequestWithUser } from '../common/request-context'
 import { SecurityService } from './security.service'
+import { SecuritySelftestService } from './selftest.service'
 
 @Controller('security')
 export class SecurityController {
   constructor(
     private readonly security: SecurityService,
     private readonly jwt: JwtService,
+    private readonly selftest: SecuritySelftestService,
   ) {}
 
   // Dashboard protégé : réservé à un administrateur (le tableau expose comptes + IP).
@@ -55,6 +57,15 @@ export class SecurityController {
       Number.isFinite(seq) ? seq : 0,
       Number.isFinite(alertId) ? alertId : 0,
     )
+  }
+
+  // Auto-test : rejoue les 4 scénarios d'attaque en self-HTTP (loopback) et
+  // renvoie PASS/FAIL par scénario. Réservé admin (déclenche des alertes réelles).
+  @SkipThrottle()
+  @UseGuards(AuthGuard, AdminGuard)
+  @Post('selftest')
+  runSelftest() {
+    return this.selftest.run()
   }
 
   // --- Bans d'IP (admin) ---
