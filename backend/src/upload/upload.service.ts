@@ -118,10 +118,23 @@ export class UploadService implements OnModuleInit {
     await rm(join(this.secretsDir, `${contentId}.key`), { force: true }).catch(() => {})
   }
 
-  private getVideoMiddleTime(filePath: string): number {
+  private getBin(staticPkg: string, systemCmd: string): string {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const ffprobePath = process.platform === 'win32' ? require('ffprobe-static').path : 'ffprobe';
+      const staticPath = staticPkg === 'ffmpeg-static' ? require(staticPkg) : require(staticPkg).path;
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { spawnSync } = require('child_process');
+      const res = spawnSync(staticPath, ['-version']);
+      if (!res.error) return staticPath;
+    } catch (e) {
+      // Ignored
+    }
+    return systemCmd;
+  }
+
+  private getVideoMiddleTime(filePath: string): number {
+    try {
+      const ffprobePath = this.getBin('ffprobe-static', 'ffprobe');
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { spawnSync } = require('child_process');
       const proc = spawnSync(ffprobePath, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath]);
@@ -138,8 +151,7 @@ export class UploadService implements OnModuleInit {
     const target = Math.max(0, offset)
 
     return new Promise((resolve) => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const ffmpegPath = process.platform === 'win32' ? require('ffmpeg-static') : 'ffmpeg';
+      const ffmpegPath = this.getBin('ffmpeg-static', 'ffmpeg');
       const args = [
         '-ss', target.toString(),
         '-i', filePath,
@@ -326,8 +338,7 @@ export class UploadService implements OnModuleInit {
 
   private runFfmpeg(args: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const ffmpegPath = process.platform === 'win32' ? require('ffmpeg-static') : 'ffmpeg';
+      const ffmpegPath = this.getBin('ffmpeg-static', 'ffmpeg');
       const proc = spawn(ffmpegPath, args)
       let stderr = ''
       proc.stderr.on('data', (d: Buffer) => {
