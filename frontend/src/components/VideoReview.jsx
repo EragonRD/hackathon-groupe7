@@ -13,6 +13,7 @@ import {
   UploadSimple,
   Broadcast,
   Eye,
+  EyeSlash,
   TrashSimple,
   ArrowsOutSimple,
   ArrowsInSimple,
@@ -158,6 +159,8 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
 
   const [tool, setTool] = useState('cursor')
   const [color, setColor] = useState('#f5a623')
+  // Masquer les dessins à la demande (voir la vidéo nette, sans annotations).
+  const [showShapes, setShowShapes] = useState(true)
 
   const [draftShapes, setDraftShapes] = useState([])
   const [pinnedTime, setPinnedTime] = useState(null)
@@ -176,7 +179,10 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
   )
 
   // Le calque affiche le brouillon en cours, sinon les dessins de la note active.
-  const shapesToShow = draftShapes.length > 0 ? draftShapes : (activeNote?.shapes ?? [])
+  // Le brouillon reste visible pendant le tracé ; les dessins enregistrés se
+  // masquent via le bouton (showShapes).
+  const shapesToShow =
+    draftShapes.length > 0 ? draftShapes : showShapes ? (activeNote?.shapes ?? []) : []
 
   // --- Sous-titres (transcription P3) incrustés sur la vidéo ----------------
   // Partagés avec InsightsPanel (meta passé en prop pour ne pas double-poller).
@@ -932,6 +938,15 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
                 </div>
                 <span className="toolbar-sep" />
                 <button
+                  className={`tool-btn${!showShapes ? ' active' : ''}`}
+                  onClick={() => setShowShapes((v) => !v)}
+                  title={showShapes ? 'Masquer les dessins' : 'Afficher les dessins'}
+                  aria-label={showShapes ? 'Masquer les dessins' : 'Afficher les dessins'}
+                  aria-pressed={!showShapes}
+                >
+                  {showShapes ? <Eye size={16} /> : <EyeSlash size={16} weight="fill" />}
+                </button>
+                <button
                   className="tool-btn"
                   onClick={() => {
                     if (activeId) {
@@ -1219,6 +1234,15 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
               onChange={(e) => importJSON(e.target.files?.[0])}
             />
             <span className="toolbar-sep" />
+            <button
+              className={`btn-icon${!showShapes ? ' active' : ''}`}
+              onClick={() => setShowShapes((v) => !v)}
+              title={showShapes ? 'Masquer les dessins' : 'Afficher les dessins'}
+              aria-label={showShapes ? 'Masquer les dessins' : 'Afficher les dessins'}
+              aria-pressed={!showShapes}
+            >
+              {showShapes ? <Eye size={18} /> : <EyeSlash size={18} weight="fill" />}
+            </button>
             <button
               className="btn-icon"
               onClick={() => {
