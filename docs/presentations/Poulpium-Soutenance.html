@@ -37,12 +37,15 @@
     --mono:"SFMono-Regular","JetBrains Mono","Cascadia Code",Consolas,Menlo,monospace;
     --ease:cubic-bezier(.16,1,.3,1);
     --p1:#4d9bff;
-    --p2:#29c5e6;
+    --p1b:#3d6dfd;
+    --p2:#2fd4e6;
+    --p2b:#1fa9c4;
     --p3:#b07bff;
-    --r-md:14px;
-    --r-pill:999px;
+    --p3b:#8e6bff;
     --grad:linear-gradient(100deg,var(--accent),#29c5e6);
     --amber:#f5a623;
+    --r-md:14px;
+    --r-pill:999px;
     --c1:#2fd4e6;
     --c2:#b07bff;
     color-scheme:dark;
@@ -322,83 +325,80 @@
 @scope (.dpt) {
 
   :root{
-    --bg:#090b0f; --bg-1:#0d1016; --bg-2:#12151c; --bg-3:#1b1f28; --inset:#06080b;
-    --line:rgba(255,255,255,.09); --line-strong:rgba(255,255,255,.17);
-    --text:#e9ebef; --dim:#9aa2ae; --faint:#5d646f;
-    --accent:#3d6dfd; --accent-2:#5b85ff; --accent-soft:rgba(61,109,253,.15); --accent-line:rgba(61,109,253,.45);
-    --ok:#2ec27e; --warn:#f5a623; --danger:#ff5b5b; --violet:#b07bff; --cyan:#29c5e6;
-    --p1:#4d9bff; --p2:#29c5e6; --p3:#b07bff;
-    --r-sm:8px; --r-md:14px; --r-pill:999px;
+    --bg:#080a0e; --bg-1:#0d1016; --bg-2:#12151c; --bg-3:#1b1f28;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.15);
+    --text:#eef1f6; --dim:#98a2b0; --faint:#5a6470;
+    --accent:#3d6dfd; --accent-2:#5b85ff; --warn:#f5b23a; --ok:#2ee6a0;
+    --p1:#4d9bff; --p1b:#3d6dfd; --p2:#2fd4e6; --p2b:#1fa9c4; --p3:#b07bff; --p3b:#8e6bff;
+    --pill:999px;
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     --mono:"SFMono-Regular","JetBrains Mono","Cascadia Code",Consolas,Menlo,monospace;
     color-scheme:dark;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
-  body{background:var(--bg);color:var(--text);font-family:var(--sans);letter-spacing:-.01em;
-    min-height:100%;display:flex;align-items:center;justify-content:center;padding:clamp(16px,2.2vw,40px);-webkit-font-smoothing:antialiased}
-  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.55;
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);letter-spacing:-.011em;
+    min-height:100%;display:flex;align-items:center;justify-content:center;padding:clamp(16px,2.2vw,42px);-webkit-font-smoothing:antialiased}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
     background:
-      radial-gradient(820px 520px at 88% -6%, rgba(61,109,253,.14), transparent 60%),
-      radial-gradient(680px 460px at 3% 106%, rgba(176,123,255,.11), transparent 55%)}
-  .wrap{position:relative;z-index:1;width:100%;max-width:1240px}
+      radial-gradient(720px 460px at 12% 0%, rgba(61,109,253,.18), transparent 62%),
+      radial-gradient(680px 480px at 88% 4%, rgba(41,197,230,.12), transparent 60%),
+      radial-gradient(760px 540px at 60% 116%, rgba(176,123,255,.15), transparent 60%)}
+  .wrap{position:relative;z-index:1;width:100%;max-width:1220px}
 
-  .head{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:clamp(12px,1.6vw,22px)}
-  .brand{display:flex;align-items:center;gap:14px}
-  .brand img{width:clamp(38px,3.2vw,50px);height:clamp(38px,3.2vw,50px);filter:drop-shadow(0 8px 24px rgba(61,109,253,.5))}
-  .brand .word{font-size:clamp(24px,3.2vw,40px);font-weight:800;letter-spacing:-.03em;line-height:1;
-    background:linear-gradient(90deg,#cdd6ff,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .brand .sub{color:var(--dim);font-size:clamp(11px,1vw,14px);margin-top:4px}
+  .head{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:clamp(16px,2vw,28px)}
+  .brand{display:flex;align-items:center;gap:15px}
+  .brand img{width:clamp(40px,3.4vw,54px);height:clamp(40px,3.4vw,54px);filter:drop-shadow(0 10px 26px rgba(61,109,253,.55))}
+  .brand .word{font-size:clamp(28px,3.6vw,48px);font-weight:800;letter-spacing:-.035em;line-height:1;
+    background:linear-gradient(92deg,#e9eeff,var(--accent-2) 70%,var(--p2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .brand .sub{color:var(--dim);font-size:clamp(11px,1vw,14px);margin-top:5px}
   .kick{text-align:right;font-family:var(--mono)}
-  .kick .l1{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent-2)}
-  .kick .l2{font-size:12px;color:var(--faint);margin-top:5px}
+  .kick .l1{font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-2)}
+  .kick .l2{font-size:12.5px;color:var(--faint);margin-top:6px}
   .kick .l2 b{color:var(--text)}
+  .kick .chef{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:11px;color:#241905;background:var(--warn);padding:3px 11px;border-radius:var(--pill);font-weight:700;letter-spacing:0}
 
-  /* ===== Organigramme d'entreprise ===== */
-  .org{display:flex;flex-direction:column;align-items:center}
-  .chef{display:flex;align-items:center;gap:13px;border:1px solid var(--warn);border-radius:var(--r-md);padding:11px 22px;
-    background:linear-gradient(180deg,rgba(245,166,35,.14),transparent);box-shadow:0 14px 40px rgba(0,0,0,.45)}
-  .chef .ava{width:42px;height:42px;font-size:14px;box-shadow:0 0 0 2px rgba(245,166,35,.5)}
-  .chef .cn{font-weight:800;font-size:clamp(15px,1.5vw,19px);letter-spacing:-.02em}
-  .chef .cr{font-family:var(--mono);font-size:11px;color:var(--warn);margin-top:2px;text-transform:uppercase;letter-spacing:.08em}
-  .drop{width:2px;height:20px;background:var(--line-strong)}
+  /* ===== Galerie par pôle ===== */
+  .gallery{display:flex;flex-direction:column;gap:clamp(14px,1.8vw,24px)}
+  .pole{--g1:var(--p1);--g2:var(--p1b)}
+  .pole-h{display:flex;align-items:center;gap:13px;margin-bottom:12px}
+  .pole-h .dot{width:11px;height:11px;border-radius:50%;background:var(--pc);box-shadow:0 0 16px var(--pc);flex:0 0 auto}
+  .pole-h .pn{font-weight:800;font-size:clamp(15px,1.5vw,19px);letter-spacing:-.02em;white-space:nowrap}
+  .pole-h .pn em{font-style:normal;color:var(--pc)}
+  .pole-h .pl{font-family:var(--mono);font-size:11px;color:var(--faint);white-space:nowrap}
+  .pole-h .pl b{color:var(--dim)}
+  .pole-h .rule{flex:1;height:1px;background:linear-gradient(90deg,color-mix(in srgb,var(--pc) 40%,transparent),transparent)}
 
-  .poles{display:grid;grid-template-columns:1fr 1.05fr 1.5fr;gap:clamp(14px,1.6vw,24px);width:100%;position:relative;padding-top:22px}
-  .poles::before{content:"";position:absolute;top:0;left:16.6%;right:16.6%;height:2px;background:var(--line-strong);border-radius:2px}
-  .pole{position:relative;padding-top:22px;display:flex;flex-direction:column;align-items:stretch}
-  .pole::before{content:"";position:absolute;top:-22px;left:50%;transform:translateX(-50%);width:2px;height:44px;background:var(--pc)}
-  .pole-node{border:1px solid var(--pc);border-radius:var(--r-md);padding:11px 14px;text-align:center;
-    background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 15%,transparent),var(--bg-1))}
-  .pole-node .pt{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--pc)}
-  .pole-node .pn{font-weight:800;font-size:clamp(13px,1.35vw,16px);margin-top:2px}
-  .pole-node .pl{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:4px}
-  .pole-node .pl b{color:var(--dim)}
+  .members{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(9px,1.1vw,13px)}
+  .mcard{position:relative;display:flex;align-items:center;gap:12px;min-width:0;padding:11px 14px;border-radius:16px;
+    background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.012));
+    border:1px solid var(--line);box-shadow:0 8px 22px rgba(0,0,0,.28);
+    transition:transform .2s cubic-bezier(.16,1,.3,1),border-color .2s,box-shadow .2s}
+  .mcard:hover{transform:translateY(-4px);border-color:color-mix(in srgb,var(--pc) 55%,transparent);box-shadow:0 16px 34px rgba(0,0,0,.42)}
+  .mcard.lead{border-color:color-mix(in srgb,var(--pc) 45%,transparent);
+    background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 12%,transparent),rgba(255,255,255,.01))}
+  .mcard.chef{border-color:color-mix(in srgb,var(--warn) 55%,transparent);
+    background:linear-gradient(180deg,color-mix(in srgb,var(--warn) 13%,transparent),rgba(255,255,255,.01))}
+  .av{flex:0 0 auto;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;position:relative;
+    font-family:var(--mono);font-size:13px;font-weight:800;color:#08110f;
+    background:linear-gradient(140deg,var(--g1),var(--g2));
+    box-shadow:0 0 0 2px var(--bg-1),0 0 0 3.5px color-mix(in srgb,var(--pc) 45%,transparent),0 6px 14px rgba(0,0,0,.4)}
+  .mcard.chef .av{background:linear-gradient(140deg,#ffd36a,var(--warn));box-shadow:0 0 0 2px var(--bg-1),0 0 0 3.5px color-mix(in srgb,var(--warn) 55%,transparent),0 6px 16px rgba(245,178,58,.35)}
+  .mi{min-width:0;flex:1}
+  .mn{font-size:13.5px;font-weight:700;line-height:1.2}
+  .mm{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:5px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .rb{font-family:var(--mono);font-size:8.5px;font-weight:800;letter-spacing:.04em;
+    padding:2px 8px;border-radius:var(--pill);white-space:nowrap;
+    color:var(--pc);background:color-mix(in srgb,var(--pc) 18%,transparent);border:1px solid color-mix(in srgb,var(--pc) 42%,transparent)}
+  .mcard.chef .rb{color:#241905;background:var(--warn);border-color:transparent}
 
-  /* sous-arbre : membres reliés par une colonne + coudes */
-  .team{margin:12px 0 0 16px;border-left:2px solid var(--line);display:flex;flex-direction:column;gap:7px}
-  .team.two{display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;border-left:0;margin-left:0}
-  .pnode{position:relative;margin-left:16px;display:flex;align-items:center;gap:9px;min-width:0;
-    background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r-sm);padding:5px 10px 5px 5px}
-  .pnode:first-child{margin-top:7px}
-  .pnode::before{content:"";position:absolute;left:-16px;top:50%;width:14px;height:2px;background:var(--line)}
-  .team.two .pnode{margin-left:0}
-  .team.two .pnode::before{display:none}
-  .pnode.lead{background:color-mix(in srgb,var(--pc) 13%,var(--bg-2));border-color:color-mix(in srgb,var(--pc) 45%,transparent)}
-  .ava{flex:0 0 auto;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
-    font-family:var(--mono);font-size:11px;font-weight:800;color:#0a0c0f;box-shadow:0 0 0 2px rgba(255,255,255,.06)}
-  .minfo{min-width:0;flex:1}
-  .mname{font-size:12.5px;font-weight:700;line-height:1.15}
-  .mmeta{font-family:var(--mono);font-size:9.5px;color:var(--faint);margin-top:2px}
-  .rb{font-family:var(--mono);font-size:8px;font-weight:800;letter-spacing:.02em;padding:2px 6px;border-radius:var(--r-pill);white-space:nowrap;flex:0 0 auto;
-    color:var(--pc);background:color-mix(in srgb,var(--pc) 16%,transparent);border:1px solid color-mix(in srgb,var(--pc) 42%,transparent)}
-
-  .legend{margin-top:clamp(12px,1.6vw,20px);display:flex;flex-wrap:wrap;gap:7px 9px;align-items:center;justify-content:center}
+  .legend{margin-top:clamp(14px,1.8vw,24px);display:flex;flex-wrap:wrap;gap:8px 9px;align-items:center;justify-content:center}
   .legend .lt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-right:2px}
-  .spec{font-family:var(--mono);font-size:10.5px;color:var(--dim);background:var(--bg-2);border:1px solid var(--line);padding:4px 9px;border-radius:var(--r-pill)}
+  .spec{font-family:var(--mono);font-size:10.5px;color:var(--dim);background:var(--bg-2);border:1px solid var(--line);padding:4px 10px;border-radius:var(--pill)}
   .spec b{color:var(--text)}
   .foot{margin-top:11px;font-family:var(--mono);font-size:10px;color:var(--faint);text-align:center;letter-spacing:.04em}
 
-  @media (max-width:900px){ .poles{grid-template-columns:1fr} .poles::before{display:none} .pole::before{display:none} }
+  @media (max-width:940px){ .members{grid-template-columns:1fr 1fr} }
 
 }
 @scope (.dp1) {
@@ -1258,40 +1258,65 @@
     <span class="lead"><span class="d" style="background:#2ee6a0"></span>William · Prod</span>
   </div>
   <div class="team">Poulpium — « plusieurs bras sur une même vidéo »</div>
-</section></div><div class="wp dpt"><section class="slide" style="justify-content:center;align-items:center"><div class="wrap">
+</section></div><div class="wp dpt"><section class="slide" style="justify-content:center;align-items:center;padding:clamp(16px,2.4vw,40px)"><div class="wrap">
   <div class="head">
     <div class="brand">
       <img src="assets/poulpium-mark.png" alt="Poulpium">
       <div><div class="word">L'équipe</div><div class="sub">Poulpium · revue vidéo collaborative — View / Core / Engine</div></div>
     </div>
-    <div class="kick"><div class="l1">Hackathon ESTIAM 2026</div><div class="l2">Groupe 7 · <b>15 membres</b> · 3 pôles</div></div>
+    <div class="kick">
+      <div class="l1">Hackathon ESTIAM 2026</div>
+      <div class="l2">Groupe 7 · <b>15 membres</b> · 3 pôles</div>
+      <div class="chef">★ Chef de projet · Enzo REALE</div>
+    </div>
   </div>
 
-  <div class="org" id="org"><div class="chef"><div class="ava" style="background:#f5a623">ER</div>
-     <div><div class="cn">Enzo Toni REALE</div><div class="cr">Chef de projet · Pôle 2</div></div></div>
-   <div class="drop"></div>
-   <div class="poles"><div class="pole" style="--pc:var(--p1)">
-       <div class="pole-node"><div class="pt">Pôle 1 · View</div><div class="pn">Application &amp; Collaboration</div><div class="pl">Lead · <b>Alex-Gabriel CHITU</b></div></div>
-       <div class="team"><div class="pnode lead"><div class="ava" style="background:#4d9bff">AC</div>
-    <div class="minfo"><div class="mname">Alex-Gabriel CHITU</div><div class="mmeta">E5 · WMD</div></div><span class="rb">LEAD</span></div><div class="pnode"><div class="ava" style="background:#3d6dfd">AB</div>
-    <div class="minfo"><div class="mname">Amos BACHIGALE</div><div class="mmeta">E4 · MBA SAP</div></div></div><div class="pnode"><div class="ava" style="background:#5b85ff">MN</div>
-    <div class="minfo"><div class="mname">Matthieu Ricardo NOGUEIRA</div><div class="mmeta">E3 · DAD</div></div></div></div></div><div class="pole" style="--pc:var(--p2)">
-       <div class="pole-node"><div class="pt">Pôle 2 · Core</div><div class="pn">Infra, Sécurité &amp; Cloud</div><div class="pl">Lead · <b>Enzo REALE</b></div></div>
-       <div class="team"><div class="pnode lead"><div class="ava" style="background:#29c5e6">ER</div>
-    <div class="minfo"><div class="mname">Enzo Toni REALE</div><div class="mmeta">E5 · WMD</div></div><span class="rb">LEAD</span></div><div class="pnode"><div class="ava" style="background:#2fd4e6">GM</div>
-    <div class="minfo"><div class="mname">Gabriel MOLINIER</div><div class="mmeta">E5 · CCSN</div></div></div><div class="pnode"><div class="ava" style="background:#4dd0e1">WB</div>
-    <div class="minfo"><div class="mname">William BAAL</div><div class="mmeta">E3 · DAD</div></div></div><div class="pnode"><div class="ava" style="background:#26a6c4">RB</div>
-    <div class="minfo"><div class="mname">Ryan BONZANINI</div><div class="mmeta">E3 · CCSN</div></div></div></div></div><div class="pole" style="--pc:var(--p3)">
-       <div class="pole-node"><div class="pt">Pôle 3 · Engine</div><div class="pn">IA &amp; Data</div><div class="pl">Lead · <b>Rabah (3-A) · Izlene (3-B)</b></div></div>
-       <div class="team two"><div class="pnode lead"><div class="ava" style="background:#b07bff">RD</div>
-    <div class="minfo"><div class="mname">Rabah Amir DEBBAH</div><div class="mmeta">E5 · WMD</div></div><span class="rb">LEAD 3-A</span></div><div class="pnode lead"><div class="ava" style="background:#c58cff">IM</div>
-    <div class="minfo"><div class="mname">Izlene MOHAMMED</div><div class="mmeta">E5 · BDAI</div></div><span class="rb">LEAD 3-B</span></div><div class="pnode"><div class="ava" style="background:#9d6bff">AT</div>
-    <div class="minfo"><div class="mname">Amina TITICH</div><div class="mmeta">E5 · BDAI</div></div></div><div class="pnode"><div class="ava" style="background:#a97bff">AC</div>
-    <div class="minfo"><div class="mname">Antoine CAGE</div><div class="mmeta">E4 · BDAI</div></div></div><div class="pnode"><div class="ava" style="background:#8e6bff">OB</div>
-    <div class="minfo"><div class="mname">Otmane BENSLIMANE</div><div class="mmeta">E4 · BDAI</div></div></div><div class="pnode"><div class="ava" style="background:#c07bff">DZ</div>
-    <div class="minfo"><div class="mname">Duval NGUEDIA-ZAPFACK</div><div class="mmeta">E4 · BDAI</div></div></div><div class="pnode"><div class="ava" style="background:#b58cff">HA</div>
-    <div class="minfo"><div class="mname">Hassane ABACE</div><div class="mmeta">E4 · SAP</div></div></div><div class="pnode"><div class="ava" style="background:#9b7bff">FM</div>
-    <div class="minfo"><div class="mname">Faycal MOUHEB</div><div class="mmeta">E4 · SAP</div></div></div></div></div></div></div>
+  <div class="gallery" id="gallery">
+  <div class="pole" style="--pc:var(--p1);--g1:var(--p1);--g2:var(--p1b)">
+    <div class="pole-h"><span class="dot"></span><span class="pn"><em>View</em> · Application &amp; Collaboration</span>
+      <span class="pl"><b>React / Vite</b> · 3 membres</span><span class="rule"></span></div>
+    <div class="members"><div class="mcard lead">
+    <div class="av">AC</div>
+    <div class="mi"><div class="mn">Alex-Gabriel CHITU</div><div class="mm">E5 · WMD <span class="rb">LEAD</span></div></div></div><div class="mcard">
+    <div class="av">AB</div>
+    <div class="mi"><div class="mn">Amos BACHIGALE</div><div class="mm">E4 · MBA SAP</div></div></div><div class="mcard">
+    <div class="av">MN</div>
+    <div class="mi"><div class="mn">Matthieu Ricardo NOGUEIRA</div><div class="mm">E3 · DAD</div></div></div></div>
+  </div>
+  <div class="pole" style="--pc:var(--p2);--g1:var(--p2);--g2:var(--p2b)">
+    <div class="pole-h"><span class="dot"></span><span class="pn"><em>Core</em> · Infra, Sécurité &amp; Cloud</span>
+      <span class="pl"><b>NestJS</b> · 4 membres</span><span class="rule"></span></div>
+    <div class="members"><div class="mcard chef">
+    <div class="av">ER</div>
+    <div class="mi"><div class="mn">Enzo Toni REALE</div><div class="mm">E5 · WMD <span class="rb">★ Chef</span></div></div></div><div class="mcard">
+    <div class="av">GM</div>
+    <div class="mi"><div class="mn">Gabriel MOLINIER</div><div class="mm">E5 · CCSN</div></div></div><div class="mcard">
+    <div class="av">WB</div>
+    <div class="mi"><div class="mn">William BAAL</div><div class="mm">E3 · DAD</div></div></div><div class="mcard">
+    <div class="av">RB</div>
+    <div class="mi"><div class="mn">Ryan BONZANINI</div><div class="mm">E3 · CCSN</div></div></div></div>
+  </div>
+  <div class="pole" style="--pc:var(--p3);--g1:var(--p3);--g2:var(--p3b)">
+    <div class="pole-h"><span class="dot"></span><span class="pn"><em>Engine</em> · IA &amp; Data</span>
+      <span class="pl"><b>Python / FastAPI</b> · 8 membres</span><span class="rule"></span></div>
+    <div class="members"><div class="mcard lead">
+    <div class="av">RD</div>
+    <div class="mi"><div class="mn">Rabah Amir DEBBAH</div><div class="mm">E5 · WMD <span class="rb">LEAD 3-A</span></div></div></div><div class="mcard lead">
+    <div class="av">IM</div>
+    <div class="mi"><div class="mn">Izlene MOHAMMED</div><div class="mm">E5 · BDAI <span class="rb">LEAD 3-B</span></div></div></div><div class="mcard">
+    <div class="av">AT</div>
+    <div class="mi"><div class="mn">Amina TITICH</div><div class="mm">E5 · BDAI</div></div></div><div class="mcard">
+    <div class="av">AC</div>
+    <div class="mi"><div class="mn">Antoine CAGE</div><div class="mm">E4 · BDAI</div></div></div><div class="mcard">
+    <div class="av">OB</div>
+    <div class="mi"><div class="mn">Otmane BENSLIMANE</div><div class="mm">E4 · BDAI</div></div></div><div class="mcard">
+    <div class="av">DZ</div>
+    <div class="mi"><div class="mn">Duval NGUEDIA-ZAPFACK</div><div class="mm">E4 · BDAI</div></div></div><div class="mcard">
+    <div class="av">HA</div>
+    <div class="mi"><div class="mn">Hassane ABACE</div><div class="mm">E4 · SAP</div></div></div><div class="mcard">
+    <div class="av">FM</div>
+    <div class="mi"><div class="mn">Faycal MOUHEB</div><div class="mm">E4 · SAP</div></div></div></div>
+  </div></div>
 
   <div class="legend">
     <span class="lt">Spécialisations</span>
