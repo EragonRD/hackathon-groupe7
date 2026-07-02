@@ -11,6 +11,7 @@ import AppShell from './components/AppShell.jsx'
 import Catalogue from './components/Catalogue.jsx'
 import VideoReview from './components/VideoReview.jsx'
 import Documentation from './components/Documentation.jsx'
+import UploadToasts from './components/UploadToasts.jsx'
 import { getToken, logout, me, isAdmin, mustChangePwd, reconnect } from './auth'
 
 // Chargés à la demande (hors bundle initial).
@@ -178,6 +179,20 @@ export default function App() {
     setReviewPeers([])
     setView({ name: 'catalogue' })
   }
+
+  // Ouvre un contenu protégé en revue (flux HLS chiffré, clé délivrée sur token).
+  // Partagé par le catalogue ET les toasts d'upload ("Ouvrir" une fois chiffré).
+  function openReview(content) {
+    setView({
+      name: 'review',
+      video: {
+        id: content.id,
+        title: content.title,
+        src: `/videos/${content.id}/index.m3u8`,
+        session: content.id,
+      },
+    })
+  }
   const titles = {
     review: view.video?.title,
     dashboard: 'Surveillance',
@@ -267,22 +282,14 @@ export default function App() {
       {view.name === 'docs' && <Documentation onBack={goToCatalogue} />}
       {view.name === 'catalogue' && (
         <Catalogue
-          onOpenSecure={(content) =>
-            setView({
-              name: 'review',
-              video: {
-                id: content.id,
-                title: content.title,
-                // Flux HLS chiffré servi par le Core (même origine via le proxy).
-                // La clé n'est délivrée que sur token autorisé (Zero-Trust).
-                src: `/videos/${content.id}/index.m3u8`,
-                session: content.id,
-              },
-            })
-          }
+          onOpenSecure={openReview}
           onOpenAdmin={() => setView({ name: 'admin' })}
         />
       )}
+
+      {/* Toasts d'upload/chiffrement NON bloquants : visibles quelle que soit la
+          vue (le site reste utilisable pendant l'envoi + le chiffrement). */}
+      {!isGuest && <UploadToasts onOpen={openReview} />}
       {inviteContent && (
         <InviteGuestModal
           content={inviteContent}

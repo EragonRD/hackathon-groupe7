@@ -8,7 +8,6 @@ import {
   HardDrive,
 } from '@phosphor-icons/react'
 import { authFetch } from '../auth'
-import { uploadContent, grantAccess, waitUntilReady } from '../admin'
 import { formatTime } from '../lib/format'
 
 const CATEGORIES = [
@@ -39,10 +38,6 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
   const [suggestions, setSuggestions] = useState([])
   const [fetching, setFetching] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [processing, setProcessing] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [phase, setPhase] = useState('uploading') // 'uploading' | 'encrypting'
-  const [error, setError] = useState(null)
   const [duration, setDuration] = useState(null)
   const [videoUrl, setVideoUrl] = useState(null)
   const [posterUrl, setPosterUrl] = useState(null)
@@ -151,72 +146,18 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
     }
   }
 
+  // On NE bloque PLUS ici : on remonte les paramètres au parent, qui lance
+  // l'envoi + le chiffrement en tâche de fond (toast non bloquant). Le modal se
+  // ferme aussitôt et le site reste utilisable.
   const handleConfirm = useCallback(() => {
     if (!file) return
-    setProcessing(true)
-    setPhase('uploading')
-    setProgress(0)
-    setError(null)
-    async function run() {
-      try {
-        // 1. Upload réel (barre = progression du transfert).
-        const content = await uploadContent({
-          file,
-          title: title.trim() || nameFromFile(file),
-          onProgress: setProgress,
-        })
-        // 2. Accès aux collaborateurs invités (même entreprise) — best effort.
-        await Promise.all(
-          invited.map((u) => grantAccess(content.id, u).catch(() => null)),
-        )
-        // 3. Attente du chiffrement HLS côté serveur (statut ready).
-        setPhase('encrypting')
-        const ready = await waitUntilReady(content.id)
-        if (!ready) {
-          setError('Le chiffrement de la vidéo a échoué. Réessayez.')
-          setProcessing(false)
-          return
-        }
-        onConfirm({ ...content, status: 'ready', category, invited })
-      } catch (e) {
-        setError(e.message || 'Upload échoué.')
-        setProcessing(false)
-      }
-    }
-    run()
+    onConfirm({
+      file,
+      title: title.trim() || nameFromFile(file),
+      category,
+      invited,
+    })
   }, [title, file, category, invited, onConfirm])
-
-  if (processing) {
-    return (
-      <div className="modal-overlay">
-        <div className="modal-card upload-modal">
-          <div
-            className="modal-body"
-            style={{ padding: 'var(--s-7)', textAlign: 'center' }}
-          >
-            <FilmSlate size={40} weight="fill" color="var(--accent-strong)" />
-            {phase === 'uploading' ? (
-              <>
-                <p style={{ marginTop: 12, fontWeight: 600 }}>Envoi de la vidéo…</p>
-                <div className="progress-track">
-                  <div className="progress-fill" style={{ width: `${progress}%` }} />
-                </div>
-                <span className="progress-label">{Math.round(progress)}%</span>
-              </>
-            ) : (
-              <>
-                <p style={{ marginTop: 12, fontWeight: 600 }}>Chiffrement en cours…</p>
-                <div className="progress-track">
-                  <div className="progress-fill progress-indeterminate" />
-                </div>
-                <span className="progress-label">Sécurisation Zero-Trust du flux</span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
@@ -344,16 +285,6 @@ export default function VideoUploadModal({ file, onCancel, onConfirm }) {
             </div>
           </div>
         </div>
-
-        {error && (
-          <p
-            className="upload-error"
-            role="alert"
-            style={{ color: 'var(--danger, #ff5b5b)' }}
-          >
-            {error}
-          </p>
-        )}
 
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onCancel}>

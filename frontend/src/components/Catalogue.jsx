@@ -13,6 +13,7 @@ import {
 } from '@phosphor-icons/react'
 import { isSuperAdmin } from '../auth'
 import { listMyContents } from '../contents'
+import { useUploads } from '../lib/uploads'
 import VideoUploadModal from './VideoUploadModal'
 
 // Catalogue.
@@ -26,6 +27,7 @@ export default function Catalogue({ onOpenSecure, onOpenAdmin }) {
   const [uploadFile, setUploadFile] = useState(null)
 
   const superadmin = isSuperAdmin()
+  const { uploads, startUpload } = useUploads()
   const [contents, setContents] = useState([])
   const [loading, setLoading] = useState(!superadmin)
   const [error, setError] = useState(null)
@@ -63,32 +65,34 @@ export default function Catalogue({ onOpenSecure, onOpenAdmin }) {
     }
   }, [superadmin])
 
-  // Tant qu'une vidéo est en cours de chiffrement, on rafraîchit périodiquement
-  // pour faire avancer le % et basculer la carte en "prête" à la fin.
+  // Rafraîchissement périodique du catalogue tant que quelque chose bouge :
+  //   - une vidéo est en cours de chiffrement côté serveur (barre "X%"), OU
+  //   - un upload en tâche de fond (toast) transfère/chiffre.
+  // -> la nouvelle carte apparaît, le % avance, et bascule en "prête" à la fin.
   const hasProcessing = contents.some((c) => c.status === 'processing')
+  const hasActiveUpload = uploads.some(
+    (u) => u.phase === 'uploading' || u.phase === 'encrypting',
+  )
   useEffect(() => {
-    if (superadmin || !hasProcessing) return undefined
+    if (superadmin || (!hasProcessing && !hasActiveUpload)) return undefined
     const id = setInterval(() => {
       reloadContents()
     }, 2500)
     return () => clearInterval(id)
-  }, [superadmin, hasProcessing, reloadContents])
+  }, [superadmin, hasProcessing, hasActiveUpload, reloadContents])
 
   function handleFileSelected(file) {
     if (!file) return
     setUploadFile(file)
   }
 
-  // La vidéo a été uploadée ET chiffrée côté serveur (VideoUploadModal renvoie le
-  // contenu serveur, status 'ready'). On l'ouvre donc comme un contenu protégé
-  // (flux HLS Zero-Trust /videos/:id), pas comme un blob local, et on rafraîchit
-  // la liste pour qu'il apparaisse dans « Vos contenus ».
-  function handleUploadConfirm(content) {
+  // Le modal ne fait plus que collecter les paramètres. On ferme aussitôt et on
+  // lance l'envoi + le chiffrement en TÂCHE DE FOND (toast non bloquant) : le
+  // site reste utilisable. La carte apparaît en "Chiffrement… X%" puis "prête",
+  // et le toast propose "Ouvrir" à la fin.
+  function handleUploadConfirm(params) {
     setUploadFile(null)
-    if (content?.id) {
-      onOpenSecure(content)
-      reloadContents()
-    }
+    if (params?.file) startUpload(params)
   }
 
   function handleUploadCancel() {
