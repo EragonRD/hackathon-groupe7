@@ -1,6 +1,8 @@
 # 🎤 Speech de soutenance — Poulpium (Groupe 7)
 
-Deck : `Poulpium-Soutenance.html` (**23 slides**). Prod live : **https://poulpium.midjix-lab.com** (comptes `alice`/`bob`/`carol`, mdp `password`).
+Deck : `Poulpium-Soutenance.html` (**21 slides**). Prod live : **https://poulpium.midjix-lab.com** (comptes `alice`/`bob`/`carol`, mdp `password`).
+
+> ⚠️ **Avant la soutenance** : lancer le **dashboard Engine** — depuis `engine/` : `streamlit run dashboard/app.py` (port 8501). La slide 18 l'embarque en direct.
 
 **Format : ~20 min = ~15 min de speech (mot à mot ci-dessous) + ~5 min de démo live à la fin.**
 
@@ -15,10 +17,10 @@ Deck : `Poulpium-Soutenance.html` (**23 slides**). Prod live : **https://poulpiu
 | 3 | **Enzo** | Pôle 2 — Core / sécurité Zero-Trust | 8–11 | ~3 min |
 | 4 | **Gabriel** | Pôle 2 — Audit & scans de sécurité | 12–13 | ~1,5 min |
 | 5 | **Rabah** | Pôle 3-A — IA / NLP | 14–17 | ~2,5 min |
-| 6 | **Izlene** | Pôle 3-B — Data / rétention | 18–20 | ~2 min |
-| 7 | **Enzo** | Les bonus (tous pôles + mobile) | 21 | ~1 min |
-| 8 | **William** | Déploiement / production | 22 | ~1,5 min |
-| 9 | **Tous** | 🔴 Démo live | 23 → prod | ~5 min |
+| 6 | **Izlene** | Pôle 3-B — Dashboard rétention **interactif** | 18 | ~2 min |
+| 7 | **Enzo** | Les bonus (tous pôles + mobile) | 19 | ~1 min |
+| 8 | **William** | Déploiement / production | 20 | ~1,5 min |
+| 9 | **Tous** | 🔴 Démo live | 21 → prod | ~5 min |
 
 ---
 
@@ -95,36 +97,32 @@ Deck : `Poulpium-Soutenance.html` (**23 slides**). Prod live : **https://poulpiu
 
 ---
 
-## 💜 IZLENE — Pôle 3-B · Data / rétention · slides 18–20 *(~2 min)*
+## 💜 IZLENE — Pôle 3-B · Dashboard rétention · slide 18 *(~2 min)*
 
-**[Slide 18 — où l'attention décroche]**
-« Merci Rabah. Moi je pars des **logs de visionnage** : chaque play, pause, retour en arrière. Bien analysés, ils disent **où** une vidéo perd son audience, et **lesquelles** retiennent le mieux. On combine quatre signaux de friction — les retours en arrière, la chute de rétention, les abandons, et les pauses — et on en extrait les **zones anormales**. Pour un créateur, c'est de l'or : ça pointe exactement les passages à retravailler. »
-
-**[Slide 19 — prédire, sans tricher]**
-« On va plus loin : **prédire** la rétention sur une vidéo qu'on n'a jamais vue. Le point sur lequel on insiste, c'est l'**honnêteté méthodologique** : les données corrigées à la main — la vérité terrain — servent **uniquement à l'évaluation**, jamais comme variable d'entraînement. C'est une règle qu'on s'est fixée pour éviter la **fuite de cible**, le piège qui fait qu'un modèle a l'air parfait en test et s'effondre en vrai. »
-
-**[Slide 20 — les chiffres]**
-« Et on **mesure** contre un corrigé humain : un **F1 de 0,77**, avec une précision de 0,69 et un rappel de 0,86. Des chiffres, et le code derrière. Voilà pour les trois pôles — mais on a aussi ajouté beaucoup **en plus**. Enzo. »
+**[Slide 18 — dashboard Engine interactif]** *(le dashboard Streamlit tourne en direct — port 8501)*
+« Merci Rabah. Le pôle Data part des **logs de visionnage** — chaque play, pause, retour en arrière — et voici ce que ça donne : notre **dashboard interactif**, en direct.
+[*onglet Par vidéo*] Voilà la **courbe de rétention** d'une vidéo, et surlignées, les **zones d'ennui**. On combine quatre signaux de friction — retours en arrière, chute de rétention, abandons, pauses — pour repérer **exactement où l'audience décroche**. Pour un créateur, c'est de l'or : ça pointe les passages à retravailler.
+[*onglet Prévision*] Et on va plus loin : on **prédit** la rétention sur une vidéo jamais vue. Le point clé, c'est l'**honnêteté** — les données corrigées à la main servent **uniquement à l'évaluation**, jamais à l'entraînement, pour éviter la fuite de cible. Résultat, mesuré contre un corrigé humain : un **F1 de 0,77**. Voilà pour les trois pôles — mais on a aussi ajouté beaucoup **en plus**. Enzo. »
 
 ---
 
-## ⭐ ENZO — Les bonus · slide 21 *(~1 min)*
+## ⭐ ENZO — Les bonus · slide 19 *(~1 min)*
 
-**[Slide 21 — au-delà du cahier des charges]**
+**[Slide 19 — au-delà du cahier des charges]**
 « Au-delà du strict cahier des charges, on a construit une vraie plateforme. Côté **View** : un back-office, l'upload de vidéos, les invités par lien. Côté **Core** : le **multi-tenant** à trois niveaux, l'onboarding par e-mail, l'orchestration de l'Engine, le Capture Guard, et les scans que Gabriel vient de montrer. Côté **Engine** : l'analyse de rétention et les traductions. Et surtout, une **application mobile React Native complète** — Insights IA, commentaires, Watch Together, administration. Tout ça, c'est bien beau — mais est-ce que ça tourne vraiment ? **William**. »
 
 ---
 
-## 🟢 WILLIAM — Déploiement / prod · slide 22 *(~1,5 min)*
+## 🟢 WILLIAM — Déploiement / prod · slide 20 *(~1,5 min)*
 
-**[Slide 22 — en prod, en une commande]**
+**[Slide 20 — en prod, en une commande]**
 « Merci Enzo. Oui, ça tourne **en prod, pour de vrai**, et ça tient en **une commande**. Quatre points. Un : c'est **accessible partout**, et pourtant **aucun port n'est ouvert** sur le serveur — on passe par un **Cloudflare Tunnel**, le serveur n'expose rien. Deux : `docker compose up`, et **quatre conteneurs** se lèvent — front, Core, HLS, Engine — avec des images tirées de **GHCR**, aucun build sur le serveur, zéro cloud payant. Trois : la **livraison continue** — on pousse le code, l'image se reconstruit, et **Watchtower** met à jour les conteneurs tout seul. Quatre : c'est **léger** — quelques centaines de méga de RAM, CPU quasi nul au repos — exposé proprement, et **déjà visité**. Une plateforme vidéo complète, en ligne. Et le mieux, c'est de vous la montrer. »
 
 ---
 
-## 🔴 TOUS — Démo live · slide 23 → **poulpium.midjix-lab.com** *(~5 min)*
+## 🔴 TOUS — Démo live · slide 21 → **poulpium.midjix-lab.com** *(~5 min)*
 
-**[Slide 23 — à vous de jouer]**
+**[Slide 21 — à vous de jouer]**
 « Place à la démo. On se connecte sur **poulpium.midjix-lab.com** avec le compte **alice**, et on suit le fil : **une identité, un flux, trois pôles**. »
 
 ### Déroulé de la démo (à faire en direct)

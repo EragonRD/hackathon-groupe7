@@ -1257,6 +1257,29 @@
   .dmdp{font-family:var(--mono);font-size:12px;color:var(--faint);letter-spacing:.04em}
 
 }
+@scope (.dpdash) {
+
+  .dpdash .slide{padding:clamp(20px,3vw,50px);justify-content:flex-start;align-items:stretch}
+  .dkick{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12.5px;text-transform:uppercase;letter-spacing:.15em;color:var(--p3)}
+  .dkick .pip{width:9px;height:9px;border-radius:50%;background:var(--p3);box-shadow:0 0 14px var(--p3)}
+  .dh2{font-size:clamp(22px,3vw,40px);font-weight:800;letter-spacing:-.025em;line-height:1.04;margin:6px 0 clamp(12px,1.6vw,20px)}
+  .dh2 span{color:var(--p3)}
+  /* Zone rectangle : le dashboard (blanc) encadré comme une fenêtre */
+  .dframe{flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;
+    box-shadow:0 34px 90px rgba(0,0,0,.6);background:#fff}
+  .dframe-bar{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:11px 15px;background:var(--bg-2);border-bottom:1px solid var(--line)}
+  .dframe-bar i{width:11px;height:11px;border-radius:50%;background:#2b313b;display:block}
+  .dframe-bar i:nth-child(1){background:#ff5f57}.dframe-bar i:nth-child(2){background:#febc2e}.dframe-bar i:nth-child(3){background:#28c840}
+  .dframe-bar .u{margin-left:10px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+  .dframe-bar .u b{color:var(--p3)}
+  .dframe-body{position:relative;flex:1;min-height:0;background:#fff}
+  .dframe-body iframe{position:absolute;inset:0;width:100%;height:100%;border:0;z-index:1}
+  .dfallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    color:#5a6470;font-family:var(--mono);font-size:14px;text-align:center;padding:20px;z-index:0}
+  .dfallback .t{font-size:17px;font-weight:700;color:#1b1f29}
+  .dfallback code{color:#6d3bd6;background:#f0f0f4;padding:4px 10px;border-radius:6px}
+
+}
 </style>
 </head>
 <body>
@@ -1668,106 +1691,14 @@ seg21+       <span class="no">403</span>  <span class="c"># …puis bloqué net<
     </ul></div>
   </div>
   <p class="lede" style="margin-top:22px">La transcription est le minimum vital. La <b class="hl">valeur</b>, c'est tout ce qu'on en tire au-dessus : chercher, traduire, résumer, chapitrer.</p>
-</section><section class="slide">
-  <div class="split">
-    <div class="txt">
-      <div class="kicker"><span class="pip"></span> Sujet B · comprendre l'audience</div>
-      <h2>Où l'attention décroche.</h2>
-      <p class="lede">Un signal de friction par position combine 4 indices, puis on extrait les régions au-dessus du quantile 0.92, en union avec les décrochages progressifs.</p>
-      <div class="chips">
-        <span class="chip">seek_back ×4</span><span class="chip">chute rétention ×3</span>
-        <span class="chip">abandon ×2</span><span class="chip">pause ×0.5</span>
-      </div>
-      <div class="stats" style="grid-template-columns:1fr 1fr 1fr">
-        <div class="metric"><div class="v"><span class="count" data-to="0.77" data-dec="2">0.00</span></div><div class="l">F1 (détection)</div><div class="s">contre corrigé humain</div></div>
-        <div class="metric"><div class="v"><span class="count" data-to="0.69" data-dec="2">0.00</span></div><div class="l">Précision</div></div>
-        <div class="metric"><div class="v"><span class="count" data-to="0.86" data-dec="2">0.00</span></div><div class="l">Rappel</div></div>
-      </div>
-    </div>
-    <div class="media">
-      <div class="curve">
-        <svg viewBox="0 0 420 220" role="img" aria-label="Courbe de rétention avec zone d'ennui">
-          <defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2fd4e6"></stop><stop offset="1" stop-color="#b07bff"></stop></linearGradient>
-          <linearGradient id="cf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(47,212,230,.28)"></stop><stop offset="1" stop-color="rgba(47,212,230,0)"></stop></linearGradient></defs>
-          <g stroke="rgba(255,255,255,.06)"><line x1="22" y1="18" x2="22" y2="184"></line><line x1="22" y1="184" x2="404" y2="184"></line></g>
-          <rect x="244" y="18" width="66" height="166" fill="rgba(245,178,58,.12)" stroke="rgba(245,178,58,.42)" stroke-dasharray="3 3"></rect>
-          <path d="M22,34 L78,56 L134,80 L204,106 L244,122 L288,174 L338,180 L404,184 L404,184 L22,184 Z" fill="url(#cf)"></path>
-          <path d="M22,34 L78,56 L134,80 L204,106 L244,122 L288,174 L338,180 L404,184" fill="none" stroke="url(#cg)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"></path>
-          <text x="248" y="32" class="clabel" fill="var(--warn)">zone d'ennui</text>
-          <text x="22" y="204" class="clabel">0%</text>
-          <text x="352" y="204" class="clabel">100%</text>
-        </svg>
-        <div class="legend"><span><b style="background:linear-gradient(90deg,#2fd4e6,#b07bff)"></b>rétention</span><span><b style="background:var(--warn)"></b>décrochage détecté</span></div>
-      </div>
-    </div>
-  </div>
-</section><section class="slide">
-  <div class="kicker"><span class="pip"></span> Sujet B · anticiper</div>
-  <h2>Prédire la rétention, <span class="grad">sans tricher</span>.</h2>
-  <div class="stats" style="grid-template-columns:repeat(4,1fr)">
-    <div class="metric"><div class="v"><span class="count" data-to="0.069" data-dec="3">0.000</span></div><div class="l">MAE · Ridge</div><div class="s">baseline naïve : 0.106</div></div>
-    <div class="metric"><div class="v"><span class="count" data-to="0.56" data-dec="2">0.00</span></div><div class="l">R² · Ridge</div><div class="s">baseline : −0.09</div></div>
-    <div class="metric"><div class="v">LOO</div><div class="l">Leave-One-Out CV</div><div class="s">25 vidéos, honnête</div></div>
-    <div class="metric"><div class="v">0</div><div class="l">fuite de cible</div><div class="s">vérifiée feature par feature</div></div>
-  </div>
-  <div class="duo" style="margin-top:22px">
-    <div class="card g"><h3>✓ Features autorisées (indépendantes du dénouement)</h3><ul>
-      <li><b>catégorie</b>, <b>durée</b></li>
-      <li>engagement précoce (<span class="mono" style="color:var(--c1)">early_ret_10 / 20</span>)</li>
-      <li>fréquence de <b>pauses</b> et <b>retours en arrière</b> par session</li>
-    </ul></div>
-    <div class="card r"><h3>⚔ Bannies (fuite de cible)</h3><ul>
-      <li>la rétention elle-même</li>
-      <li>position moyenne atteinte, % de sessions qui terminent</li>
-      <li>le corrigé (sert seulement à <b>mesurer</b>)</li>
-    </ul></div>
-  </div>
-  <p class="lede" style="margin-top:20px">Un modèle linéaire régularisé <b class="hl">bat les arbres</b> (qui surapprennent sur 25 vidéos). Signal n°1 : les retours en arrière (<span class="mono" style="color:var(--c1)">seek_per_sess</span>).</p>
-</section><section class="slide">
-  <div class="split">
-    <div class="txt">
-      <div class="kicker"><span class="pip"></span> Sujet B · le détail chiffré</div>
-      <h2>Les chiffres, et le <span class="grad">code</span> derrière.</h2>
-      <p class="lede">Tout est produit par une commande : <span class="mono">python scripts/run_analysis_3b.py</span> → <span class="mono">outputs/data-3b/metrics.json</span>. Déterministe (<span class="mono">random_state=42</span>).</p>
-      <table class="mods" style="margin-top:16px">
-        <thead><tr><th>Modèle · Leave-One-Out CV</th><th>MAE</th><th>R²</th></tr></thead>
-        <tbody>
-          <tr><td>Baseline (moyenne)</td><td class="mono">0.106</td><td class="mono">−0.09</td></tr>
-          <tr class="hi"><td><b>Ridge</b> ✓ retenu</td><td class="mono" style="color:var(--ok)">0.069</td><td class="mono" style="color:var(--ok)">0.56</td></tr>
-          <tr><td>GradientBoosting</td><td class="mono">0.076</td><td class="mono">0.44</td></tr>
-          <tr><td>RandomForest</td><td class="mono">0.086</td><td class="mono">0.27</td></tr>
-        </tbody>
-      </table>
-      <div class="bars">
-        <div class="bar"><span>seek_per_sess</span><div class="fillwrap"><div class="fill" style="width:100%"></div></div></div>
-        <div class="bar"><span>duration_sec</span><div class="fillwrap"><div class="fill" style="width:76%"></div></div></div>
-        <div class="bar"><span>early_ret_20</span><div class="fillwrap"><div class="fill" style="width:60%"></div></div></div>
-        <div class="bar"><span>pause_per_sess</span><div class="fillwrap"><div class="fill" style="width:46%"></div></div></div>
-        <div class="bar"><span>early_ret_10</span><div class="fillwrap"><div class="fill" style="width:34%"></div></div></div>
-        <div class="bar"><span>catégorie</span><div class="fillwrap"><div class="fill" style="width:22%"></div></div></div>
-      </div>
-      <div class="cap">Importance relative des features (RandomForest, pour l'interprétation) · ordre mesuré</div>
-    </div>
-    <div class="media">
-      <div class="panel">
-        <div class="panel-label"><span class="d"></span> run_analysis_3b.py · metrics.json</div>
-        <div class="code"><span class="c"># une commande, 25 vidéos, 100 % local</span>
-<span class="k">$</span> python scripts/run_analysis_3b.py
-<span class="s">✓</span> outputs/data-3b/metrics.json
-
-<span class="c"># détection des zones d'ennui (niveau seconde)</span>
-<span class="f">"detection"</span>: {
-  <span class="f">"precision"</span>: <span class="n">0.69</span>,
-  <span class="f">"recall"</span>:    <span class="n">0.86</span>,
-  <span class="f">"f1"</span>:        <span class="n">0.77</span>
-},
-<span class="c"># prédiction de rétention (LOO-CV)</span>
-<span class="f">"models"</span>: {
-  <span class="f">"ridge"</span>: { <span class="f">"mae"</span>:<span class="n">0.069</span>, <span class="f">"r2"</span>:<span class="n">0.56</span> },
-  <span class="f">"gboost"</span>:{ <span class="f">"mae"</span>:<span class="n">0.076</span>, <span class="f">"r2"</span>:<span class="n">0.44</span> }
-}</div>
-      </div>
-      <div class="cap">Modules Python : <span class="mono" style="color:var(--c1)">app/data/</span> — retention · hotspots · features · model · churn_predict</div>
+</section></div><div class="wp dpdash"><section class="slide">
+  <div class="dkick"><span class="pip"></span> Pôle 3-B · Analyse d'audience &amp; rétention</div>
+  <h2 class="dh2">Le dashboard, <span>en direct</span>.</h2>
+  <div class="dframe">
+    <div class="dframe-bar"><i></i><i></i><i></i><span class="u">streamlit · <b>dashboard rétention</b> · localhost:8501</span></div>
+    <div class="dframe-body">
+      <div class="dfallback"><div class="t">Dashboard non démarré</div><div>Lancez <code>streamlit run dashboard/app.py</code> (port 8501)</div></div>
+      <iframe src="http://localhost:8501/?embed=true" title="Dashboard Engine — rétention"></iframe>
     </div>
   </div>
 </section></div><div class="wp dpbonus"><section class="slide">
@@ -1848,7 +1779,7 @@ seg21+       <span class="no">403</span>  <span class="c"># …puis bloqué net<
 </section></div></div>
 <div id="hud"><div id="bar"></div></div>
 <div id="dots"></div>
-<div id="counter"><b>01</b> / 23</div>
+<div id="counter"><b>01</b> / 21</div>
 <div id="brand-hud"><img src="assets/poulpium-mark.png" alt=""><span>Poulpium · Groupe 7</span></div>
 <script>
 const deck=document.getElementById('deck');
@@ -1892,7 +1823,7 @@ addEventListener('keydown',e=>{
   else if(e.key==='Home'){go(0);}else if(e.key==='End'){go(els.length-1);}
   else if(e.key==='f'||e.key==='F'){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
 });
-addEventListener('click',e=>{if(e.target.closest('#dots,.hint,#brand-hud,a,button,input,summary,details,.route,.editor,.term,table'))return;const x=e.clientX/innerWidth;if(x>0.66)next();else if(x<0.18)prev();});
+addEventListener('click',e=>{if(e.target.closest('#dots,.hint,#brand-hud,a,button,input,summary,details,.route,.editor,.term,table,iframe,.dashwrap'))return;const x=e.clientX/innerWidth;if(x>0.66)next();else if(x<0.18)prev();});
 const start=parseInt(location.hash.slice(1));go(Number.isFinite(start)&&start?start-1:0);
 </script>
 </body>

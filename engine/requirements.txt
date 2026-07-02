@@ -36,6 +36,7 @@ joblib
 # === Data 3B — dashboard ===
 streamlit
 plotly
+matplotlib  # requis par pandas Styler.background_gradient (tableaux colorés du dashboard)
 
 # === API auth (JWT du Core) + tests ===
 PyJWT
