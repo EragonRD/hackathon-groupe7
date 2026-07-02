@@ -17,6 +17,7 @@ keybert
 # ============================================================================
 # transcription locale
 faster-whisper
+langdetect  # corrige l'etiquette de langue (detection sur le texte, fix cy/en)
 # LLM résumé/chapitres local (llama.cpp)
 llama-cpp-python
 # traduction locale (NLLB-200)

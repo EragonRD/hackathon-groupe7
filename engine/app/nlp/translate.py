@@ -155,6 +155,9 @@ def translate_texts(texts: list[str], source_lang: str, target_lang: str) -> lis
     """Traduit une liste de textes. None si la langue n'est pas supportée."""
     if not texts:
         return []
+    # Choix explicite du local -> NLLB directement (pas un repli).
+    if config.TRANSLATE_PROVIDER == "local":
+        return _translate_local(texts, source_lang, target_lang)
     if remote.chat_available(config.TRANSLATE_PROVIDER):
         try:
             return _translate_remote(texts, source_lang, target_lang)
@@ -162,7 +165,7 @@ def translate_texts(texts: list[str], source_lang: str, target_lang: str) -> lis
             log.warning("Traduction distante indisponible (%s) : %s", target_lang, exc)
             if not config.ALLOW_LOCAL_FALLBACK:
                 return None
-    # Mode API strict : pas de NLLB local (aucun téléchargement).
+    # Provider distant choisi mais indisponible : en mode API strict, pas de NLLB.
     if not config.ALLOW_LOCAL_FALLBACK:
         return None
     return _translate_local(texts, source_lang, target_lang)

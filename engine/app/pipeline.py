@@ -18,13 +18,24 @@ def _duration_sec(path: str) -> float:
     return round(float(out), 1)
 
 
-def analyze(video_path: str, video_name: str, out_root: str | None = None, force: bool = False):
+def analyze(
+    video_path: str,
+    video_name: str,
+    out_root: str | None = None,
+    force: bool = False,
+    display_name: str | None = None,
+):
     """Exécute le pipeline complet.
 
+    `video_name` = clé de cache UNIQUE (ex. contentId) → deux uploads distincts ne
+    se partagent jamais le même cache. `display_name` = nom RÉEL du fichier vidéo,
+    stocké dans metadata["video"] (défaut : `video_name`).
+
     Retourne (metadata: dict conforme au contrat, segments: list, index: np.ndarray).
-    Cache : si le dossier de la vidéo existe déjà avec ses traductions, on ne régénère pas
+    Cache : si le dossier de la clé existe déjà avec ses traductions, on ne régénère pas
     (et on ne traduit que les langues éventuellement manquantes). `force=True` ignore le cache.
     """
+    display = display_name or video_name
     requested = [lang for lang in config.TARGET_LANGS if lang in translate_mod.LANG_TO_NLLB]
 
     cached = None if force else output.load_meta(video_name, out_root)
@@ -62,7 +73,7 @@ def analyze(video_path: str, video_name: str, out_root: str | None = None, force
     )
 
     metadata = {
-        "video": video_name,
+        "video": display,
         "language": language,
         "duration_sec": duration,
         "transcript": transcript,

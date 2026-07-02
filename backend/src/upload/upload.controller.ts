@@ -96,17 +96,18 @@ export class UploadController {
       companyId,
       ownerUsername: me.username,
     })
-    // Deux consommateurs lisent le MÊME fichier temporaire clair, en parallèle :
-    //  - l'Engine (analyse IA), qui streame le fichier (openAsBlob, lecture paresseuse) ;
-    //  - le chiffrement HLS, qui le ré-encode.
-    // Le fichier ne doit être SUPPRIMÉ qu'une fois que LES DEUX ont fini de le lire :
-    // sinon un rm prématuré (chiffrement rapide) casse le stream de l'Engine
-    // (ENOENT) et l'analyse échoue silencieusement. On coordonne donc la suppression.
-    const analysisSent = this.analysis.startFromFile(content.id, file.path)
-    const encoded = this.upload.encryptInBackground(content.id, file.path)
-    void Promise.allSettled([analysisSent, encoded]).finally(() => {
-      void rm(file.path, { force: true }).catch(() => {})
-    })
+    // Traitement SÉQUENTIEL (respecte la pipeline et évite la contention CPU/RAM
+    // sur un NAS modeste) : 1) chiffrement HLS, PUIS 2) analyse IA (transcription
+    // -> traduction). Le fichier clair est supprimé une fois les deux passés
+    // (l'Engine ayant reçu sa propre copie au moment de startFromFile).
+    void (async () => {
+      try {
+        await this.upload.encryptInBackground(content.id, file.path)
+        await this.analysis.startFromFile(content.id, file.path, file.originalname)
+      } finally {
+        await rm(file.path, { force: true }).catch(() => {})
+      }
+    })()
 
     return {
       ...content,
@@ -198,11 +199,16 @@ export class UploadController {
           ownerUsername: me.username,
         })
 
-        const analysisSent = this.analysis.startFromFile(content.id, merge.path)
-        const encoded = this.upload.encryptInBackground(content.id, merge.path)
-        void Promise.allSettled([analysisSent, encoded]).finally(() => {
-          void rm(merge.path!, { force: true }).catch(() => {})
-        })
+        // Séquentiel (chiffrement PUIS analyse) + vrai nom de fichier transmis.
+        const clearPath = merge.path
+        void (async () => {
+          try {
+            await this.upload.encryptInBackground(content.id, clearPath)
+            await this.analysis.startFromFile(content.id, clearPath, file.originalname)
+          } finally {
+            await rm(clearPath, { force: true }).catch(() => {})
+          }
+        })()
 
         return {
           ...content,

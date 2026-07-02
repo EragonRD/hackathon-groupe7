@@ -33,6 +33,23 @@ def extract_audio_compressed(video_path: str, mp3_path: str) -> None:
     )
 
 
+def _detect_lang_from_text(text: str, fallback: str) -> str:
+    """Redétecte la langue sur le TEXTE transcrit (plus fiable que la détection
+    audio de Whisper small/base, qui confond parfois l'anglais accentué avec le
+    gallois 'cy'). Repli sur la détection audio si le texte est trop court/échec.
+    """
+    text = (text or "").strip()
+    if len(text) < 20:
+        return fallback
+    try:
+        from langdetect import DetectorFactory, detect
+
+        DetectorFactory.seed = 0  # déterminisme
+        return detect(text)
+    except Exception:  # noqa: BLE001 — pas de langdetect / texte inclassable
+        return fallback
+
+
 def _transcribe_local(video_path: str) -> dict:
     """Transcription 100 % locale (faster-whisper) — repli / mode offline."""
     from ..models import get_whisper
@@ -47,7 +64,9 @@ def _transcribe_local(video_path: str) -> dict:
             for s in segments
         ]
     transcript = " ".join(s["text"] for s in segs).strip()
-    return {"language": info.language, "transcript": transcript, "segments": segs}
+    # Corrige l'etiquette de langue via le texte (fix cy/en sur accents marques).
+    language = _detect_lang_from_text(transcript, info.language)
+    return {"language": language, "transcript": transcript, "segments": segs}
 
 
 def _transcribe_groq(video_path: str) -> dict:
@@ -68,6 +87,9 @@ def _transcribe_nvidia(video_path: str) -> dict:
 
 def transcribe(video_path: str) -> dict:
     """Retourne {language, transcript, segments[{start,end,text}]}."""
+    # Choix explicite du local -> on l'utilise directement (pas un repli).
+    if config.ASR_PROVIDER == "local":
+        return _transcribe_local(video_path)
     if config.ASR_PROVIDER == "groq" and remote.asr_available():
         try:
             return _transcribe_groq(video_path)
@@ -80,7 +102,7 @@ def transcribe(video_path: str) -> dict:
         except nvidia_asr.NvidiaError:
             if not config.ALLOW_LOCAL_FALLBACK:
                 raise
-    # Mode API strict : ne JAMAIS charger/télécharger un modèle local.
+    # Provider distant choisi mais indisponible : en mode API strict, pas de repli.
     if not config.ALLOW_LOCAL_FALLBACK:
         raise RuntimeError(
             f"Transcription indisponible en mode API strict (provider={config.ASR_PROVIDER}, "

@@ -36,8 +36,13 @@ JWT_ALGORITHM = "HS256"
 REQUIRE_AUTH = os.getenv("ENGINE_REQUIRE_AUTH", "true").lower() != "false"
 
 # --- Modèles (légers, CPU) — cf. docs/model-selection.md ---
-WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
+# small = bon compromis local : ~1 Go RAM, multilingue correct (mesuré). Eviter
+# distil-large-v3 (anglais-only) et medium/large (trop lents sur NAS modeste).
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "small")
 WHISPER_COMPUTE = os.getenv("WHISPER_COMPUTE", "int8")
+# Threads CPU pour faster-whisper. 0 = auto (prend tous les cœurs). Sur NAS
+# modeste, plafonner (ex. 3) laisse des cœurs à ffmpeg / au reste du système.
+WHISPER_CPU_THREADS = int(os.getenv("WHISPER_CPU_THREADS", "0"))
 EMBED_MODEL = os.getenv("EMBED_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
 LLM_GGUF = os.getenv("LLM_GGUF", str(MODELS_DIR / "qwen2.5-1.5b-instruct-q4_k_m.gguf"))
 LLM_N_CTX = int(os.getenv("LLM_N_CTX", "4096"))

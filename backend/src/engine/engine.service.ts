@@ -43,13 +43,17 @@ export class EngineService {
   }
 
   // Envoie la vidéo EN CLAIR à l'Engine pour analyse → renvoie le job_id.
-  async analyzeFile(filePath: string, filename = 'video.mp4'): Promise<string> {
+  // `filename` = vrai nom du fichier (affiché dans la transcription) ;
+  // `contentId` = clé de cache UNIQUE côté Engine (deux uploads distincts ne se
+  // partagent jamais le même cache, même si les noms de fichier sont identiques).
+  async analyzeFile(filePath: string, filename = 'video.mp4', contentId = ''): Promise<string> {
     // openAsBlob : le fichier est lu en flux (streaming) au moment de l'envoi, sans
     // le charger entièrement en RAM puis le recopier dans un Blob (évite le 2× mémoire
     // qui, sur une vidéo ~1 Go, doublait l'empreinte du process).
     const blob = await openAsBlob(filePath)
     const form = new FormData()
     form.append('file', blob, filename)
+    if (contentId) form.append('content_id', contentId)
     const res = await this.call('/analyze', {
       method: 'POST',
       headers: { Authorization: await this.auth() },

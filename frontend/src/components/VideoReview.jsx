@@ -67,6 +67,27 @@ const SWATCHES = [
 const DRIFT_THRESHOLD = 1.5
 const HEARTBEAT_MS = 2000
 
+// Noms lisibles des langues de sous-titres (repli : code en majuscules).
+const CAPTION_LANG_NAMES = {
+  fr: 'Français',
+  en: 'Anglais',
+  es: 'Espagnol',
+  ar: 'Arabe',
+  de: 'Allemand',
+  it: 'Italien',
+  pt: 'Portugais',
+  nl: 'Néerlandais',
+  ru: 'Russe',
+  zh: 'Chinois',
+  ja: 'Japonais',
+  ko: 'Coréen',
+  hi: 'Hindi',
+  tr: 'Turc',
+  pl: 'Polonais',
+}
+const captionLangLabel = (code) =>
+  CAPTION_LANG_NAMES[(code ?? '').slice(0, 2)] ?? (code ?? '').toUpperCase()
+
 export default function VideoReview({ source, session, user, contentId, onPeersUpdate }) {
   const videoRef = useRef(null)
   const fileRef = useRef(null)
@@ -156,11 +177,33 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
   // --- Sous-titres (transcription P3) incrustés sur la vidéo ----------------
   // Partagés avec InsightsPanel (meta passé en prop pour ne pas double-poller).
   const meta = useMetadata(contentId)
-  const captionSegments = useMemo(
-    () => (meta.status === 'done' ? (meta.data?.segments ?? []) : []),
+  const [captionsOn, setCaptionsOn] = useState(true)
+  // Pistes de traduction disponibles (produites par le pipeline P3).
+  const captionTracks = useMemo(
+    () =>
+      meta.status === 'done' && Array.isArray(meta.data?.translations)
+        ? meta.data.translations.filter((t) => t?.segments?.length)
+        : [],
     [meta],
   )
-  const [captionsOn, setCaptionsOn] = useState(true)
+  // Choix utilisateur de la langue de sous-titres (null = pas encore choisi).
+  // Pattern "ajuster l'etat pendant le rendu" : on remet null au changement de
+  // video pour que le DEFAUT (anglais) se ré-applique.
+  const [captionChoice, setCaptionChoice] = useState({ id: contentId, lang: null })
+  if (captionChoice.id !== contentId) setCaptionChoice({ id: contentId, lang: null })
+  const hasEnglish = captionTracks.some((t) => (t.lang ?? '').slice(0, 2) === 'en')
+  // Langue effective : choix explicite sinon DEFAUT anglais (si dispo), sinon origine.
+  const captionLang = captionChoice.lang ?? (hasEnglish ? 'en' : '')
+
+  // Segments affichés = piste traduite choisie, sinon transcription d'origine.
+  const captionSegments = useMemo(() => {
+    if (meta.status !== 'done') return []
+    if (captionLang) {
+      const tr = captionTracks.find((t) => (t.lang ?? '').slice(0, 2) === captionLang)
+      if (tr) return tr.segments
+    }
+    return meta.data?.segments ?? []
+  }, [meta, captionLang, captionTracks])
   const activeCaption = useMemo(() => {
     if (!captionsOn || captionSegments.length === 0) return ''
     const seg = captionSegments.find(
@@ -1010,6 +1053,25 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
               >
                 <ClosedCaptioning size={15} weight={captionsOn ? 'fill' : 'regular'} />
               </button>
+            )}
+
+            {captionsOn && captionTracks.length > 0 && (
+              <select
+                className="caption-lang-select"
+                value={captionLang}
+                onChange={(e) =>
+                  setCaptionChoice({ id: contentId, lang: e.target.value })
+                }
+                title="Langue des sous-titres"
+                aria-label="Langue des sous-titres"
+              >
+                <option value="">Original</option>
+                {captionTracks.map((t) => (
+                  <option key={t.lang} value={(t.lang ?? '').slice(0, 2)}>
+                    {captionLangLabel(t.lang)}
+                  </option>
+                ))}
+              </select>
             )}
 
             <div className="controls-spacer" />

@@ -168,4 +168,21 @@ def transcribe_audio(audio_path: str, *, language: str | None = None) -> dict:
         for s in data.get("segments", [])
     ]
     transcript = (data.get("text") or " ".join(s["text"] for s in segs)).strip()
-    return {"language": data.get("language", language or ""), "transcript": transcript, "segments": segs}
+    lang = _normalize_lang(data.get("language") or language or "")
+    return {"language": lang, "transcript": transcript, "segments": segs}
+
+
+# Groq/Whisper renvoie parfois le NOM complet ("English", "French") au lieu du
+# code ISO 639-1 ("en", "fr"). On normalise pour rester cohérent avec le reste.
+_NAME_TO_ISO = {
+    "english": "en", "french": "fr", "spanish": "es", "german": "de", "italian": "it",
+    "portuguese": "pt", "dutch": "nl", "russian": "ru", "chinese": "zh", "japanese": "ja",
+    "korean": "ko", "hindi": "hi", "turkish": "tr", "polish": "pl", "arabic": "ar",
+}
+
+
+def _normalize_lang(value: str) -> str:
+    v = (value or "").strip().lower()
+    if len(v) == 2:
+        return v
+    return _NAME_TO_ISO.get(v, v[:2])

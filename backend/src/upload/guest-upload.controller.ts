@@ -94,15 +94,17 @@ export class GuestUploadController {
     for (const u of this.users.listByCompany(me.companyId)) {
       if (u.role === 'admin') this.contents.grantAccess(content.id, u.username)
     }
-    // Analyse IA sur la vidéo en clair + chiffrement HLS en tâche de fond. Le
-    // fichier temporaire clair n'est supprimé qu'APRÈS que les deux consommateurs
-    // (Engine + chiffrement) l'ont lu — sinon un rm prématuré casse le stream de
-    // l'Engine (cf. upload.controller). encryptInBackground n'efface plus lui-même.
-    const analysisSent = this.analysis.startFromFile(content.id, file.path)
-    const encoded = this.upload.encryptInBackground(content.id, file.path)
-    void Promise.allSettled([analysisSent, encoded]).finally(() => {
-      void rm(file.path, { force: true }).catch(() => {})
-    })
+    // Traitement SÉQUENTIEL (respecte la pipeline, évite la contention CPU/RAM sur
+    // le NAS) : 1) chiffrement HLS, PUIS 2) analyse IA (transcription -> traduction).
+    // Le fichier clair est supprimé une fois les deux passés (l'Engine a sa copie).
+    void (async () => {
+      try {
+        await this.upload.encryptInBackground(content.id, file.path)
+        await this.analysis.startFromFile(content.id, file.path, file.originalname)
+      } finally {
+        await rm(file.path, { force: true }).catch(() => {})
+      }
+    })()
 
     return {
       id: content.id,
@@ -190,11 +192,16 @@ export class GuestUploadController {
           if (u.role === 'admin') this.contents.grantAccess(content.id, u.username)
         }
 
-        const analysisSent = this.analysis.startFromFile(content.id, merge.path)
-        const encoded = this.upload.encryptInBackground(content.id, merge.path)
-        void Promise.allSettled([analysisSent, encoded]).finally(() => {
-          void rm(merge.path!, { force: true }).catch(() => {})
-        })
+        // Séquentiel (chiffrement PUIS analyse) + vrai nom de fichier transmis.
+        const clearPath = merge.path
+        void (async () => {
+          try {
+            await this.upload.encryptInBackground(content.id, clearPath)
+            await this.analysis.startFromFile(content.id, clearPath, file.originalname)
+          } finally {
+            await rm(clearPath, { force: true }).catch(() => {})
+          }
+        })()
 
         return {
           id: content.id,
