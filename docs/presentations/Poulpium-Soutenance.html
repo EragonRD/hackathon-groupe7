@@ -1556,6 +1556,28 @@ seg21+       <span class="no">403</span>  <span class="c"># …puis bloqué net<
     </div>
   </div>
 </section><section class="slide">
+  <div class="kicker">Trivy scan · images Docker</div>
+  <h2>Rapport Trivy — vue globale</h2>
+  <p class="lede" style="margin-top:8px"><span class="mono" style="font-family:var(--mono)">trivy image --severity HIGH,CRITICAL</span> · 4 images scannées</p>
+  <div class="tcards">
+    <div class="tcard ok"><div class="ico" style="color:var(--ok)">✓</div><div class="name">frontend</div><div class="os">alpine 3.23.5</div><div class="res">0 vulnérabilité</div></div>
+    <div class="tcard warn"><div class="ico" style="color:var(--warn)">⚠</div><div class="name">core</div><div class="os">alpine 3.23.4</div><div class="res">14 HIGH · correctifs dispo</div></div>
+    <div class="tcard ok"><div class="ico" style="color:var(--ok)">✓</div><div class="name">nginx:alpine</div><div class="os">alpine 3.23.5</div><div class="res">0 vulnérabilité</div></div>
+    <div class="tcard danger"><div class="ico" style="color:var(--danger)">!</div><div class="name">engine</div><div class="os">debian 13.5</div><div class="res">45 vulns (Pôle 3)</div></div>
+  </div>
+  <div class="rowline">
+    <div style="font-weight:700">core — couche OS <span class="mono" style="font-family:var(--mono);color:var(--faint);font-size:13px">(alpine 3.23.4)</span></div>
+    <div class="mono" style="font-family:var(--mono);color:var(--ok);font-size:13px">correctif : rebuild → 3.5.7-r0</div>
+  </div>
+  <table class="vtable">
+    <tbody><tr><th>Bibliothèque</th><th>CVE</th><th>Sévérité</th><th>Installé</th><th>Corrigé dans</th></tr>
+    <tr><td><b>libcrypto3 + libssl3</b></td><td class="lnk">CVE-2026-45447</td><td><span class="sev high">HIGH</span></td><td class="mono">3.5.6-r0</td><td class="fix">3.5.7-r0</td></tr>
+  </tbody></table>
+  <div class="scan-alert warn" style="margin-top:18px">
+    <span class="ico">!</span>
+    <div class="txt"><b>engine (Pôle 3)</b> — 8 CRITICAL + 37 HIGH sur debian 13.5.<br><span style="color:var(--dim)">Dont Mesa 3D (will_not_fix), FFmpeg, libexpat, Perl, Mbed TLS — image hors périmètre P2 mais à surveiller par le Pôle 3.</span></div>
+  </div>
+</section><section class="slide">
   <div class="kicker">Scan grype · dépendances (SCA)</div>
   <h2>Scan de sécurité — grype</h2>
   <p class="lede" style="margin-top:8px">Analyse SCA sur 160 paquets · <span class="mono" style="font-family:var(--mono)">grype dir:. -o table</span></p>
@@ -1581,28 +1603,6 @@ seg21+       <span class="no">403</span>  <span class="c"># …puis bloqué net<
   <div class="scan-alert ok" style="margin-top:14px">
     <span class="ico" style="color:var(--ok)">✓</span>
     <div class="txt"><b>Correctif disponible :</b> <span class="mono" style="font-family:var(--mono);color:var(--dim)">npm install multer@2.2.0</span> — 2 vulnérabilités corrigées, aucun breaking change NestJS.</div>
-  </div>
-</section><section class="slide">
-  <div class="kicker">Trivy scan · images Docker</div>
-  <h2>Rapport Trivy — vue globale</h2>
-  <p class="lede" style="margin-top:8px"><span class="mono" style="font-family:var(--mono)">trivy image --severity HIGH,CRITICAL</span> · 4 images scannées</p>
-  <div class="tcards">
-    <div class="tcard ok"><div class="ico" style="color:var(--ok)">✓</div><div class="name">frontend</div><div class="os">alpine 3.23.5</div><div class="res">0 vulnérabilité</div></div>
-    <div class="tcard warn"><div class="ico" style="color:var(--warn)">⚠</div><div class="name">core</div><div class="os">alpine 3.23.4</div><div class="res">14 HIGH · correctifs dispo</div></div>
-    <div class="tcard ok"><div class="ico" style="color:var(--ok)">✓</div><div class="name">nginx:alpine</div><div class="os">alpine 3.23.5</div><div class="res">0 vulnérabilité</div></div>
-    <div class="tcard danger"><div class="ico" style="color:var(--danger)">!</div><div class="name">engine</div><div class="os">debian 13.5</div><div class="res">45 vulns (Pôle 3)</div></div>
-  </div>
-  <div class="rowline">
-    <div style="font-weight:700">core — couche OS <span class="mono" style="font-family:var(--mono);color:var(--faint);font-size:13px">(alpine 3.23.4)</span></div>
-    <div class="mono" style="font-family:var(--mono);color:var(--ok);font-size:13px">correctif : rebuild → 3.5.7-r0</div>
-  </div>
-  <table class="vtable">
-    <tbody><tr><th>Bibliothèque</th><th>CVE</th><th>Sévérité</th><th>Installé</th><th>Corrigé dans</th></tr>
-    <tr><td><b>libcrypto3 + libssl3</b></td><td class="lnk">CVE-2026-45447</td><td><span class="sev high">HIGH</span></td><td class="mono">3.5.6-r0</td><td class="fix">3.5.7-r0</td></tr>
-  </tbody></table>
-  <div class="scan-alert warn" style="margin-top:18px">
-    <span class="ico">!</span>
-    <div class="txt"><b>engine (Pôle 3)</b> — 8 CRITICAL + 37 HIGH sur debian 13.5.<br><span style="color:var(--dim)">Dont Mesa 3D (will_not_fix), FFmpeg, libexpat, Perl, Mbed TLS — image hors périmètre P2 mais à surveiller par le Pôle 3.</span></div>
   </div>
 </section></div><div class="wp dp3"><section class="slide cover">
   <div class="logo"><img src="assets/poulpium-mark.png" alt="Poulpium"><span class="word grad">Poulpium</span></div>

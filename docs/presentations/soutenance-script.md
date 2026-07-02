@@ -73,11 +73,11 @@ Deck : `Poulpium-Soutenance.html` (**21 slides**). Prod live : **https://poulpiu
 
 ## 🩵 GABRIEL — Pôle 2 · Audit & scans · slides 12–13 *(~1,5 min)*
 
-**[Slide 12 — scan grype]**
-« Merci Enzo. On n'a pas voulu juste *dire* que c'est sécurisé, on l'a **vérifié**. Premier scan, les **dépendances**, avec **grype** : 160 paquets analysés. On a trouvé deux vulnérabilités sur la librairie *multer* — un déni de service — qu'on a **corrigées** en montant en version 2.2.0, sans rien casser. »
+**[Slide 12 — rapport Trivy]**
+« Merci Enzo. On n'a pas voulu juste *dire* que c'est sécurisé, on l'a **vérifié**. Premier scan, les **images Docker**, avec **Trivy**. Le front et le nginx sont à **zéro vulnérabilité** ; le Core, on a patché la couche système ; et l'image de l'Engine est **surveillée**, même si elle est hors de notre périmètre. »
 
-**[Slide 13 — rapport Trivy]**
-« Deuxième scan, les **images Docker**, avec **Trivy**. Le front et le nginx sont à **zéro vulnérabilité** ; le Core, on a patché la couche système ; et l'image de l'Engine est **surveillée**, même si elle est hors de notre périmètre. Une vraie démarche sécurité, du code jusqu'à l'image livrée. Passons à l'intelligence — **Rabah**. »
+**[Slide 13 — scan grype]**
+« Deuxième scan, les **dépendances**, avec **grype** : 160 paquets analysés. On a trouvé deux vulnérabilités sur la librairie *multer* — un déni de service — qu'on a **corrigées** en montant en version 2.2.0, sans rien casser. Une vraie démarche sécurité, de l'image livrée jusqu'au code. Passons à l'intelligence — **Rabah**. »
 
 ---
 
