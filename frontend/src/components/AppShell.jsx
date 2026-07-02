@@ -90,11 +90,9 @@ export default function AppShell({
           >
             {initials(user.username)}
           </span>
-          <span>
+          <span className="user-meta">
             <span className="who">{user.username}</span>
-            <span className="role" style={{ display: 'block' }}>
-              {user.role}
-            </span>
+            <span className="role">{user.role}</span>
           </span>
         </div>
 

@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Poulpium — Soutenance P2 (Backend)</title>
+<style>
+  /* ===== Palette Poulpium (identique) — mais mise en scène "IDE/terminal" ===== */
+  :root{
+    --bg:#090b0f; --bg-1:#0d1016; --bg-2:#12151c; --bg-3:#1b1f28; --inset:#06080b; --editor:#0a0d12;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.14);
+    --text:#e9ebef; --dim:#9aa2ae; --faint:#5d646f;
+    --accent:#3d6dfd; --accent-2:#5b85ff; --accent-soft:rgba(61,109,253,.15); --accent-line:rgba(61,109,253,.45);
+    --ok:#2ec27e; --warn:#f5a623; --danger:#ff5b5b; --violet:#b07bff; --cyan:#29c5e6;
+    --r-sm:7px; --r-md:12px; --r-lg:18px; --r-pill:999px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"SFMono-Regular","JetBrains Mono","Cascadia Code",Consolas,Menlo,monospace;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  /* fond : grille technique discrète (différent du P1) */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+    background:
+      linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px) 0 0/100% 34px,
+      linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px) 0 0/34px 100%,
+      radial-gradient(800px 520px at 88% -6%, rgba(61,109,253,.12), transparent 60%)}
+
+  #deck{position:fixed;inset:0;z-index:1}
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:clamp(26px,4.4vw,76px);opacity:0;visibility:hidden;transform:translateY(12px);
+    transition:opacity .45s cubic-bezier(.16,1,.3,1),transform .45s cubic-bezier(.16,1,.3,1),visibility .45s}
+  .slide.active{opacity:1;visibility:visible;transform:none}
+
+  /* HUD */
+  #hud{position:fixed;z-index:20;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.05)}
+  #bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--cyan));transition:width .45s ease}
+  #counter{position:fixed;z-index:20;right:clamp(18px,3vw,40px);bottom:16px;font-family:var(--mono);font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;letter-spacing:.08em}
+  #counter b{color:var(--text)}
+  #dots{position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:14px;display:flex;gap:7px}
+  #dots button{width:7px;height:7px;border-radius:2px;border:0;background:rgba(255,255,255,.18);cursor:pointer;padding:0;transition:all .3s}
+  #dots button.on{background:var(--accent);width:20px}
+  #brand-hud{position:fixed;z-index:20;left:clamp(18px,3vw,40px);bottom:13px;display:flex;align-items:center;gap:8px;opacity:.6}
+  #brand-hud img{width:15px;height:15px}
+  #brand-hud span{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase}
+
+  /* Typo */
+  .kicker{display:inline-flex;align-items:center;gap:9px;font-family:var(--mono);font-size:12.5px;text-transform:uppercase;letter-spacing:.15em;color:var(--accent-2);margin-bottom:16px}
+  .kicker::before{content:"›";color:var(--accent);font-weight:800}
+  h1{font-size:clamp(32px,4.4vw,60px);line-height:1.03;font-weight:800;letter-spacing:-.03em}
+  h2{font-size:clamp(24px,3.2vw,42px);line-height:1.06;font-weight:800;letter-spacing:-.025em}
+  .lede{font-size:clamp(14px,1.35vw,19px);color:var(--dim);line-height:1.5;max-width:64ch;margin-top:14px}
+  .num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .scroll{overflow-y:auto;min-height:0}
+  .scroll::-webkit-scrollbar{width:8px}.scroll::-webkit-scrollbar-thumb{background:var(--bg-3);border-radius:8px}
+
+  /* ===== Editor / code ===== */
+  .editor{border:1px solid var(--line-strong);border-radius:var(--r-md);overflow:hidden;background:var(--editor);box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .etop{display:flex;align-items:center;background:var(--bg-2);border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12px}
+  .etop .dots{display:flex;gap:6px;padding:0 14px}
+  .etop .dots i{width:11px;height:11px;border-radius:50%;display:block;background:#2b313b}
+  .etop .dots i:nth-child(1){background:#ff5f57}.etop .dots i:nth-child(2){background:#febc2e}.etop .dots i:nth-child(3){background:#28c840}
+  .etab{padding:9px 15px;color:var(--faint);border-left:1px solid var(--line)}
+  .etab.on{color:var(--text);background:var(--editor);border-bottom:2px solid var(--accent)}
+  .code{font-family:var(--mono);font-size:clamp(11.5px,1vw,14.5px);line-height:1.75;padding:18px 22px;white-space:pre;overflow:auto;color:#c6cdd7;tab-size:2}
+  .code .k{color:var(--accent-2)}.code .s{color:var(--ok)}.code .w{color:var(--warn)}.code .r{color:var(--danger)}.code .c{color:var(--faint);font-style:italic}.code .f{color:var(--cyan)}.code .v{color:var(--violet)}
+  .caret{display:inline-block;width:8px;height:1.05em;background:var(--accent);vertical-align:-2px;animation:bl 1s steps(1) infinite}
+  @keyframes bl{50%{opacity:0}}
+
+  /* ===== Terminal ===== */
+  .term{font-family:var(--mono);font-size:clamp(11.5px,1vw,14.5px);line-height:1.85;background:var(--inset);border:1px solid var(--line);border-radius:var(--r-md);padding:18px 22px;white-space:pre-wrap;overflow:auto;color:#c6cdd7}
+  .term .p{color:var(--accent-2)}.term .ok{color:var(--ok)}.term .no{color:var(--danger)}.term .c{color:var(--faint)}.term .w{color:var(--warn)}
+
+  /* ===== Cahier des charges (points demandés) ===== */
+  .reqs{display:flex;flex-direction:column;gap:12px;margin-top:22px}
+  .req{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-sm);padding:14px 18px;background:var(--bg-1)}
+  .req .w{display:flex;gap:10px;align-items:baseline;font-size:clamp(14px,1.15vw,17px);font-weight:700}
+  .req .w .tick{color:var(--ok);font-weight:800}
+  .req .w .tag{margin-left:auto;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);border:1px solid var(--line);padding:2px 8px;border-radius:var(--r-pill)}
+  .req .g{color:var(--dim);font-size:14px;margin-top:7px;line-height:1.5}
+  .req .g code{font-family:var(--mono);color:var(--accent-2)}
+
+  /* ===== Routes déroulantes ===== */
+  .rgroup{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--faint);margin:16px 0 6px}
+  .rgroup:first-child{margin-top:0}
+  .route{border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg-1);margin-bottom:6px;overflow:hidden}
+  .route-head{display:flex;align-items:center;gap:13px;padding:9px 14px;cursor:pointer;font-family:var(--mono);font-size:13.5px;user-select:none}
+  .route-head:hover{background:var(--bg-2)}
+  .route-path{color:var(--text)}
+  .route-guard{margin-left:auto;font-size:11px;color:var(--faint);white-space:nowrap}
+  .route-chev{color:var(--faint);transition:transform .2s;font-size:11px}
+  .route.open .route-chev{transform:rotate(90deg)}
+  .route-body{max-height:0;overflow:hidden;transition:max-height .3s ease}
+  .route.open .route-body{max-height:260px}
+  .route-body .in{padding:4px 16px 14px;color:var(--dim);font-size:13.5px;line-height:1.55;border-top:1px solid var(--line)}
+  .route-body .in code{font-family:var(--mono);color:var(--accent-2)}
+  .badge{font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.03em;padding:3px 7px;border-radius:5px;min-width:52px;text-align:center;flex:0 0 auto}
+  .b-get{color:var(--ok);background:rgba(46,194,126,.13);border:1px solid rgba(46,194,126,.3)}
+  .b-post{color:var(--accent-2);background:var(--accent-soft);border:1px solid var(--accent-line)}
+  .b-put{color:var(--warn);background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3)}
+  .b-patch{color:var(--violet);background:rgba(176,123,255,.12);border:1px solid rgba(176,123,255,.3)}
+  .b-del{color:var(--danger);background:rgba(255,91,91,.12);border:1px solid rgba(255,91,91,.3)}
+  .b-all{color:var(--dim);background:rgba(255,255,255,.05);border:1px solid var(--line)}
+
+  /* ===== Blocs génériques ===== */
+  .split{display:grid;grid-template-columns:1fr 1.05fr;gap:clamp(22px,3vw,54px);align-items:center;min-height:0}
+  .split .txt{min-width:0}.split .media{min-width:0}
+  ul.feat{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:11px}
+  ul.feat li{display:flex;gap:12px;align-items:flex-start;font-size:clamp(13.5px,1.1vw,16px);line-height:1.4}
+  ul.feat li::before{content:"+";color:var(--accent-2);font-family:var(--mono);font-weight:800;margin-top:1px}
+  ul.feat li b{color:var(--text);font-weight:700}ul.feat li span{color:var(--dim)}
+  .arch{display:flex;gap:14px;align-items:stretch;margin-top:26px}
+  .node{flex:1;border:1px solid var(--line-strong);border-radius:var(--r-md);padding:20px;background:var(--bg-1);position:relative}
+  .node.hi{border-color:var(--accent-line);background:linear-gradient(180deg,var(--accent-soft),var(--bg-1))}
+  .node .t{font-weight:800;font-size:17px;margin-bottom:5px}.node .s{color:var(--dim);font-size:13px;line-height:1.45}
+  .node .tag{position:absolute;top:-10px;left:18px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;background:var(--bg-3);border:1px solid var(--line-strong);color:var(--dim);padding:2px 8px;border-radius:var(--r-pill)}
+  .node.hi .tag{background:var(--accent);color:#fff;border-color:transparent}
+  .link{display:flex;align-items:center;color:var(--faint);font-family:var(--mono);font-size:16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+  .box{border:1px solid var(--line);border-radius:var(--r-md);padding:20px 22px;background:var(--bg-1)}
+  .box h3{font-family:var(--mono);font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px}
+  .box.p h3{color:var(--ok)}.box.a h3{color:var(--danger)}.box.h h3{color:var(--cyan)}.box.l h3{color:var(--warn)}
+  .box ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .box li{display:flex;gap:9px;font-size:14px;line-height:1.4;color:var(--dim)}
+  .box li::before{content:"—";color:var(--faint)}
+  .box li b{color:var(--text);font-weight:600}
+  .chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}
+  .chip{font-family:var(--mono);font-size:12px;color:var(--text);background:var(--bg-2);border:1px solid var(--line-strong);padding:7px 12px;border-radius:var(--r-pill)}
+
+  /* Cover */
+  .cover .logo{display:flex;align-items:center;gap:16px;margin-bottom:26px}
+  .cover .logo img{width:56px;height:56px;filter:drop-shadow(0 8px 24px rgba(61,109,253,.5))}
+  .cover .logo .word{font-size:clamp(34px,4.6vw,60px);font-weight:800;letter-spacing:-.03em;background:linear-gradient(90deg,#cdd6ff,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .cover .meta{margin-top:26px;display:flex;flex-direction:column;gap:6px}
+  .cover .meta .row{display:flex;gap:11px;align-items:center;font-size:14.5px;color:var(--dim)}
+  .cover .meta .row .tag{font-family:var(--mono);font-size:11px;color:var(--accent-2);border:1px solid var(--accent-line);background:var(--accent-soft);padding:3px 9px;border-radius:var(--r-pill)}
+  .cover .team{margin-top:20px;font-family:var(--mono);font-size:12.5px;color:var(--faint);letter-spacing:.03em}
+
+  /* ===== Slides de scan (grype / trivy) — mêmes maquettes, thème sombre ===== */
+  .scan-alert{display:flex;align-items:center;gap:16px;padding:13px 18px;border-radius:var(--r-md);margin-top:16px;font-size:14px;line-height:1.4}
+  .scan-alert.warn{background:rgba(255,91,91,.08);border:1px solid rgba(255,91,91,.3)}
+  .scan-alert.ok{background:rgba(46,194,126,.08);border:1px solid rgba(46,194,126,.3)}
+  .scan-alert .ico{font-size:20px;flex:0 0 auto}
+  .scan-alert .txt{flex:1}.scan-alert .txt b{color:var(--text)}
+  .scan-alert.ok .txt b{color:var(--ok)}
+  .counts{display:flex;gap:9px;margin-left:auto;flex:0 0 auto}
+  .count{text-align:center;padding:6px 12px;border-radius:var(--r-sm);border:1px solid var(--line);min-width:60px}
+  .count .n{font-family:var(--mono);font-size:19px;font-weight:800;line-height:1}
+  .count .l{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--faint);margin-top:3px}
+  .count.crit .n,.count.low .n{color:var(--faint)}
+  .count.high{border-color:rgba(255,91,91,.4);background:rgba(255,91,91,.08)}.count.high .n{color:var(--danger)}
+  .count.med{border-color:rgba(245,166,35,.4);background:rgba(245,166,35,.08)}.count.med .n{color:var(--warn)}
+  .vtable{width:100%;border-collapse:collapse;margin-top:16px;font-size:13px;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+  .vtable th{background:var(--bg-3);color:var(--dim);font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:10px 14px;font-weight:700}
+  .vtable td{padding:10px 14px;border-top:1px solid var(--line);color:var(--text)}
+  .vtable tr:nth-child(odd) td{background:var(--bg-1)}
+  .vtable .fix{color:var(--ok);font-weight:700}
+  .vtable .lnk{color:var(--accent-2);font-family:var(--mono)}
+  .vtable .mono{font-family:var(--mono);color:var(--dim)}
+  .sev{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:800;padding:3px 9px;border-radius:5px;letter-spacing:.03em}
+  .sev.high{color:#fff;background:var(--danger)}
+  .sev.med{color:#241905;background:var(--warn)}
+  .tcards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px}
+  .tcard{border:1px solid var(--line-strong);border-radius:var(--r-md);padding:18px 14px;text-align:center;background:var(--bg-1)}
+  .tcard.ok{border-color:rgba(46,194,126,.35);background:linear-gradient(180deg,rgba(46,194,126,.06),var(--bg-1))}
+  .tcard.warn{border-color:rgba(245,166,35,.4);background:linear-gradient(180deg,rgba(245,166,35,.07),var(--bg-1))}
+  .tcard.danger{border-color:rgba(255,91,91,.4);background:linear-gradient(180deg,rgba(255,91,91,.07),var(--bg-1))}
+  .tcard .ico{font-size:20px}
+  .tcard .name{font-weight:800;font-size:16px;margin:8px 0 2px}
+  .tcard .os{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .tcard .res{margin-top:12px;font-size:13px;font-weight:700}
+  .tcard.ok .res{color:var(--ok)}.tcard.warn .res{color:var(--warn)}.tcard.danger .res{color:var(--danger)}
+  .rowline{display:flex;justify-content:space-between;align-items:baseline;margin-top:22px}
+
+  .hint{position:fixed;z-index:20;top:16px;right:clamp(18px,3vw,40px);font-family:var(--mono);font-size:11px;color:var(--faint);opacity:0;transition:opacity .4s}
+  body:hover .hint{opacity:.7}
+  kbd{font-family:var(--mono);border:1px solid var(--line-strong);border-radius:5px;padding:1px 6px;color:var(--dim);font-size:10.5px}
+  @media (max-width:900px){.split,.arch,.grid2{grid-template-columns:1fr;display:flex;flex-direction:column}}
+  @media (prefers-reduced-motion:reduce){.slide{transition:opacity .001s}.caret{animation:none}}
+</style>
+</head>
+<body>
+
+<div class="hint">← → naviguer · <kbd>F</kbd> plein écran · clic sur une route pour déplier</div>
+<div id="deck"></div>
+<div id="hud"><div id="bar"></div></div>
+<div id="dots"></div>
+<div id="counter"><b>01</b> / 15</div>
+<div id="brand-hud"><img src="assets/poulpium-mark.png" alt=""><span>Poulpium · Pôle 2</span></div>
+
+<script>
+const R=(m,p,g,d)=>`<div class="route"><div class="route-head"><span class="badge b-${m.toLowerCase()}">${m}</span><span class="route-path">${p}</span><span class="route-guard">${g}</span><span class="route-chev">▶</span></div><div class="route-body"><div class="in">${d}</div></div></div>`;
+
+const slides = [
+
+/* 1 — COVER */
+`<section class="slide cover">
+  <div class="logo"><img src="assets/poulpium-mark.png" alt="Poulpium"><span class="word">Poulpium</span></div>
+  <div class="kicker">Pôle 2 · Infra, Sécurité & Cloud</div>
+  <h1>Le back-end qui ne fait<br>confiance à personne.</h1>
+  <p class="lede">Deux sujets livrés : chiffrer le flux et verrouiller la clé (Zero-Trust), puis détecter et bloquer l'aspiration en temps réel. NestJS, 100 % local.</p>
+  <div class="editor" style="margin-top:26px;max-width:720px">
+    <div class="etop"><div class="dots"><i></i><i></i><i></i></div><div class="etab on">proof.sh</div></div>
+    <div class="code" id="tw"></div>
+  </div>
+  <div class="meta">
+    <div class="row"><span class="tag">Sujet A</span> Diffusion « Zero-Trust » — HLS chiffré + clé éphémère</div>
+    <div class="row"><span class="tag">Sujet B</span> Détection des menaces & Anti-Scraping</div>
+  </div>
+  <div class="team">Hackathon ESTIAM — Groupe 7   ·   Équipe P2 : Enzo (lead) · William · Ryan · Gabriel</div>
+</section>`,
+
+/* 2 — ARCHITECTURE */
+`<section class="slide">
+  <div class="kicker">Où se place le Core</div>
+  <h2>Une seule porte, gardée par le Core.</h2>
+  <div class="arch">
+    <div class="node"><span class="tag">View · P1</span><div class="t">React / Vite</div><div class="s">Demande. Ne détient jamais la clé ni les droits.</div></div>
+    <div class="link">— JWT →</div>
+    <div class="node hi"><span class="tag">Core · P2</span><div class="t">NestJS</div><div class="s">Auth, clés AES, ACL multi-tenant, anti-scraping, orchestration.</div></div>
+    <div class="link">— service →</div>
+    <div class="node"><span class="tag">Engine · P3</span><div class="t">FastAPI</div><div class="s">IA locale. Appelée seulement par le Core (token de service).</div></div>
+  </div>
+  <p class="lede" style="margin-top:26px">Le back-end est le <b style="color:var(--text)">seul décideur</b> : qui voit quoi, qui reçoit quelle clé, qui a le droit d'analyser. Tout le reste demande la permission.</p>
+</section>`,
+
+/* 3 — SUJET A : cahier des charges */
+`<section class="slide">
+  <div class="kicker">Sujet A · ce que le sujet exige</div>
+  <h2>Diffuser une vidéo que personne ne peut piller.</h2>
+  <div class="reqs scroll" style="max-height:66vh">
+    <div class="req"><div class="w"><span class="tick">✓</span> Diffusion HLS (playlist + segments) <span class="tag">exigé</span></div>
+      <div class="g">La vidéo est servie en HLS : un manifeste <code>index.m3u8</code> + des segments <code>.ts</code>, jamais un fichier unique téléchargeable.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Flux chiffré AES-128 <span class="tag">exigé</span></div>
+      <div class="g">À l'ingestion, ffmpeg chiffre chaque segment en AES-128 (<code>-hls_key_info_file</code>) avec une clé + IV propres au contenu.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Clé délivrée seulement sur token valide — refus par défaut <span class="tag">exigé</span></div>
+      <div class="g"><code>GET /keys/:id</code> gardé par le JWT + l'ACL. Sans token, expiré, mauvais tenant ou clé révoquée → <code>401 / 403 / 404</code>. C'est le serveur de clés éphémères.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Déploiement local en une commande <span class="tag">exigé</span></div>
+      <div class="g"><code>docker compose up</code> lance core + frontend + hls + engine. Aucune étape manuelle obscure.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Sans cloud payant <span class="tag">exigé</span></div>
+      <div class="g">Tout tourne en local (Docker). Aucune dépendance à un service payant.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Modèle de menace assumé <span class="tag">évalué</span></div>
+      <div class="g">Quoi protéger, contre quoi, hypothèses et limites — détaillé en fin de présentation (+ <code>docs/P2-threat-model.md</code>).</div></div>
+  </div>
+</section>`,
+
+/* 4 — SUJET A : serveur de clés (code) */
+`<section class="slide">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker">Sujet A · le cœur</div>
+      <h2>Le serveur de clés éphémères.</h2>
+      <p class="lede">La clé ne sort jamais sans une décision explicite. Chaque requête est re-vérifiée de zéro.</p>
+      <ul class="feat" style="margin-top:16px">
+        <li><b>Refus par défaut</b><span> — on n'autorise qu'après avoir tout validé.</span></li>
+        <li><b>Isolation tenant</b><span> — mauvais companyId → 404, on ne révèle rien.</span></li>
+        <li><b>Révocation</b><span> — clé retirée → 403 immédiat, réversible.</span></li>
+        <li><b>Audit</b><span> — chaque accès (accordé/refusé) est journalisé.</span></li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="editor">
+        <div class="etop"><div class="dots"><i></i><i></i><i></i></div><div class="etab on">keys.service.ts</div></div>
+        <div class="code"><span class="c">// GET /keys/:contentId  — refus par défaut</span>
+<span class="k">async</span> <span class="f">getKey</span>(id, user, ip) {
+  <span class="k">const</span> c = <span class="k">this</span>.contents.<span class="f">find</span>(id)
+  <span class="k">if</span> (!c || c.companyId !== user.companyId)
+    <span class="k">throw</span> <span class="r">NotFound</span>       <span class="c">// autre tenant → 404</span>
+  <span class="k">if</span> (!<span class="k">this</span>.contents.<span class="f">isAllowed</span>(id, user))
+    <span class="k">throw</span> <span class="r">Forbidden</span>      <span class="c">// pas d'accès → 403</span>
+  <span class="k">if</span> (c.revoked)
+    <span class="k">throw</span> <span class="r">Forbidden</span>      <span class="c">// clé révoquée → 403</span>
+  <span class="k">this</span>.<span class="f">audit</span>(id, user, ip, <span class="s">'granted'</span>)
+  <span class="k">return</span> <span class="f">readKey</span>(id)     <span class="c">// ✓ clé AES-128</span>
+}</div>
+      </div>
+    </div>
+  </div>
+</section>`,
+
+/* 5 — SUJET A : preuve de sécurité (terminal) */
+`<section class="slide">
+  <div class="kicker">Sujet A · la preuve demandée</div>
+  <h2>Avec token, ça lit. Sans, la clé est refusée.</h2>
+  <div class="term scroll" style="margin-top:24px;max-height:60vh">
+<span class="c"># 1) Sans token → refus par défaut</span>
+<span class="p">$</span> curl -s -o /dev/null -w "%{http_code}" /keys/poc
+<span class="no">401</span>  Unauthorized
+
+<span class="c"># 2) Bon utilisateur, bonne entreprise → clé délivrée</span>
+<span class="p">$</span> curl -H "Authorization: Bearer <span class="w">$ALICE</span>" /keys/poc
+<span class="ok">200</span>  ····clé AES-128 (binaire)····
+
+<span class="c"># 3) Utilisateur d'une AUTRE entreprise → on ne révèle rien</span>
+<span class="p">$</span> curl -H "Authorization: Bearer <span class="w">$EVE</span>" /keys/poc
+<span class="no">404</span>  Contenu introuvable
+
+<span class="c"># 4) Admin révoque la clé, en direct → lecture coupée</span>
+<span class="p">$</span> curl -X POST -H "Authorization: Bearer <span class="w">$ADMIN</span>" /admin/contents/poc/revoke
+<span class="p">$</span> curl -H "Authorization: Bearer <span class="w">$ALICE</span>" /keys/poc
+<span class="no">403</span>  Accès refusé pour ce contenu
+  </div>
+</section>`,
+
+/* 6 — SUJET B : cahier des charges */
+`<section class="slide">
+  <div class="kicker">Sujet B · ce que le sujet exige</div>
+  <h2>Détecter et bloquer les abus en temps réel.</h2>
+  <div class="reqs scroll" style="max-height:66vh">
+    <div class="req"><div class="w"><span class="tick">✓</span> Détection temps réel + réaction visible <span class="tag">exigé</span></div>
+      <div class="g">Le trafic est analysé à chaque requête ; au-delà des seuils, la réaction est un <code>403</code> réel (le segment est refusé), pas un simple log.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Partage de compte à grande échelle <span class="tag">signal</span></div>
+      <div class="g">Multi-session : un même compte vu depuis <code>&gt; 3 IP</code> distinctes en 5 min → alerte.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Accès via VPN / proxies <span class="tag">signal</span></div>
+      <div class="g">Liste de réseaux (CIDR) de réputation : une IP qui matche est signalée (<code>proxy_ip</code>).</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Débit d'aspiration (scraping) <span class="tag">signal</span></div>
+      <div class="g">Segments <code>.ts</code> par acteur en fenêtre glissante 60 s : <code>&gt; 8</code> → alerte, <code>&gt; 20</code> → blocage.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Démo avec scripts d'attaque (avant / après) <span class="tag">exigé</span></div>
+      <div class="g">Un script qui aspire les segments passe d'abord, puis se fait couper net dès le seuil franchi (via nginx <code>auth_request</code>).</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Règles documentées, limites assumées <span class="tag">évalué</span></div>
+      <div class="g">Seuils et faux positifs discutés dans <code>docs/P2-anti-scraping.md</code>.</div></div>
+  </div>
+</section>`,
+
+/* 7 — SUJET B : détection & blocage (code + term) */
+`<section class="slide">
+  <div class="split">
+    <div class="media">
+      <div class="editor">
+        <div class="etop"><div class="dots"><i></i><i></i><i></i></div><div class="etab on">security.service.ts</div></div>
+        <div class="code"><span class="c">// fenêtre glissante, par acteur (compte|IP)</span>
+<span class="k">const</span> n = <span class="k">this</span>.<span class="f">segmentsFor</span>(actor, <span class="v">60_000</span>)
+<span class="k">if</span> (n &gt; <span class="v">20</span>) <span class="k">return</span> { blocked:<span class="w">true</span> }  <span class="c">// → 403</span>
+<span class="k">if</span> (n &gt; <span class="v">8</span>)  <span class="k">this</span>.<span class="f">alert</span>(<span class="s">'segment_scrape'</span>)</div>
+      </div>
+      <div class="term" style="margin-top:14px">
+<span class="c"># script d'aspiration</span>
+<span class="p">$</span> for i in $(seq 1 40); do curl .../seg$i.ts; done
+seg1..seg20  <span class="ok">200</span>  <span class="c"># l'abus passe…</span>
+seg21+       <span class="no">403</span>  <span class="c"># …puis bloqué net</span></div>
+    </div>
+    <div class="txt">
+      <div class="kicker">Sujet B · détection & blocage</div>
+      <h2>Le blocage est réel.</h2>
+      <p class="lede">nginx interroge le Core en <code style="color:var(--accent-2);font-family:var(--mono)">auth_request</code> avant chaque segment : un 403 du Core = segment refusé par nginx.</p>
+      <ul class="feat" style="margin-top:14px">
+        <li><b>Rate-limit</b><span> — 100 req / 60 s / IP en amont.</span></li>
+        <li><b>Bans IP</b><span> — blocage manuel depuis le dashboard, persisté.</span></li>
+        <li><b>Dashboard live</b><span> — alertes horodatées, MAJ toutes les 2 s.</span></li>
+        <li><b>Anti-usurpation</b><span> — X-Forwarded-For n'est cru que des proxies de confiance.</span></li>
+      </ul>
+    </div>
+  </div>
+</section>`,
+
+/* 8 — ROUTES (déroulantes) */
+`<section class="slide">
+  <div class="kicker">L'API en un coup d'œil</div>
+  <h2>Toutes les routes, dépliables.</h2>
+  <div class="scroll" style="max-height:70vh;margin-top:18px;padding-right:8px">
+    <div class="rgroup">auth — identité & sessions</div>
+    ${R('POST','/auth/login','public','Vérifie les identifiants (Argon2id) et émet un JWT court + un refresh token.')}
+    ${R('POST','/auth/refresh','refresh token','Renouvelle l\'access token via le refresh (rotation côté serveur).')}
+    ${R('POST','/auth/logout','auth','Révoque le refresh token (vrai logout).')}
+    ${R('GET','/auth/me','JWT','Réhydrate l\'utilisateur courant depuis le token.')}
+    ${R('POST','/auth/change-password','JWT','1re connexion d\'un invité ou changement volontaire ; efface le mot de passe temporaire.')}
+    ${R('GET','/auth/users','JWT','Recherche d\'utilisateurs — <b>scopée à l\'entreprise</b> de l\'appelant.')}
+
+    <div class="rgroup">keys & videos — diffusion Zero-Trust</div>
+    ${R('GET','/keys/:id','JWT + ACL','<b>Serveur de clés éphémères.</b> Refus par défaut : token, tenant, ACL, révocation.')}
+    ${R('GET','/videos/:id/index.m3u8','—','Manifeste HLS du flux chiffré, servi par le Core.')}
+    ${R('GET','/videos/:id/:segment','surveillé','Segment .ts chiffré (comptage anti-scraping côté middleware).')}
+
+    <div class="rgroup">contents — côté utilisateur</div>
+    ${R('GET','/contents','JWT','Contenus de l\'entreprise auxquels l\'utilisateur a accès (+ drapeau playable).')}
+    ${R('POST','/contents/:id/invite','JWT + accès','Génère un lien d\'invité temporaire (token signé, 15 min / 1 h / 24 h).')}
+    ${R('POST','/contents/guest-upload','token invité','Upload par un invité → accès auto à l\'invitant + admins de l\'orga.')}
+    ${R('GET','/contents/:id/metadata','JWT + ACL','Métadonnées IA (Bloc B P3) par contentId — le front ne voit jamais de job_id.')}
+    ${R('POST','/contents/:id/search','JWT + ACL','Recherche sémantique dans la transcription (Engine).')}
+
+    <div class="rgroup">admin — back-office multi-tenant</div>
+    ${R('POST','/admin/companies','superadmin','Crée une entreprise (tenant).')}
+    ${R('POST','/admin/companies/:id/invite-admin','superadmin','Invite l\'admin d\'une entreprise (mot de passe temporaire 24 h + e-mail).')}
+    ${R('POST','/admin/users','admin','Crée un utilisateur dans SON entreprise.')}
+    ${R('PATCH','/admin/users/:username/role','admin','Change le rôle d\'un utilisateur.')}
+    ${R('POST','/admin/contents/upload','admin','Upload vidéo (≤ 1 Go) → chiffrement HLS AES-128 en tâche de fond.')}
+    ${R('POST','/admin/contents/:id/revoke','admin','Révoque la clé d\'un contenu (lecture → 403). <code>/restore</code> pour rétablir.')}
+    ${R('POST','/admin/contents/:id/access','admin','Autorise un utilisateur sur un contenu (ACL).')}
+    ${R('DELETE','/admin/contents/:id','admin','Supprime un contenu + ses artefacts (HLS + clé).')}
+    ${R('GET','/admin/audit/keys','admin','Journal des accès aux clés (accordés / refusés).')}
+
+    <div class="rgroup">security — anti-scraping & surveillance</div>
+    ${R('ALL','/security/ingest','interne (nginx)','auth_request : compte le trafic, renvoie 403 si aspiration → nginx refuse le segment.')}
+    ${R('GET','/security/dashboard','admin','Compteurs + alertes actives (VP/FP, débit, multi-session).')}
+    ${R('GET','/security/changes','admin','Delta incrémental (nouveau trafic / alertes) pour la MAJ live.')}
+    ${R('POST','/security/ban','admin','Bannit une IP (persisté). <code>DELETE /security/ban/:ip</code> pour lever.')}
+    ${R('GET','/security/watermark','JWT','Libellé de watermark (pseudo + horodatage) pour la traçabilité.')}
+    ${R('POST','/security/capture-report','JWT','Remonte un signal de risque de capture d\'écran (Capture Guard).')}
+
+    <div class="rgroup">notes — revue persistée (bonus)</div>
+    ${R('GET','/notes/:session','JWT','Charge les commentaires d\'une session (persistance serveur).')}
+    ${R('PUT','/notes/:session','JWT','Sauvegarde les commentaires d\'une session.')}
+  </div>
+</section>`,
+
+/* 9 — BONUS (à la fin) */
+`<section class="slide">
+  <div class="kicker">Au-delà du cahier des charges</div>
+  <h2>Les bonus qu'on a ajoutés.</h2>
+  <div class="reqs scroll" style="max-height:66vh">
+    <div class="req" style="border-left-color:var(--violet)"><div class="w"><span class="tick" style="color:var(--violet)">★</span> Multi-tenant à 3 niveaux + ACL dynamique <span class="tag">bonus</span></div>
+      <div class="g">superadmin / admin / user, entreprises étanches par <code>companyId</code>, autorisations par contenu.</div></div>
+    <div class="req" style="border-left-color:var(--violet)"><div class="w"><span class="tick" style="color:var(--violet)">★</span> Onboarding complet <span class="tag">bonus</span></div>
+      <div class="g">Invitations admin (mot de passe temporaire 24 h + e-mail <b>Mailjet</b>) et invités par lien signé expirant.</div></div>
+    <div class="req" style="border-left-color:var(--violet)"><div class="w"><span class="tick" style="color:var(--violet)">★</span> Pipeline d'upload robuste <span class="tag">bonus</span></div>
+      <div class="g">Chiffrement async, <b>file d'attente ffmpeg</b> (anti-saturation), réconciliation au démarrage, suppression coordonnée du fichier clair.</div></div>
+    <div class="req" style="border-left-color:var(--violet)"><div class="w"><span class="tick" style="color:var(--violet)">★</span> Orchestration Core → Engine (Bloc B) <span class="tag">bonus</span></div>
+      <div class="g">Token de service (role=service), analyse par contentId, surface Engine durcie (path-traversal).</div></div>
+    <div class="req" style="border-left-color:var(--violet)"><div class="w"><span class="tick" style="color:var(--violet)">★</span> Sessions durcies <span class="tag">bonus</span></div>
+      <div class="g">Refresh tokens rotatés + vrai logout ; anti-bruteforce (IP, compte) <b>sans DoS</b> + alerte brute-force distribué.</div></div>
+    <div class="req" style="border-left-color:var(--violet)"><div class="w"><span class="tick" style="color:var(--violet)">★</span> Capture Guard <span class="tag">bonus</span></div>
+      <div class="g">Détection heuristique d'enregistrement d'écran + watermark, remontée au dashboard de surveillance.</div></div>
+    <div class="req" style="border-left-color:var(--violet)"><div class="w"><span class="tick" style="color:var(--violet)">★</span> Persistance en volumes Docker nommés <span class="tag">bonus</span></div>
+      <div class="g">users, clés, vidéos, bans, notes de revue : aucune donnée dans le dépôt.</div></div>
+  </div>
+</section>`,
+
+/* 10 — INFRA / DEPLOIEMENT */
+`<section class="slide">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker">Reproductibilité (exigée par le Sujet A)</div>
+      <h2>Une commande, zéro cloud payant.</h2>
+      <ul class="feat" style="margin-top:16px">
+        <li><b>4 services</b><span> — core (NestJS), frontend (nginx), hls (nginx), engine (FastAPI).</span></li>
+        <li><b>6 volumes nommés</b><span> — data, media, secrets, logs, hf_cache, engine_out.</span></li>
+        <li><b>Secret fort obligatoire</b><span> — le Core refuse de démarrer en prod avec un JWT_SECRET faible.</span></li>
+        <li><b>100 % local</b><span> — aucune dépendance à un service payant.</span></li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="term">
+<span class="c"># déploiement local en une commande</span>
+<span class="p">$</span> export JWT_SECRET=$(openssl rand -hex 32)
+<span class="p">$</span> docker compose up
+
+<span class="c"># services levés</span>
+  core      <span class="ok">✓</span>  :3000   API + sécurité
+  frontend  <span class="ok">✓</span>  :5174   SPA + proxy
+  hls       <span class="ok">✓</span>  :8080   segments chiffrés
+  engine    <span class="ok">✓</span>  :8000   IA (CPU)
+      </div>
+    </div>
+  </div>
+</section>`,
+
+/* 11 — MODELE DE MENACE */
+`<section class="slide">
+  <div class="kicker">Modèle de menace (exigé, assumé)</div>
+  <h2>Quoi protéger, contre quoi, et jusqu'où.</h2>
+  <div class="grid2">
+    <div class="box p"><h3>✓ Ce qu'on protège</h3><ul>
+      <li><b>Le contenu vidéo</b> — chiffré, clé verrouillée</li>
+      <li><b>Les clés AES</b> — jamais servies sans droit, volume dédié</li>
+      <li><b>L'isolation des tenants</b> — pas de fuite inter-entreprises</li>
+    </ul></div>
+    <div class="box a"><h3>⚔ Contre quoi</h3><ul>
+      <li><b>Lien direct / partage</b> — pas de fichier en clair</li>
+      <li><b>Aspiration automatisée</b> — détectée et bloquée</li>
+      <li><b>Comptes partagés / proxies</b> — signalés</li>
+      <li><b>Brute-force</b> — verrou + Argon2id</li>
+    </ul></div>
+    <div class="box h"><h3>≈ Hypothèses</h3><ul>
+      <li>Le reverse-proxy est de confiance (X-Forwarded-For)</li>
+      <li>Le JWT_SECRET reste secret</li>
+      <li>Démo mono-instance (json-store)</li>
+    </ul></div>
+    <div class="box l"><h3>⚠ Limites assumées</h3><ul>
+      <li><b>Trou analogique</b> — filmer l'écran reste possible</li>
+      <li><b>Anti-capture</b> — heuristique, pas de DRM matériel</li>
+      <li><b>Persistance</b> — mono-process, pas multi-instance</li>
+    </ul></div>
+  </div>
+</section>`,
+
+/* 12 — AUDIT DURCISSEMENT */
+`<section class="slide">
+  <div class="kicker">Audit de sécurité · durcissement adversarial</div>
+  <h2>Des failles cherchées, et corrigées.</h2>
+  <div class="reqs scroll" style="max-height:64vh">
+    <div class="req"><div class="w"><span class="tick">✓</span> Secret JWT <span class="tag">config</span></div>
+      <div class="g">Le Core <b>refuse de démarrer</b> en prod avec un secret faible ou par défaut.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Algorithme épinglé <span class="tag">JWT</span></div>
+      <div class="g"><code>HS256</code> forcé → bloque la confusion d'algorithme (<code>alg=none</code>).</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Path traversal <span class="tag">clés</span></div>
+      <div class="g"><code>contentId</code> validé (regex) + ACL <b>avant</b> toute lecture de fichier.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Brute-force login <span class="tag">auth</span></div>
+      <div class="g">Rate-limit <code>10/min/IP</code> + verrouillage du compte après <b>5 échecs</b>.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Énumération d'utilisateurs <span class="tag">auth</span></div>
+      <div class="g">Vérification <b>Argon2 à temps constant</b>, même pour un compte inexistant.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Endpoint interne <span class="tag">réseau</span></div>
+      <div class="g"><code>/security/ingest</code> réservé au reverse-proxy / loopback (pas d'accès externe).</div></div>
+  </div>
+</section>`,
+
+/* 13 — SCAN GRYPE */
+`<section class="slide">
+  <div class="kicker">Scan grype · dépendances (SCA)</div>
+  <h2>Scan de sécurité — grype</h2>
+  <p class="lede" style="margin-top:8px">Analyse SCA sur 160 paquets · <span class="mono" style="font-family:var(--mono)">grype dir:. -o table</span></p>
+  <div class="scan-alert warn">
+    <span class="ico">⚠</span>
+    <div class="txt"><b>2 vulnérabilités</b> détectées (1 HIGH · 1 MEDIUM) — multer 2.1.1 — toutes <b>corrigées en 2.2.0</b></div>
+    <div class="counts">
+      <div class="count crit"><div class="n">0</div><div class="l">CRITICAL</div></div>
+      <div class="count high"><div class="n">1</div><div class="l">HIGH</div></div>
+      <div class="count med"><div class="n">1</div><div class="l">MEDIUM</div></div>
+      <div class="count low"><div class="n">0</div><div class="l">LOW</div></div>
+    </div>
+  </div>
+  <table class="vtable">
+    <tr><th>Paquet</th><th>Installé</th><th>Corrigé dans</th><th>Type</th><th>CVE / GHSA</th><th>Sévérité</th><th>EPSS</th><th>Risk</th></tr>
+    <tr><td><b>multer</b></td><td class="mono">2.1.1</td><td class="fix">2.2.0</td><td>npm</td><td class="lnk">GHSA-72gw-mp4g-v24j</td><td><span class="sev high">HIGH</span></td><td class="mono">0.3% (19th)</td><td class="mono">0.2</td></tr>
+    <tr><td><b>multer</b></td><td class="mono">2.1.1</td><td class="fix">2.2.0</td><td>npm</td><td class="lnk">GHSA-3p4h-7m6x-2hcm</td><td><span class="sev med">MEDIUM</span></td><td class="mono">0.3% (19th)</td><td class="mono">0.1</td></tr>
+  </table>
+  <div class="grid2" style="margin-top:16px">
+    <div class="box a"><h3><span class="sev high">HIGH</span>&nbsp; GHSA-72gw-mp4g-v24j</h3><div style="font-weight:700;color:var(--text);margin-bottom:6px">DoS via champs imbriqués</div><div style="color:var(--dim);font-size:14px;line-height:1.5">Requête avec noms de champs profondément imbriqués → crash du serveur.</div></div>
+    <div class="box l"><h3><span class="sev med">MEDIUM</span>&nbsp; GHSA-3p4h-7m6x-2hcm</h3><div style="font-weight:700;color:var(--text);margin-bottom:6px">DoS — uploads abandonnés</div><div style="color:var(--dim);font-size:14px;line-height:1.5">Fichiers temporaires non nettoyés après abandon → saturation disque/mémoire.</div></div>
+  </div>
+  <div class="scan-alert ok" style="margin-top:14px">
+    <span class="ico" style="color:var(--ok)">✓</span>
+    <div class="txt"><b>Correctif disponible :</b> <span class="mono" style="font-family:var(--mono);color:var(--dim)">npm install multer@2.2.0</span> — 2 vulnérabilités corrigées, aucun breaking change NestJS.</div>
+  </div>
+</section>`,
+
+/* 14 — SCAN TRIVY */
+`<section class="slide">
+  <div class="kicker">Trivy scan · images Docker</div>
+  <h2>Rapport Trivy — vue globale</h2>
+  <p class="lede" style="margin-top:8px"><span class="mono" style="font-family:var(--mono)">trivy image --severity HIGH,CRITICAL</span> · 4 images scannées</p>
+  <div class="tcards">
+    <div class="tcard ok"><div class="ico" style="color:var(--ok)">✓</div><div class="name">frontend</div><div class="os">alpine 3.23.5</div><div class="res">0 vulnérabilité</div></div>
+    <div class="tcard warn"><div class="ico" style="color:var(--warn)">⚠</div><div class="name">core</div><div class="os">alpine 3.23.4</div><div class="res">14 HIGH · correctifs dispo</div></div>
+    <div class="tcard ok"><div class="ico" style="color:var(--ok)">✓</div><div class="name">nginx:alpine</div><div class="os">alpine 3.23.5</div><div class="res">0 vulnérabilité</div></div>
+    <div class="tcard danger"><div class="ico" style="color:var(--danger)">!</div><div class="name">engine</div><div class="os">debian 13.5</div><div class="res">45 vulns (Pôle 3)</div></div>
+  </div>
+  <div class="rowline">
+    <div style="font-weight:700">core — couche OS <span class="mono" style="font-family:var(--mono);color:var(--faint);font-size:13px">(alpine 3.23.4)</span></div>
+    <div class="mono" style="font-family:var(--mono);color:var(--ok);font-size:13px">correctif : rebuild → 3.5.7-r0</div>
+  </div>
+  <table class="vtable">
+    <tr><th>Bibliothèque</th><th>CVE</th><th>Sévérité</th><th>Installé</th><th>Corrigé dans</th></tr>
+    <tr><td><b>libcrypto3 + libssl3</b></td><td class="lnk">CVE-2026-45447</td><td><span class="sev high">HIGH</span></td><td class="mono">3.5.6-r0</td><td class="fix">3.5.7-r0</td></tr>
+  </table>
+  <div class="scan-alert warn" style="margin-top:18px">
+    <span class="ico">!</span>
+    <div class="txt"><b>engine (Pôle 3)</b> — 8 CRITICAL + 37 HIGH sur debian 13.5.<br><span style="color:var(--dim)">Dont Mesa 3D (will_not_fix), FFmpeg, libexpat, Perl, Mbed TLS — image hors périmètre P2 mais à surveiller par le Pôle 3.</span></div>
+  </div>
+</section>`,
+
+/* 14 — CLOSING */
+`<section class="slide">
+  <div class="kicker">Bilan</div>
+  <h2>Deux sujets, tenus. Des bonus, en plus.</h2>
+  <div class="chips" style="margin-top:22px">
+    <span class="chip">Sujet A · Zero-Trust ✓</span>
+    <span class="chip">Sujet B · Anti-Scraping ✓</span>
+    <span class="chip">Multi-tenant</span>
+    <span class="chip">Onboarding Mailjet</span>
+    <span class="chip">Upload chiffré async</span>
+    <span class="chip">Orchestration P3</span>
+    <span class="chip">Capture Guard</span>
+    <span class="chip">Volumes Docker</span>
+    <span class="chip">Audit grype + trivy</span>
+    <span class="chip">37/37 tests</span>
+  </div>
+  <p class="lede" style="margin-top:26px">Une plateforme vidéo où la sécurité n'est pas posée à côté du produit : elle <b style="color:var(--text)">est</b> le chemin par défaut. Chiffré, cloisonné, surveillé — et reproductible en une commande.</p>
+  <p class="mono" style="margin-top:20px;color:var(--faint);font-size:13px">Poulpium · Pôle 2 — Enzo (lead) · William · Ryan · Gabriel</p>
+</section>`,
+
+];
+
+/* ============ Moteur ============ */
+const deck=document.getElementById('deck');
+deck.innerHTML=slides.join('');
+const els=[...deck.querySelectorAll('.slide')];
+const dots=document.getElementById('dots'),bar=document.getElementById('bar'),counter=document.getElementById('counter');
+let i=0;const pad=n=>String(n).padStart(2,'0');
+els.forEach((_,n)=>{const b=document.createElement('button');b.onclick=()=>go(n);dots.appendChild(b);});
+const dotEls=[...dots.children];
+function go(n){
+  i=Math.max(0,Math.min(els.length-1,n));
+  els.forEach((s,k)=>s.classList.toggle('active',k===i));
+  dotEls.forEach((d,k)=>d.classList.toggle('on',k===i));
+  bar.style.width=((i+1)/els.length*100)+'%';
+  counter.innerHTML=`<b>${pad(i+1)}</b> / ${pad(els.length)}`;
+  location.hash=i+1;
+}
+function next(){go(i+1);}function prev(){go(i-1);}
+addEventListener('keydown',e=>{
+  if(['ArrowRight','ArrowDown','PageDown'].includes(e.key)){e.preventDefault();next();}
+  else if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(e.key)){e.preventDefault();prev();}
+  else if(e.key==='Home'){go(0);}else if(e.key==='End'){go(els.length-1);}
+  else if(e.key==='f'||e.key==='F'){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
+});
+/* Accordéon routes (déroulant) */
+deck.addEventListener('click',e=>{
+  const h=e.target.closest('.route-head');
+  if(h){e.stopPropagation();h.parentElement.classList.toggle('open');}
+});
+/* Navigation au clic (zones latérales) — ignore les zones interactives/code */
+addEventListener('click',e=>{
+  if(e.target.closest('#dots,.hint,#brand-hud,.route,.routes,.editor,.term,.scroll'))return;
+  const x=e.clientX/innerWidth;if(x>0.66)next();else if(x<0.18)prev();
+});
+/* Typewriter (code dynamique) — respecte prefers-reduced-motion */
+(function(){
+  const el=document.getElementById('tw');if(!el)return;
+  const lines=[
+    ['c','# preuve Zero-Trust'],
+    ['p','$ curl /keys/poc'],
+    ['no','401  refus par défaut'],
+    ['p','$ curl -H "Bearer $ALICE" /keys/poc'],
+    ['ok','200  clé AES-128 délivrée']
+  ];
+  const cls={c:'c',p:'k',no:'r',ok:'s'};
+  const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(reduce){el.innerHTML=lines.map(([t,x])=>`<span class="${cls[t]}">${x}</span>`).join('\n');return;}
+  let li=0,ci=0,html='';
+  (function tick(){
+    if(li>=lines.length){el.innerHTML=html+'<span class="caret"></span>';return;}
+    const [t,txt]=lines[li];
+    if(ci===0)html+=`<span class="${cls[t]}">`;
+    el.innerHTML=html+txt.slice(0,ci)+'</span><span class="caret"></span>';
+    ci++;
+    if(ci>txt.length){html+=txt+'</span>\n';li++;ci=0;setTimeout(tick,260);}
+    else setTimeout(tick,22);
+  })();
+})();
+const start=parseInt(location.hash.slice(1));go(Number.isFinite(start)&&start?start-1:0);
+</script>
+</body>
+</html>

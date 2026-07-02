@@ -11,6 +11,7 @@
     --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.14);
     --text:#e9ebef; --dim:#9aa2ae; --faint:#5d646f;
     --accent:#3d6dfd; --accent-2:#5b85ff; --accent-soft:rgba(61,109,253,.15); --accent-line:rgba(61,109,253,.45);
+    --grad:linear-gradient(100deg,var(--accent),#29c5e6);
     --ok:#2ec27e; --warn:#f5a623; --danger:#ff5b5b;
     --amber:#f5a623; --cyan:#29c5e6; --violet:#b07bff;
     --r-sm:8px; --r-md:14px; --r-lg:22px; --r-pill:999px;
@@ -26,10 +27,18 @@
   }
   /* atmosphère */
   body::before{
-    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;will-change:transform;
     background:
       radial-gradient(900px 600px at 12% -8%, rgba(61,109,253,.16), transparent 60%),
       radial-gradient(760px 520px at 100% 110%, rgba(41,197,230,.10), transparent 55%);
+  }
+  /* Signature P1 : une "regle temporelle" qui s'estompe (echo de la timeline de revue) */
+  body::after{
+    content:"";position:fixed;left:0;right:0;bottom:0;height:140px;z-index:0;pointer-events:none;opacity:.6;
+    background:
+      repeating-linear-gradient(90deg,rgba(255,255,255,.05) 0 1px,transparent 1px 58px),
+      repeating-linear-gradient(90deg,rgba(255,255,255,.09) 0 1.5px,transparent 1.5px 232px);
+    -webkit-mask:linear-gradient(0deg,#000,transparent);mask:linear-gradient(0deg,#000,transparent);
   }
 
   /* ===== Deck ===== */
@@ -44,14 +53,22 @@
   .slide.past{transform:translateY(-14px) scale(.995)}
 
   /* HUD */
-  #hud{position:fixed;z-index:20;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.05)}
-  #bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .5s var(--ease,ease)}
-  #counter{position:fixed;z-index:20;right:clamp(20px,3vw,42px);bottom:20px;
-    font-family:var(--mono);font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;letter-spacing:.08em}
+  /* HUD = un scrubber de lecteur video (signature P1) */
+  #hud{position:fixed;z-index:20;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.06)}
+  #bar{height:100%;width:0;background:var(--grad);transition:width .5s var(--ease,ease);position:relative}
+  #bar::after{content:"";position:absolute;right:-6px;top:50%;transform:translateY(-50%);
+    width:12px;height:12px;border-radius:50%;background:#fff;
+    box-shadow:0 0 0 3px var(--accent-line),0 0 16px rgba(61,109,253,.75)}
+  #counter{position:fixed;z-index:20;right:clamp(20px,3vw,42px);bottom:16px;
+    font-family:var(--mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums;letter-spacing:.08em;
+    display:flex;align-items:center;gap:8px;background:var(--bg-2);border:1px solid var(--line);padding:5px 11px;border-radius:var(--r-pill)}
+  #counter::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--grad);box-shadow:0 0 10px rgba(61,109,253,.7)}
   #counter b{color:var(--text)}
-  #dots{position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:18px;display:flex;gap:7px}
-  #dots button{width:7px;height:7px;border-radius:50%;border:0;background:rgba(255,255,255,.18);cursor:pointer;padding:0;transition:all .3s}
-  #dots button.on{background:var(--accent);width:22px;border-radius:6px}
+  /* les puces = des marqueurs de commentaire poses sur la timeline */
+  #dots{position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:16px;display:flex;gap:9px}
+  #dots button{width:8px;height:8px;border:0;background:rgba(255,255,255,.20);cursor:pointer;padding:0;
+    transform:rotate(45deg);border-radius:2px;transition:all .3s var(--ease,ease)}
+  #dots button.on{background:var(--grad);box-shadow:0 0 12px rgba(61,109,253,.6);transform:rotate(45deg) scale(1.5)}
   #brand-hud{position:fixed;z-index:20;left:clamp(20px,3vw,42px);bottom:16px;display:flex;align-items:center;gap:8px;opacity:.6}
   #brand-hud img{width:16px;height:16px}
   #brand-hud span{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase}
@@ -153,10 +170,127 @@
   .done::before{content:"✓";color:var(--ok);font-weight:800;margin-top:1px}
   .done b{font-weight:600}
 
+  /* Cahier des charges (exigences -> preuve) — inspiré du deck P2 */
+  .reqs{display:flex;flex-direction:column;gap:12px;margin-top:24px}
+  .scroll{overflow-y:auto;min-height:0}
+  .scroll::-webkit-scrollbar{width:8px}.scroll::-webkit-scrollbar-thumb{background:var(--bg-3);border-radius:8px}
+  .req{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-sm);padding:14px 18px;background:var(--bg-1)}
+  .req .w{display:flex;gap:10px;align-items:baseline;font-size:clamp(14px,1.15vw,17px);font-weight:700}
+  .req .w .tick{color:var(--ok);font-weight:800}
+  .req .w .tag{margin-left:auto;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);border:1px solid var(--line);padding:2px 8px;border-radius:var(--r-pill)}
+  .req .g{color:var(--dim);font-size:14px;margin-top:7px;line-height:1.5}
+  .req .g code{font-family:var(--mono);color:var(--accent-2)}
+
+  /* Editor / code (preuve technique du format ouvert) */
+  .editor{border:1px solid var(--line-strong);border-radius:var(--r-md);overflow:hidden;background:var(--inset);box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .etop{display:flex;align-items:center;background:var(--bg-2);border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12px}
+  .etop .edots{display:flex;gap:6px;padding:0 14px}
+  .etop .edots i{width:11px;height:11px;border-radius:50%;display:block;background:#2b313b}
+  .etop .edots i:nth-child(1){background:#ff5f57}.etop .edots i:nth-child(2){background:#febc2e}.etop .edots i:nth-child(3){background:#28c840}
+  .etab{padding:9px 15px;color:var(--text);border-left:1px solid var(--line);border-bottom:2px solid var(--accent)}
+  .code{font-family:var(--mono);font-size:clamp(11.5px,1vw,14px);line-height:1.7;padding:18px 22px;white-space:pre;overflow:auto;color:#c6cdd7;tab-size:2}
+  .code .k{color:var(--accent-2)}.code .s{color:var(--ok)}.code .c{color:var(--faint);font-style:italic}.code .n{color:var(--warn)}
+
+  /* Bonus — grille "bento" (design volontairement different du P2) */
+  .bento{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:26px}
+  .bento .b{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:var(--r-md);
+    padding:20px 20px 18px;background:linear-gradient(180deg,var(--bg-2),var(--bg-1))}
+  .bento .b::after{content:"";position:absolute;left:0;top:0;right:0;height:2px;
+    background:linear-gradient(90deg,var(--accent),transparent 70%)}
+  .bento .b.wide{grid-column:span 2;background:linear-gradient(120deg,var(--accent-soft),var(--bg-1) 60%);border-color:var(--accent-line)}
+  .bento .b .plus{position:absolute;top:13px;right:15px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--accent-2);opacity:.8}
+  .bento .b .t{font-weight:800;font-size:16px;margin-bottom:6px;letter-spacing:-.01em}
+  .bento .b.wide .t{font-size:20px}
+  .bento .b .s{color:var(--dim);font-size:13.5px;line-height:1.45}
+  .bento .b .s b{color:var(--text);font-weight:600}
+  @media (max-width:900px){.bento{grid-template-columns:1fr}.bento .b.wide{grid-column:auto}}
+
   .hint{position:fixed;z-index:20;top:18px;right:clamp(20px,3vw,42px);font-family:var(--mono);font-size:11px;
     color:var(--faint);opacity:0;transition:opacity .4s}
   body:hover .hint{opacity:.7}
   kbd{font-family:var(--mono);border:1px solid var(--line-strong);border-radius:5px;padding:1px 6px;color:var(--dim);font-size:10.5px}
+
+  /* ===== Entrée en cascade du contenu (quand la slide devient active) ===== */
+  @media (prefers-reduced-motion:no-preference){
+    @keyframes rise{from{opacity:0;transform:translateY(13px)}to{opacity:1;transform:none}}
+    @keyframes pop{from{opacity:0;transform:translateY(7px) scale(.95)}to{opacity:1;transform:none}}
+    .slide.active .kicker{animation:rise .5s .05s both cubic-bezier(.16,1,.3,1)}
+    .slide.active h1,.slide.active h2{animation:rise .55s .12s both cubic-bezier(.16,1,.3,1)}
+    .slide.active .lede{animation:rise .55s .20s both cubic-bezier(.16,1,.3,1)}
+    .slide.active .frame,.slide.active .card,.slide.active .node,.slide.active .col,.slide.active .arrow{animation:rise .6s .16s both cubic-bezier(.16,1,.3,1)}
+    /* léger décalage entre les colonnes/cartes côte à côte */
+    .slide.active .ba .card.good{animation-delay:.28s}
+    .slide.active .arch .node:nth-child(3){animation-delay:.26s}
+    .slide.active .arch .node:nth-child(5){animation-delay:.36s}
+    .slide.active .cols .col.warn{animation-delay:.26s}
+    /* puces : cascade */
+    .slide.active ul.feat li{animation:rise .5s both cubic-bezier(.16,1,.3,1)}
+    .slide.active ul.feat li:nth-child(1){animation-delay:.26s}
+    .slide.active ul.feat li:nth-child(2){animation-delay:.34s}
+    .slide.active ul.feat li:nth-child(3){animation-delay:.42s}
+    .slide.active ul.feat li:nth-child(4){animation-delay:.50s}
+    .slide.active ul.feat li:nth-child(5){animation-delay:.58s}
+    .slide.active ul.feat li:nth-child(6){animation-delay:.66s}
+    .slide.active ul.feat li:nth-child(7){animation-delay:.74s}
+    /* chips : pop en cascade */
+    .slide.active .chips .chip{animation:pop .42s both cubic-bezier(.16,1,.3,1)}
+    .slide.active .chips .chip:nth-child(1){animation-delay:.30s}
+    .slide.active .chips .chip:nth-child(2){animation-delay:.36s}
+    .slide.active .chips .chip:nth-child(3){animation-delay:.42s}
+    .slide.active .chips .chip:nth-child(4){animation-delay:.48s}
+    .slide.active .chips .chip:nth-child(5){animation-delay:.54s}
+    .slide.active .chips .chip:nth-child(6){animation-delay:.60s}
+    .slide.active .chips .chip:nth-child(7){animation-delay:.66s}
+    /* callouts : apparaissent après la capture */
+    .slide.active .callout{animation:pop .5s .55s both cubic-bezier(.16,1,.3,1)}
+    /* la timeline de progression pulse discrètement à chaque changement */
+  }
+
+  /* ===== Vie : entree en cascade + respiration du fond (signature P1 : "focus" facon lecteur) ===== */
+  @media (prefers-reduced-motion:no-preference){
+    @keyframes p1drift{from{transform:translate3d(-2%,-1%,0) scale(1)}to{transform:translate3d(3%,2%,0) scale(1.05)}}
+    @keyframes p1rise{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:none}}
+    @keyframes p1focus{from{opacity:0;transform:translateY(10px) scale(.985);filter:blur(4px)}to{opacity:1;transform:none;filter:blur(0)}}
+    body::before{animation:p1drift 26s ease-in-out infinite alternate}
+    .slide.active .kicker{animation:p1rise .5s .04s both var(--ease)}
+    .slide.active h1,.slide.active h2{animation:p1rise .55s .10s both var(--ease)}
+    .slide.active .lede{animation:p1rise .55s .18s both var(--ease)}
+    /* les captures "font le point" comme un lecteur video */
+    .slide.active .frame,.slide.active .editor{animation:p1focus .6s .16s both var(--ease)}
+    .slide.active .callout{animation:p1rise .5s both var(--ease)}
+    .slide.active .callout:nth-of-type(1){animation-delay:.42s}
+    .slide.active .callout:nth-of-type(2){animation-delay:.52s}
+    .slide.active .callout:nth-of-type(3){animation-delay:.62s}
+    .slide.active ul.feat li{animation:p1rise .5s both var(--ease)}
+    .slide.active ul.feat li:nth-child(1){animation-delay:.24s}
+    .slide.active ul.feat li:nth-child(2){animation-delay:.32s}
+    .slide.active ul.feat li:nth-child(3){animation-delay:.40s}
+    .slide.active ul.feat li:nth-child(4){animation-delay:.48s}
+    .slide.active ul.feat li:nth-child(5){animation-delay:.56s}
+    .slide.active .req{animation:p1rise .5s both var(--ease)}
+    .slide.active .req:nth-child(1){animation-delay:.14s}
+    .slide.active .req:nth-child(2){animation-delay:.24s}
+    .slide.active .req:nth-child(3){animation-delay:.34s}
+    .slide.active .req:nth-child(4){animation-delay:.44s}
+    .slide.active .req:nth-child(5){animation-delay:.54s}
+    .slide.active .req:nth-child(6){animation-delay:.64s}
+    .slide.active .bento .b{animation:p1focus .55s both var(--ease)}
+    .slide.active .bento .b:nth-child(1){animation-delay:.14s}
+    .slide.active .bento .b:nth-child(2){animation-delay:.22s}
+    .slide.active .bento .b:nth-child(3){animation-delay:.30s}
+    .slide.active .bento .b:nth-child(4){animation-delay:.38s}
+    .slide.active .bento .b:nth-child(5){animation-delay:.46s}
+    .slide.active .bento .b:nth-child(6){animation-delay:.54s}
+    .slide.active .ba .card{animation:p1rise .55s both var(--ease)}
+    .slide.active .ba .card.good{animation-delay:.18s}
+    .slide.active .cols .col{animation:p1rise .55s both var(--ease)}
+    .slide.active .cols .col:nth-child(2){animation-delay:.14s}
+    .slide.active .arch .node{animation:p1focus .5s both var(--ease)}
+    .slide.active .arch .node:nth-child(1){animation-delay:.16s}
+    .slide.active .arch .node:nth-child(3){animation-delay:.30s}
+    .slide.active .arch .node:nth-child(5){animation-delay:.44s}
+    .slide.active .chip{animation:p1rise .45s both var(--ease)}
+  }
 
   @media (max-width:900px){
     .split,.split.rev,.ba,.cols,.close-grid,.arch{grid-template-columns:1fr;display:flex;flex-direction:column}
@@ -174,7 +308,7 @@
 
 <div id="hud"><div id="bar"></div></div>
 <div id="dots"></div>
-<div id="counter"><b>01</b> / 11</div>
+<div id="counter"><b>01</b> / 15</div>
 <div id="brand-hud"><img src="assets/poulpium-mark.png" alt=""><span>Poulpium · Pôle 1</span></div>
 
 <script>
@@ -244,6 +378,22 @@ const slides = [
   </div>
 </section>`,
 
+/* 3bis — SUJET A : cahier des charges (aligne bareme P1 /15) */
+`<section class="slide">
+  <div class="kicker">Sujet A · ce que le sujet exige</div>
+  <h2>Chaque contrainte du sujet, tenue.</h2>
+  <div class="reqs scroll" style="max-height:64vh">
+    <div class="req"><div class="w"><span class="tick">✓</span> Dessin sur l'image + commentaires horodatés <span class="tag">fonctionnalité cœur</span></div>
+      <div class="g">7 outils (flèche, cadre, ellipse, trait libre, texte…), 6 couleurs. Chaque note est <b style="color:var(--text)">rattachée au timecode</b> ; le fil est trié par instant avec saut à la seconde.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> 2-3 utilisateurs en réseau local <span class="tag">temps réel</span></div>
+      <div class="g">Présence, curseurs distants, notes propagées. Transport abstrait : multi-fenêtres (offline) <b style="color:var(--text)">ou socket.io (LAN)</b>, même contrat. Anti-écho par <code>from</code>.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Greffe propre sur le lecteur, sans régression <span class="tag">intégration & UX</span></div>
+      <div class="g">Lecteur custom (timeline à marqueurs, navigation clavier), états chargement / erreur / vide. Le calque d'annotation n'entrave jamais la lecture.</div></div>
+    <div class="req"><div class="w"><span class="tick">✓</span> Composant réutilisable + export JSON propre <span class="tag">livrable</span></div>
+      <div class="g"><code>&lt;VideoReview&gt;</code> autonome (props <code>source</code> / <code>session</code> / <code>user</code>). Export <code>{ version, session, notes[] }</code>, coordonnées 0..1, documenté (<code>docs/P1-export-schema.md</code>).</div></div>
+  </div>
+</section>`,
+
 /* 4 — SUJET A : annotation */
 `<section class="slide">
   <div class="split">
@@ -293,8 +443,44 @@ const slides = [
         <li><b>Trié par instant</b><span> — un clic ramène tout le monde au bon timecode.</span></li>
         <li><b>Fils & statuts</b><span> — réponses, résolu / non résolu, likes, filtres.</span></li>
         <li><b>Diffusion live</b><span> — présence, curseurs distants, notes propagées.</span></li>
+        <li><b>Persistance serveur</b><span> — les notes survivent au départ de tous les participants et reviennent à l'ouverture.</span></li>
         <li><b>Transport abstrait</b><span> — même contrat : multi-fenêtres (offline) ou LAN (socket.io).</span></li>
       </ul>
+    </div>
+  </div>
+</section>`,
+
+/* 5bis — PREUVE : format d'export ouvert */
+`<section class="slide">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker">La preuve · format ouvert</div>
+      <h2>Un export réutilisable, pas un silo.</h2>
+      <p class="lede">Chaque revue s'exporte en JSON propre et se réimporte à l'identique. Les coordonnées sont normalisées : le dessin se rejoue à toute résolution.</p>
+      <ul class="feat" style="margin-top:16px">
+        <li><b>Versionné</b><span> — champ <span class="num">version</span> pour faire évoluer le format sans casser l'existant.</span></li>
+        <li><b>Coordonnées 0..1</b><span> — indépendantes de la taille d'écran, mappées entre fenêtres.</span></li>
+        <li><b>Réimport tolérant</b><span> — enveloppe complète ou simple tableau de notes.</span></li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="editor">
+        <div class="etop"><div class="edots"><i></i><i></i><i></i></div><div class="etab">revue-demo-42c.json</div></div>
+        <div class="code"><span class="c">// export d'une note annotee</span>
+{
+  <span class="k">"version"</span>: <span class="n">1</span>,
+  <span class="k">"session"</span>: <span class="s">"demo-42c"</span>,
+  <span class="k">"notes"</span>: [{
+    <span class="k">"time"</span>: <span class="n">42.7</span>,           <span class="c">// timecode (s)</span>
+    <span class="k">"text"</span>: <span class="s">"Logo trop petit"</span>,
+    <span class="k">"shapes"</span>: [{
+      <span class="k">"tool"</span>: <span class="s">"arrow"</span>,
+      <span class="k">"from"</span>: {<span class="k">"x"</span>:<span class="n">0.40</span>,<span class="k">"y"</span>:<span class="n">0.30</span>}, <span class="c">// normalise</span>
+      <span class="k">"to"</span>:   {<span class="k">"x"</span>:<span class="n">0.55</span>,<span class="k">"y"</span>:<span class="n">0.42</span>}
+    }]
+  }]
+}</div>
+      </div>
     </div>
   </div>
 </section>`,
@@ -359,6 +545,7 @@ const slides = [
         <li><b>Multi-tenant</b><span> — un admin ne voit que sa propre entreprise.</span></li>
         <li><b>Droits par contenu</b><span> — autoriser / retirer un utilisateur d'un clic.</span></li>
         <li><b>Révocation en direct</b><span> — couper la clé d'un contenu → la lecture passe à 403, puis restaurer.</span></li>
+        <li><b>Upload par morceaux</b><span> — envoi de vidéos volumineuses fiabilisé (chunké), chiffrement en tâche de fond.</span></li>
         <li><b>Onboarding</b><span> — invitation admin (mot de passe temporaire) + invités par lien expirant.</span></li>
       </ul>
     </div>
@@ -387,7 +574,23 @@ const slides = [
   </div>
 </section>`,
 
-/* 10 — SOUS LE CAPOT */
+/* 10 — INTEGRATION P3 : IA dans le lecteur */
+`<section class="slide center">
+  <div class="kicker">Intégration Pôle 3 · IA locale</div>
+  <h2>L'IA arrive dans le lecteur.</h2>
+  <div class="arch" style="margin-top:34px;max-width:1100px">
+    <div class="node"><span class="tag">Core · P2</span><div class="t">Orchestre l'Engine</div><div class="s">Analyse par contenu, relais du résultat à la View — même identité JWT.</div></div>
+    <div class="link">→</div>
+    <div class="node hi"><span class="tag">View · P1</span><div class="t">Affiche l'IA</div><div class="s">Sous-titres incrustés, panneau Insights, recherche dans la transcription.</div></div>
+  </div>
+  <ul class="feat" style="margin-top:30px;max-width:98ch">
+    <li><b>Sous-titres incrustés</b><span> — transcription synchronisée à la lecture, bouton <span class="num">CC</span> pour activer / masquer.</span></li>
+    <li><b>Panneau Insights</b><span> — résumé, <b>chapitres cliquables</b> (saut au timecode), mots-clés, recherche dans la transcription.</span></li>
+    <li><b>Dégradation propre</b><span> — Engine absent → le panneau affiche « Hors ligne », jamais d'écran cassé.</span></li>
+  </ul>
+</section>`,
+
+/* 11 — SOUS LE CAPOT */
 `<section class="slide center">
   <div class="kicker">Sous le capot</div>
   <h2>Une seule identité, un transport interchangeable.</h2>
@@ -396,7 +599,7 @@ const slides = [
     <div class="link">— JWT →</div>
     <div class="node"><span class="tag">Core · P2</span><div class="t">NestJS</div><div class="s">Auth, clé AES, sécurité, gateway temps réel (rooms par session).</div></div>
     <div class="link">→</div>
-    <div class="node"><span class="tag">Engine · P3</span><div class="t">Python</div><div class="s">IA / data (transcription, rétention) — à venir.</div></div>
+    <div class="node"><span class="tag">Engine · P3</span><div class="t">Python / FastAPI</div><div class="s">IA locale : transcription, chapitres, recherche, sous-titres — affichés dans la View.</div></div>
   </div>
   <ul class="feat" style="margin-top:34px;max-width:96ch">
     <li><b>Transport abstrait</b><span> — l'UI ne connaît jamais le socket concret : <span class="num">post</span> / <span class="num">subscribe</span> / <span class="num">close</span>. On bascule BroadcastChannel ↔ socket.io sans toucher une ligne d'interface.</span></li>
@@ -404,7 +607,33 @@ const slides = [
   </ul>
 </section>`,
 
-/* 11 — BILAN / LIMITES */
+/* 11bis — TRUC EN PLUS (bonus, design bento) */
+`<section class="slide center">
+  <div class="kicker">Au-delà du cahier des charges</div>
+  <h2>Ce qu'on a ajouté en plus.</h2>
+  <div class="bento">
+    <div class="b wide"><span class="plus">+ LES DEUX SUJETS</span>
+      <div class="t">Sujet A <span style="color:var(--dim)">et</span> Sujet B, livrés.</div>
+      <div class="s">Le pôle n'en demandait qu'un : on a fait le <b>Lecteur de Revue</b> (A) <b>et</b> le <b>Watch Together</b> (B), sur le même bus temps réel.</div></div>
+    <div class="b"><span class="plus">+ IA</span>
+      <div class="t">L'IA dans le lecteur</div>
+      <div class="s">Sous-titres, résumé, chapitres cliquables, recherche dans la transcription (couture P3).</div></div>
+    <div class="b"><span class="plus">+ SÉCURITÉ</span>
+      <div class="t">Sécurité intégrée</div>
+      <div class="s">Flux HLS chiffré, watermark traçable par session, Capture Guard (couture P2).</div></div>
+    <div class="b"><span class="plus">+ DURABLE</span>
+      <div class="t">Notes persistées</div>
+      <div class="s">Sauvegardées côté serveur : elles survivent au départ de tous et reviennent à l'ouverture.</div></div>
+    <div class="b"><span class="plus">+ ACCÈS</span>
+      <div class="t">Invités par lien</div>
+      <div class="s">Rejoindre une revue sans compte, via un lien signé qui expire.</div></div>
+    <div class="b"><span class="plus">+ VIVANT</span>
+      <div class="t">Collaboration vivante</div>
+      <div class="s">Curseurs distants nommés, réponses en fil, likes, filtres par auteur / statut.</div></div>
+  </div>
+</section>`,
+
+/* 12 — BILAN / LIMITES */
 `<section class="slide center">
   <div class="kicker">Bilan & honnêteté technique</div>
   <h2>Livré, et assumé.</h2>
@@ -413,25 +642,26 @@ const slides = [
       <h3>✓ Livré</h3>
       <ul>
         <li><b>Annotation au timecode</b> — 7 outils, 6 couleurs</li>
-        <li><b>Commentaires</b> — fils, résolu, filtres, likes</li>
-        <li><b>Temps réel</b> — présence, curseurs, notes</li>
+        <li><b>Commentaires</b> — fils, résolu, filtres, likes, persistés</li>
+        <li><b>Temps réel</b> — présence, curseurs, notes (multi-fenêtres & LAN)</li>
         <li><b>Watch Together</b> — sync + recalage de dérive</li>
         <li><b>Flux HLS chiffré</b> + watermark (intégration P2)</li>
-        <li><b>Back-office</b> multi-tenant + invités expirants</li>
+        <li><b>IA dans le lecteur</b> — sous-titres, résumé, chapitres, recherche (P3)</li>
+        <li><b>Back-office</b> multi-tenant + upload chunké + invités expirants</li>
       </ul>
     </div>
     <div class="col warn">
       <h3>⚠ Assumé (documenté)</h3>
       <ul>
-        <li><b>LAN</b> — BroadcastChannel ne traverse pas les machines (→ socket.io)</li>
-        <li><b>Navigation</b> — par état, pas de react-router</li>
+        <li><b>LAN multi-machines</b> — via socket.io ; dépend d'un réseau fiable le jour J</li>
+        <li><b>Anti-capture</b> — heuristique web + watermark, pas de DRM matériel</li>
         <li><b>Présentateur</b> — reprise manuelle, pas d'élection auto</li>
         <li><b>Édition concurrente</b> — last-write-wins par id</li>
         <li><b>JWT front</b> — décodé pour l'affichage seul (contrôle réel = Core)</li>
       </ul>
     </div>
   </div>
-  <p class="lede" style="margin-top:28px">Prochaines étapes : promotion auto du présentateur, avance image par image, transcription & hotspots de rétention (P3) sous la timeline.</p>
+  <p class="lede" style="margin-top:28px">Prochaines étapes : promotion auto du présentateur, avance image par image, hotspots de rétention (P3-B) sur la timeline.</p>
 </section>`,
 
 ];

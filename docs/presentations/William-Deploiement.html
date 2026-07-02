@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Poulpium — Déploiement (prod) · William</title>
+<style>
+  /* ============================================================================
+     Mini-deck DÉPLOIEMENT (William) — thème "ops / live" : accent émeraude,
+     statut qui pulse, topologie réseau. Dans l'identité Poulpium (dark), mais
+     visuellement distinct de P1/P2/P3.
+  ============================================================================ */
+  :root{
+    --bg:#070b0a; --bg-1:#0c110f; --bg-2:#111815; --inset:#050807;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.15);
+    --text:#eaf1ee; --dim:#97a49e; --faint:#5a655f;
+    --ok:#2ee6a0; --accent:#3d6dfd; --cyan:#2fd4e6; --warn:#f5b23a; --cf:#f6821f;
+    --grad:linear-gradient(100deg,var(--ok),var(--cyan));
+    --r:16px; --r-lg:22px; --pill:999px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"SFMono-Regular","JetBrains Mono","Cascadia Code",Consolas,Menlo,monospace;
+    --ease:cubic-bezier(.16,1,.3,1);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+  #glow{position:fixed;inset:-20%;z-index:0;pointer-events:none;filter:blur(34px);opacity:.85;
+    background:
+      radial-gradient(36% 42% at 16% 20%, rgba(46,230,160,.16), transparent 60%),
+      radial-gradient(40% 44% at 84% 26%, rgba(47,212,230,.12), transparent 60%),
+      radial-gradient(48% 50% at 60% 104%, rgba(61,109,253,.12), transparent 60%);
+    animation:drift 22s ease-in-out infinite alternate}
+  @keyframes drift{from{transform:translate3d(-2%,-2%,0)}to{transform:translate3d(3%,2%,0)}}
+
+  #deck{position:fixed;inset:0;z-index:1}
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:clamp(28px,4.6vw,90px);opacity:0;visibility:hidden;transform:translateY(14px);overflow:hidden;
+    transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s}
+  .slide.active{opacity:1;visibility:visible;transform:none}
+
+  #hud{position:fixed;z-index:20;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.05)}
+  #bar{height:100%;width:0;background:var(--grad);transition:width .5s ease}
+  #counter{position:fixed;z-index:20;right:clamp(18px,3vw,40px);bottom:16px;font-family:var(--mono);font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;letter-spacing:.08em}
+  #counter b{color:var(--text)}
+  #dots{position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:14px;display:flex;gap:7px}
+  #dots button{width:7px;height:7px;border-radius:50%;border:0;background:rgba(255,255,255,.18);cursor:pointer;padding:0;transition:all .3s}
+  #dots button.on{background:var(--ok);width:22px;border-radius:5px}
+  #brand-hud{position:fixed;z-index:20;left:clamp(18px,3vw,40px);bottom:13px;display:flex;align-items:center;gap:8px;opacity:.6}
+  #brand-hud img{width:15px;height:15px}
+  #brand-hud span{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase}
+
+  .kicker{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--dim);margin-bottom:18px}
+  .live{display:inline-flex;align-items:center;gap:7px;color:var(--ok);font-weight:700}
+  .live .d{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(46,230,160,.5);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(46,230,160,.5)}70%{box-shadow:0 0 0 9px rgba(46,230,160,0)}100%{box-shadow:0 0 0 0 rgba(46,230,160,0)}}
+  h1{font-size:clamp(34px,4.6vw,62px);line-height:1.03;font-weight:800;letter-spacing:-.035em}
+  h2{font-size:clamp(25px,3.3vw,44px);line-height:1.05;font-weight:800;letter-spacing:-.028em}
+  .grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:clamp(14px,1.35vw,19px);color:var(--dim);line-height:1.55;max-width:66ch;margin-top:16px}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  b.hl{color:var(--text);font-weight:700}
+  .url{font-family:var(--mono);color:var(--ok)}
+
+  /* Topologie */
+  .topo{display:flex;align-items:stretch;gap:12px;margin-top:32px;flex-wrap:wrap}
+  .tnode{flex:1;min-width:140px;border-radius:var(--r);padding:18px 16px;background:rgba(255,255,255,.03);border:1px solid var(--line-strong);position:relative}
+  .tnode.cf{border-color:rgba(246,130,31,.4);background:linear-gradient(180deg,rgba(246,130,31,.10),rgba(255,255,255,.02))}
+  .tnode.host{border-color:transparent;background:linear-gradient(180deg,rgba(46,230,160,.12),rgba(47,212,230,.05))}
+  .tnode .ic{font-size:20px;margin-bottom:8px}
+  .tnode .t{font-weight:800;font-size:15px}
+  .tnode .s{color:var(--dim);font-size:12px;margin-top:4px;line-height:1.4}
+  .tlink{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--faint);font-family:var(--mono);font-size:12px;min-width:64px}
+  .tlink .a{font-size:16px;color:var(--ok)}
+  .tlink small{font-size:10px;color:var(--faint);white-space:nowrap}
+  @media(max-width:900px){.topo{flex-direction:column}.tlink{flex-direction:row;gap:8px}.tlink .a{transform:rotate(90deg)}}
+
+  /* Services (containers) */
+  .svcs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:26px}
+  .svc{display:flex;align-items:center;gap:14px;border-radius:var(--r);padding:16px 18px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+  .svc .st{width:10px;height:10px;border-radius:50%;background:var(--ok);flex:0 0 auto;box-shadow:0 0 10px rgba(46,230,160,.6)}
+  .svc .nm{font-weight:700;font-size:15px}
+  .svc .img{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:2px}
+  .svc .ram{margin-left:auto;font-family:var(--mono);font-size:13px;color:var(--dim);text-align:right;white-space:nowrap}
+  .svc .ram b{color:var(--text)}
+
+  /* Split + fenêtre (capture réelle) */
+  .split{display:grid;grid-template-columns:1fr 1.15fr;gap:clamp(24px,3.2vw,54px);align-items:center;min-height:0}
+  .split .txt{min-width:0}.split .media{min-width:0}
+  .frame{border:1px solid var(--line-strong);border-radius:var(--r);overflow:hidden;background:#fff;box-shadow:0 28px 70px rgba(0,0,0,.55)}
+  .frame-bar{display:flex;align-items:center;gap:7px;padding:10px 13px;background:var(--bg-2);border-bottom:1px solid var(--line)}
+  .frame-bar i{width:11px;height:11px;border-radius:50%;background:#2b313b;display:block}
+  .frame-bar i:nth-child(1){background:#ff5f57}.frame-bar i:nth-child(2){background:#febc2e}.frame-bar i:nth-child(3){background:#28c840}
+  .frame-bar .u{margin-left:10px;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+  .frame img{display:block;width:100%;height:auto}
+  @media(max-width:900px){.split{grid-template-columns:1fr;display:flex;flex-direction:column}}
+
+  /* Metrics */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:24px}
+  .metric{border-radius:var(--r);padding:18px 20px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+  .metric .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:2.2rem;font-weight:800;line-height:1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .metric .l{font-size:12.5px;font-weight:700;color:var(--text);margin-top:9px}
+  .metric .s{font-size:11px;color:var(--faint);margin-top:3px}
+
+  ul.feat{list-style:none;margin-top:16px;display:flex;flex-direction:column;gap:12px}
+  ul.feat li{display:flex;gap:12px;align-items:flex-start;font-size:clamp(13.5px,1.1vw,16px);line-height:1.45}
+  ul.feat li::before{content:"";flex:0 0 auto;width:8px;height:8px;margin-top:7px;border-radius:2px;background:var(--grad)}
+  ul.feat li b{color:var(--text);font-weight:700}ul.feat li span{color:var(--dim)}
+  .chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:20px}
+  .chip{font-family:var(--mono);font-size:12px;color:var(--text);background:rgba(255,255,255,.04);border:1px solid var(--line-strong);padding:7px 12px;border-radius:var(--pill)}
+  .cap{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:16px;letter-spacing:.03em}
+
+  .cover .logo{display:flex;align-items:center;gap:16px;margin-bottom:22px}
+  .cover .logo img{width:54px;height:54px;filter:drop-shadow(0 8px 24px rgba(46,230,160,.35))}
+  .cover .logo .word{font-size:clamp(32px,4.4vw,56px);font-weight:800;letter-spacing:-.03em}
+  .cover .team{margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint);letter-spacing:.03em}
+
+  .hint{position:fixed;z-index:20;top:16px;right:clamp(18px,3vw,40px);font-family:var(--mono);font-size:11px;color:var(--faint);opacity:0;transition:opacity .4s}
+  body:hover .hint{opacity:.7}
+  kbd{font-family:var(--mono);border:1px solid var(--line-strong);border-radius:5px;padding:1px 6px;color:var(--dim);font-size:10.5px}
+
+  @media (prefers-reduced-motion:no-preference){
+    @keyframes rise{from{opacity:0;transform:translateY(13px)}to{opacity:1;transform:none}}
+    @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.94)}to{opacity:1;transform:none}}
+    .slide.active .kicker{animation:rise .5s .04s both var(--ease)}
+    .slide.active h1,.slide.active h2{animation:rise .55s .10s both var(--ease)}
+    .slide.active .lede{animation:rise .55s .18s both var(--ease)}
+    .slide.active .tnode{animation:pop .5s both var(--ease)}
+    .slide.active .tnode:nth-child(1){animation-delay:.18s}.slide.active .tnode:nth-child(3){animation-delay:.30s}
+    .slide.active .tnode:nth-child(5){animation-delay:.42s}.slide.active .tnode:nth-child(7){animation-delay:.54s}
+    .slide.active .svc{animation:pop .5s both var(--ease)}
+    .slide.active .svc:nth-child(1){animation-delay:.18s}.slide.active .svc:nth-child(2){animation-delay:.26s}
+    .slide.active .svc:nth-child(3){animation-delay:.34s}.slide.active .svc:nth-child(4){animation-delay:.42s}
+    .slide.active .metric{animation:pop .5s both var(--ease)}
+    .slide.active .metric:nth-child(1){animation-delay:.2s}.slide.active .metric:nth-child(2){animation-delay:.28s}
+    .slide.active .metric:nth-child(3){animation-delay:.36s}.slide.active .metric:nth-child(4){animation-delay:.44s}
+    .slide.active ul.feat li{animation:rise .5s both var(--ease)}
+    .slide.active ul.feat li:nth-child(1){animation-delay:.24s}.slide.active ul.feat li:nth-child(2){animation-delay:.32s}
+    .slide.active ul.feat li:nth-child(3){animation-delay:.40s}
+  }
+  @media (prefers-reduced-motion:reduce){.slide{transition:opacity .001s}.live .d,#glow{animation:none}}
+</style>
+</head>
+<body>
+
+<div id="glow"></div>
+<div class="hint">← → naviguer · <kbd>F</kbd> plein écran</div>
+<div id="deck"></div>
+<div id="hud"><div id="bar"></div></div>
+<div id="dots"></div>
+<div id="counter"><b>01</b> / 05</div>
+<div id="brand-hud"><img src="assets/poulpium-mark.png" alt=""><span>Poulpium · Déploiement</span></div>
+
+<script>
+const slides = [
+
+/* 1 — COVER */
+`<section class="slide cover">
+  <div class="logo"><img src="assets/poulpium-mark.png" alt="Poulpium"><span class="word grad">Poulpium</span></div>
+  <div class="kicker"><span class="live"><span class="d"></span> en ligne</span> · déploiement prod</div>
+  <h1>En prod, <span class="grad">pour de vrai</span>.</h1>
+  <p class="lede">Pas une démo sur <span class="mono">localhost</span> : Poulpium tourne 24/7, accessible depuis Internet sur un vrai domaine, en HTTPS — et <b class="hl">sans ouvrir un seul port</b>.</p>
+  <p class="lede" style="margin-top:14px">→ <span class="url">https://poulpium.midjix-lab.com</span></p>
+  <div class="chips">
+    <span class="chip">Docker Compose</span><span class="chip">images GHCR</span>
+    <span class="chip">Cloudflare Tunnel</span><span class="chip">Watchtower</span>
+  </div>
+  <div class="team">Hackathon ESTIAM — Groupe 7   ·   Déploiement & Infra : William</div>
+</section>`,
+
+/* 2 — TOPOLOGIE (capture route) */
+`<section class="slide">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker">La topologie</div>
+      <h2>Accessible partout,<br><span class="grad">sans port ouvert</span>.</h2>
+      <p class="lede">Le conteneur <span class="mono">cloudflared</span> ouvre une connexion <b class="hl">sortante</b> vers Cloudflare : aucun port entrant, aucune IP publique exposée.</p>
+      <ul class="feat" style="margin-top:16px">
+        <li><b>Chemin</b><span> — Visiteur → Cloudflare (HTTPS) → tunnel → hôte Docker → frontend.</span></li>
+        <li><b>Route publiée</b><span> — <span class="mono">poulpium.midjix-lab.com</span> → <span class="mono">http://frontend:80</span>, le reste en 404.</span></li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="frame">
+        <div class="frame-bar"><i></i><i></i><i></i><span class="u">Cloudflare Zero Trust · Tunnel poulpium-prod</span></div>
+        <img src="assets/William_1.png" alt="Route publiée Cloudflare Tunnel vers frontend:80">
+      </div>
+      <div class="cap" style="color:var(--ok)">✓ capture réelle — la route publiée du tunnel poulpium-prod</div>
+    </div>
+  </div>
+</section>`,
+
+/* 3 — LA STACK (capture réelle) */
+`<section class="slide">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker"><span class="live"><span class="d"></span> 4 conteneurs</span> · la stack</div>
+      <h2>Une commande,<br>quatre services.</h2>
+      <p class="lede"><span class="mono">docker compose up</span> · images tirées de <b class="hl">GHCR</b> (le registre du dépôt), aucun build sur le serveur.</p>
+      <ul class="feat" style="margin-top:16px">
+        <li><b>frontend + core</b><span> — l'app : nginx + NestJS.</span></li>
+        <li><b>tunnel</b><span> — cloudflared, l'accès public sans port ouvert.</span></li>
+        <li><b>watchtower</b><span> — met à jour les images automatiquement.</span></li>
+      </ul>
+      <div class="cap">~87 Mo RAM au total sur 7,5 Go · CPU ~0 % au repos</div>
+    </div>
+    <div class="media">
+      <div class="frame">
+        <div class="frame-bar"><i></i><i></i><i></i><span class="u">Docker · poulpium — en cours d'exécution</span></div>
+        <img src="assets/William_4.png" alt="Stack Docker Poulpium : 4 conteneurs en cours d'exécution">
+      </div>
+      <div class="cap" style="color:var(--ok)">✓ capture réelle — les 4 conteneurs « En cours d'exécution »</div>
+    </div>
+  </div>
+</section>`,
+
+/* 4 — LIVRAISON CONTINUE + CLOUDFLARE (capture) */
+`<section class="slide">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker">Livraison continue & protection</div>
+      <h2>On <span class="grad">push</span>,<br>ça se met à jour.</h2>
+      <p class="lede"><b class="hl">Watchtower</b> surveille GHCR : image poussée → pull + redéploie, sans intervention manuelle.</p>
+      <ul class="feat" style="margin-top:16px">
+        <li><b>Cloudflare devant</b><span> — domaine, TLS auto, CDN, Zero Trust / Tunnels.</span></li>
+        <li><b>Anti-abus</b><span> — blocage bots / crawlers IA, « Under Attack » en un clic.</span></li>
+        <li><b>Zéro maintenance</b><span> — pas de reverse-proxy ni certbot à gérer.</span></li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="frame">
+        <div class="frame-bar"><i></i><i></i><i></i><span class="u">Cloudflare · midjix-lab.com — Zero Trust & Tunnels</span></div>
+        <img src="assets/William_3.png" alt="Tableau de bord Cloudflare : domaine, Zero Trust, Tunnels">
+      </div>
+      <div class="cap" style="color:var(--ok)">✓ capture réelle — le domaine et le tunnel, côté Cloudflare</div>
+    </div>
+  </div>
+</section>`,
+
+/* 5 — CHIFFRES + PREUVE (capture analytics) */
+`<section class="slide">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker"><span class="live"><span class="d"></span> live</span> · en chiffres</div>
+      <h2>Léger, exposé proprement,<br>déjà visité.</h2>
+      <div class="stats" style="grid-template-columns:1fr 1fr;margin-top:22px">
+        <div class="metric"><div class="v">39</div><div class="l">visiteurs uniques</div><div class="s">sur 24 h</div></div>
+        <div class="metric"><div class="v">8,86k</div><div class="l">requêtes</div><div class="s">via le tunnel</div></div>
+        <div class="metric"><div class="v">87 Mo</div><div class="l">RAM totale</div><div class="s">4 conteneurs / 7,5 Go</div></div>
+        <div class="metric"><div class="v">0</div><div class="l">port ouvert</div><div class="s">tunnel sortant</div></div>
+      </div>
+      <p class="mono" style="margin-top:18px;color:var(--faint);font-size:12px">Poulpium · Déploiement — William · poulpium.midjix-lab.com</p>
+    </div>
+    <div class="media">
+      <div class="frame">
+        <div class="frame-bar"><i></i><i></i><i></i><span class="u">Cloudflare · Analytics — midjix-lab.com (24 h)</span></div>
+        <img src="assets/William_2.png" alt="Cloudflare Analytics : 39 visiteurs, 8,86k requêtes">
+      </div>
+      <div class="cap" style="color:var(--ok)">✓ capture réelle — les chiffres viennent de là (Cloudflare Analytics)</div>
+    </div>
+  </div>
+</section>`,
+
+];
+
+const deck=document.getElementById('deck');
+deck.innerHTML=slides.join('');
+const els=[...deck.querySelectorAll('.slide')];
+const dots=document.getElementById('dots'),bar=document.getElementById('bar'),counter=document.getElementById('counter');
+let i=0;const pad=n=>String(n).padStart(2,'0');
+els.forEach((_,n)=>{const b=document.createElement('button');b.onclick=()=>go(n);dots.appendChild(b);});
+const dotEls=[...dots.children];
+function go(n){
+  i=Math.max(0,Math.min(els.length-1,n));
+  els.forEach((s,k)=>s.classList.toggle('active',k===i));
+  dotEls.forEach((d,k)=>d.classList.toggle('on',k===i));
+  bar.style.width=((i+1)/els.length*100)+'%';
+  counter.innerHTML=`<b>${pad(i+1)}</b> / ${pad(els.length)}`;
+  location.hash=i+1;
+}
+function next(){go(i+1);}function prev(){go(i-1);}
+addEventListener('keydown',e=>{
+  if(['ArrowRight','ArrowDown',' ','PageDown','Enter'].includes(e.key)){e.preventDefault();next();}
+  else if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(e.key)){e.preventDefault();prev();}
+  else if(e.key==='Home'){go(0);}else if(e.key==='End'){go(els.length-1);}
+  else if(e.key==='f'||e.key==='F'){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
+  else if(/^[1-9]$/.test(e.key)){go(parseInt(e.key)-1);}
+});
+addEventListener('click',e=>{
+  if(e.target.closest('#dots,.hint,#brand-hud'))return;
+  const x=e.clientX/innerWidth;if(x>0.66)next();else if(x<0.18)prev();
+});
+const start=parseInt(location.hash.slice(1));go(Number.isFinite(start)&&start?start-1:0);
+</script>
+</body>
+</html>

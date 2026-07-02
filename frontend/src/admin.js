@@ -3,6 +3,7 @@
 // mapping des codes d'erreur vers des messages clairs pour un public non
 // technique. Contrat des endpoints : voir docs/FRONTEND-INTEGRATION.md §9.3.
 import { authFetch, getToken } from './auth'
+import { listMyContents } from './contents'
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
@@ -149,10 +150,16 @@ export async function uploadContent({ file, title, onProgress }) {
   if (onProgress) onProgress(100)
   return lastResponse
 }
-// Statut d'un contenu (processing/ready/failed) — pour suivre le chiffrement.
+// Statut d'un contenu — pour suivre le chiffrement après upload.
+// On lit le catalogue UTILISATEUR (/contents), accessible à TOUT membre
+// (contrairement à /admin/contents réservé aux admins, qui renvoyait un 403 à un
+// simple `user` et bloquait le suivi). Le flag `playable` (clé AES provisionnée +
+// contenu non révoqué) signale que le chiffrement HLS est prêt.
 export async function getContentStatus(id) {
-  const list = await listContents()
-  return (list || []).find((c) => c.id === id)?.status ?? null
+  const list = await listMyContents()
+  const item = (list || []).find((c) => c.id === id)
+  if (!item) return null
+  return item.playable ? 'ready' : 'processing'
 }
 
 // Poll jusqu'à `ready` (résout true) ou `failed`/timeout (résout false).

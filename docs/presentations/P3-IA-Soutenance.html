@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Poulpium — Soutenance P3 (IA & Data)</title>
+<style>
+  /* ============================================================================
+     P3 · IA & Data — langage visuel PROPRE au pôle 3 :
+     duotone cyan→violet, panneaux "verre", mesh animé, numéro fantôme, pipeline
+     en piste de signal, métriques en count-up. Volontairement différent de P1
+     (captures produit) et P2 (fenêtres éditeur / terminal / grille technique).
+  ============================================================================ */
+  :root{
+    --bg:#070a10; --bg-1:#0c1018; --bg-2:#121620; --inset:#05070b;
+    --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.15);
+    --text:#eef1f6; --dim:#9aa4b2; --faint:#5b6472;
+    --accent:#3d6dfd; --c1:#2fd4e6; --c2:#b07bff; --ok:#2ee6a0; --warn:#f5b23a; --danger:#ff5b6e;
+    --grad:linear-gradient(100deg,var(--c1),var(--c2));
+    --r:16px; --r-lg:22px; --pill:999px;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"SFMono-Regular","JetBrains Mono","Cascadia Code",Consolas,Menlo,monospace;
+    --ease:cubic-bezier(.16,1,.3,1);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);overflow:hidden;-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
+
+  /* ===== Fond : mesh duotone animé + fines lignes de "flux" ===== */
+  #mesh{position:fixed;inset:-20%;z-index:0;pointer-events:none;filter:blur(30px);opacity:.9;
+    background:
+      radial-gradient(38% 42% at 18% 22%, rgba(47,212,230,.20), transparent 60%),
+      radial-gradient(40% 44% at 82% 30%, rgba(176,123,255,.18), transparent 60%),
+      radial-gradient(50% 50% at 60% 100%, rgba(61,109,253,.16), transparent 60%);
+    animation:drift 20s ease-in-out infinite alternate}
+  @keyframes drift{from{transform:translate3d(-3%,-2%,0) scale(1)}to{transform:translate3d(4%,3%,0) scale(1.08)}}
+  #flux{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+    background:repeating-linear-gradient(0deg,transparent 0 26px,rgba(255,255,255,.014) 26px 27px)}
+
+  /* Numéro fantôme (device éditorial, en fond de chaque slide) */
+  #ghost{position:fixed;z-index:0;right:clamp(20px,5vw,90px);top:50%;transform:translateY(-50%);
+    font-family:var(--mono);font-weight:800;font-size:min(46vh,420px);line-height:.8;
+    letter-spacing:-.05em;color:transparent;-webkit-text-stroke:1.5px rgba(255,255,255,.05);
+    pointer-events:none;user-select:none;transition:opacity .5s var(--ease)}
+
+  #deck{position:fixed;inset:0;z-index:1}
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;
+    padding:clamp(28px,4.6vw,88px);opacity:0;visibility:hidden;transform:translateY(14px);overflow:hidden;
+    transition:opacity .5s var(--ease),transform .5s var(--ease),visibility .5s}
+  .slide.active{opacity:1;visibility:visible;transform:none}
+
+  /* ===== HUD ===== */
+  #hud{position:fixed;z-index:20;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.05)}
+  #bar{height:100%;width:0;background:var(--grad);transition:width .5s ease}
+  #counter{position:fixed;z-index:20;right:clamp(18px,3vw,40px);bottom:16px;font-family:var(--mono);font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;letter-spacing:.08em}
+  #counter b{color:var(--text)}
+  #dots{position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:14px;display:flex;gap:7px}
+  #dots button{width:7px;height:7px;border-radius:50%;border:0;background:rgba(255,255,255,.18);cursor:pointer;padding:0;transition:all .3s}
+  #dots button.on{background:var(--c1);width:22px;border-radius:5px}
+  #brand-hud{position:fixed;z-index:20;left:clamp(18px,3vw,40px);bottom:13px;display:flex;align-items:center;gap:8px;opacity:.6}
+  #brand-hud img{width:15px;height:15px}
+  #brand-hud span{font-family:var(--mono);font-size:11px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase}
+
+  /* ===== Typo ===== */
+  .kicker{display:inline-flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--dim);margin-bottom:18px}
+  .kicker .pip{width:9px;height:9px;border-radius:50%;background:var(--grad);box-shadow:0 0 12px rgba(47,212,230,.6)}
+  h1{font-size:clamp(34px,4.6vw,64px);line-height:1.02;font-weight:800;letter-spacing:-.035em}
+  h2{font-size:clamp(25px,3.3vw,44px);line-height:1.05;font-weight:800;letter-spacing:-.028em}
+  .grad{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:clamp(14px,1.35vw,19px);color:var(--dim);line-height:1.55;max-width:66ch;margin-top:16px}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  b.hl{color:var(--text);font-weight:700}
+
+  /* ===== Panneau "verre" (remplace la fenêtre éditeur de P2) ===== */
+  .panel{position:relative;border-radius:var(--r-lg);
+    background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.012));
+    border:1px solid rgba(255,255,255,.10);
+    box-shadow:0 24px 70px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.07);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);overflow:hidden}
+  .panel::before{content:"";position:absolute;left:0;top:0;right:0;height:2px;background:var(--grad);opacity:.8}
+  .panel-label{display:flex;align-items:center;gap:8px;padding:11px 16px;font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--dim);border-bottom:1px solid var(--line)}
+  .panel-label .d{width:7px;height:7px;border-radius:50%;background:var(--c1)}
+  .code{font-family:var(--mono);font-size:clamp(11px,.95vw,13.5px);line-height:1.7;padding:16px 20px;white-space:pre;overflow:auto;color:#c6cdd7;tab-size:2}
+  .code .f{color:var(--c1)}.code .s{color:var(--ok)}.code .n{color:var(--warn)}.code .c{color:var(--faint);font-style:italic}.code .k{color:var(--c2)}
+  .caret{display:inline-block;width:8px;height:1.05em;background:var(--c1);vertical-align:-2px;animation:bl 1s steps(1) infinite}
+  @keyframes bl{50%{opacity:0}}
+
+  /* ===== Pipeline = piste de signal ===== */
+  .track{position:relative;margin-top:34px;display:flex;justify-content:space-between;gap:8px}
+  .track::before{content:"";position:absolute;left:4%;right:4%;top:26px;height:2px;background:linear-gradient(90deg,transparent,var(--c1),var(--c2),transparent);opacity:.55}
+  .stop{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;min-width:0}
+  .stop .dot{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-weight:800;font-size:15px;
+    background:var(--bg-1);border:1px solid var(--line-strong);color:var(--dim);position:relative;z-index:1}
+  .stop.io .dot{background:var(--grad);color:#04121a;border-color:transparent;box-shadow:0 0 24px rgba(47,212,230,.35)}
+  .stop .nm{font-weight:700;font-size:14px}
+  .stop .ss{color:var(--faint);font-size:11.5px;line-height:1.35;font-family:var(--mono)}
+
+  /* ===== Metrics count-up ===== */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:24px}
+  .metric{position:relative;border-radius:var(--r);padding:18px 20px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+  .metric .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:2.3rem;font-weight:800;line-height:1;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .metric .l{font-size:12.5px;font-weight:700;color:var(--text);margin-top:9px}
+  .metric .s{font-size:11px;color:var(--faint);margin-top:3px}
+
+  /* ===== Courbe rétention ===== */
+  .curve{border-radius:var(--r-lg);background:rgba(0,0,0,.28);border:1px solid var(--line-strong);padding:16px 18px}
+  .curve svg{display:block;width:100%;max-width:100%;height:auto}
+  .clabel{font-family:var(--mono);font-size:11px;fill:var(--faint)}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .legend b{display:inline-block;width:11px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+  /* ===== Listes / cartes duo ===== */
+  .split{display:grid;grid-template-columns:1fr 1.05fr;gap:clamp(24px,3.2vw,56px);align-items:center;min-height:0}
+  .split .media{min-width:0;overflow:hidden}
+  ul.feat{list-style:none;margin-top:16px;display:flex;flex-direction:column;gap:12px}
+  ul.feat li{display:flex;gap:12px;align-items:flex-start;font-size:clamp(13.5px,1.1vw,16px);line-height:1.45}
+  ul.feat li::before{content:"";flex:0 0 auto;width:8px;height:8px;margin-top:7px;border-radius:2px;background:var(--grad)}
+  ul.feat li b{color:var(--text);font-weight:700}ul.feat li span{color:var(--dim)}
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+  .card{border-radius:var(--r);padding:20px 22px;background:rgba(255,255,255,.03);border:1px solid var(--line);border-top:2px solid var(--c1)}
+  .card.v{border-top-color:var(--c2)}.card.g{border-top-color:var(--ok)}.card.w{border-top-color:var(--warn)}.card.r{border-top-color:var(--danger)}
+  .card h3{font-family:var(--mono);font-size:12.5px;letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px;color:var(--dim)}
+  .card ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+  .card li{display:flex;gap:9px;font-size:13.5px;line-height:1.4;color:var(--dim)}
+  .card li::before{content:"›";color:var(--c1);font-family:var(--mono);font-weight:800}
+  .card li b{color:var(--text);font-weight:600}
+  .chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}
+  .chip{font-family:var(--mono);font-size:12px;color:var(--text);background:rgba(255,255,255,.04);border:1px solid var(--line-strong);padding:7px 12px;border-radius:var(--pill)}
+
+  /* ===== Table modèles ===== */
+  table.mods{width:100%;border-collapse:collapse;margin-top:24px;font-size:clamp(12.5px,1.05vw,15px)}
+  table.mods th,table.mods td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line)}
+  table.mods th{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:700}
+  table.mods td b{color:var(--text)}table.mods td{color:var(--dim)}
+  table.mods td .mono{color:var(--c1)}
+  table.mods tr:last-child td{border-bottom:0}
+  table.mods tr.hi td{background:rgba(46,230,160,.06)}
+
+  /* ===== Barres d'importance (features) ===== */
+  .bars{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+  .bar{display:grid;grid-template-columns:132px 1fr;gap:12px;align-items:center;font-family:var(--mono);font-size:11.5px;color:var(--dim)}
+  .bar .fillwrap{height:9px;background:rgba(255,255,255,.06);border-radius:var(--pill);overflow:hidden}
+  .bar .fill{height:100%;background:var(--grad);border-radius:var(--pill);transform-origin:left;transition:width .6s var(--ease)}
+  .cap{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:12px;letter-spacing:.03em}
+
+  /* ===== Étages (défi, intégration) ===== */
+  .flow{display:flex;gap:14px;align-items:stretch;margin-top:28px}
+  .fnode{flex:1;border-radius:var(--r);padding:20px;background:rgba(255,255,255,.03);border:1px solid var(--line-strong);position:relative}
+  .fnode.hi{border-color:transparent;background:linear-gradient(180deg,rgba(47,212,230,.14),rgba(176,123,255,.06))}
+  .fnode .tag{position:absolute;top:-10px;left:18px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;background:var(--bg-1);border:1px solid var(--line-strong);color:var(--dim);padding:2px 8px;border-radius:var(--pill)}
+  .fnode.hi .tag{background:var(--grad);color:#04121a;border-color:transparent}
+  .fnode .t{font-weight:800;font-size:17px;margin-bottom:5px}.fnode .s{color:var(--dim);font-size:13px;line-height:1.45}
+  .flink{display:flex;align-items:center;color:var(--faint);font-family:var(--mono);font-size:16px}
+  @media(max-width:900px){.split,.duo,.flow{grid-template-columns:1fr;display:flex;flex-direction:column}.flink{transform:rotate(90deg)}.track{flex-wrap:wrap}.track::before{display:none}}
+
+  /* ===== Cover : lockup + waveform ===== */
+  .cover .logo{display:flex;align-items:center;gap:16px;margin-bottom:24px}
+  .cover .logo img{width:56px;height:56px;filter:drop-shadow(0 8px 24px rgba(47,212,230,.4))}
+  .cover .logo .word{font-size:clamp(34px,4.6vw,60px);font-weight:800;letter-spacing:-.03em}
+  .wave{display:flex;align-items:flex-end;gap:4px;height:44px;margin:22px 0 6px}
+  .wave i{width:5px;border-radius:3px;background:var(--grad);opacity:.85;animation:eq 1.1s ease-in-out infinite}
+  @keyframes eq{0%,100%{height:20%}50%{height:100%}}
+  .cover .meta{margin-top:22px;display:flex;flex-direction:column;gap:6px}
+  .cover .meta .row{display:flex;gap:11px;align-items:center;font-size:14.5px;color:var(--dim)}
+  .cover .meta .row .tag{font-family:var(--mono);font-size:11px;color:var(--c1);border:1px solid rgba(47,212,230,.4);background:rgba(47,212,230,.1);padding:3px 9px;border-radius:var(--pill)}
+  .cover .meta .row .tag.v{color:var(--c2);border-color:rgba(176,123,255,.4);background:rgba(176,123,255,.1)}
+  .cover .team{margin-top:20px;font-family:var(--mono);font-size:12.5px;color:var(--faint);letter-spacing:.03em}
+
+  .hint{position:fixed;z-index:20;top:16px;right:clamp(18px,3vw,40px);font-family:var(--mono);font-size:11px;color:var(--faint);opacity:0;transition:opacity .4s}
+  body:hover .hint{opacity:.7}
+  kbd{font-family:var(--mono);border:1px solid var(--line-strong);border-radius:5px;padding:1px 6px;color:var(--dim);font-size:10.5px}
+
+  /* ===== Entrée en cascade ===== */
+  @media (prefers-reduced-motion:no-preference){
+    @keyframes rise{from{opacity:0;transform:translateY(13px)}to{opacity:1;transform:none}}
+    @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.94)}to{opacity:1;transform:none}}
+    .slide.active .kicker{animation:rise .5s .04s both var(--ease)}
+    .slide.active h1,.slide.active h2{animation:rise .55s .10s both var(--ease)}
+    .slide.active .lede{animation:rise .55s .18s both var(--ease)}
+    .slide.active .panel,.slide.active .curve,.slide.active table.mods{animation:rise .6s .16s both var(--ease)}
+    .slide.active .stop{animation:pop .5s both var(--ease)}
+    .slide.active .stop:nth-child(1){animation-delay:.16s}.slide.active .stop:nth-child(3){animation-delay:.26s}
+    .slide.active .stop:nth-child(5){animation-delay:.36s}.slide.active .stop:nth-child(7){animation-delay:.46s}
+    .slide.active .stop:nth-child(9){animation-delay:.56s}.slide.active .stop:nth-child(11){animation-delay:.66s}
+    .slide.active .metric{animation:pop .5s both var(--ease)}
+    .slide.active .metric:nth-child(1){animation-delay:.20s}.slide.active .metric:nth-child(2){animation-delay:.28s}
+    .slide.active .metric:nth-child(3){animation-delay:.36s}.slide.active .metric:nth-child(4){animation-delay:.44s}
+    .slide.active .card{animation:rise .5s both var(--ease)}
+    .slide.active .card:nth-child(2){animation-delay:.14s}
+    .slide.active ul.feat li{animation:rise .5s both var(--ease)}
+    .slide.active ul.feat li:nth-child(1){animation-delay:.24s}.slide.active ul.feat li:nth-child(2){animation-delay:.32s}
+    .slide.active ul.feat li:nth-child(3){animation-delay:.40s}.slide.active ul.feat li:nth-child(4){animation-delay:.48s}
+  }
+  @media (prefers-reduced-motion:reduce){.slide{transition:opacity .001s}.caret,#mesh,.wave i{animation:none}}
+</style>
+</head>
+<body>
+
+<div id="mesh"></div>
+<div id="flux"></div>
+<div id="ghost">01</div>
+<div class="hint">← → naviguer · <kbd>F</kbd> plein écran</div>
+<div id="deck"></div>
+<div id="hud"><div id="bar"></div></div>
+<div id="dots"></div>
+<div id="counter"><b>01</b> / 12</div>
+<div id="brand-hud"><img src="assets/poulpium-mark.png" alt=""><span>Poulpium · Pôle 3</span></div>
+
+<script>
+const slides = [
+
+/* 1 — COVER */
+`<section class="slide cover">
+  <div class="logo"><img src="assets/poulpium-mark.png" alt="Poulpium"><span class="word grad">Poulpium</span></div>
+  <div class="kicker"><span class="pip"></span> Pôle 3 · Intelligence Artificielle & Data</div>
+  <h1>La vidéo n'est plus<br>une <span class="grad">boîte noire</span>.</h1>
+  <div class="wave" aria-hidden="true">
+    <i style="animation-delay:0s"></i><i style="animation-delay:.08s"></i><i style="animation-delay:.16s"></i>
+    <i style="animation-delay:.24s"></i><i style="animation-delay:.32s"></i><i style="animation-delay:.4s"></i>
+    <i style="animation-delay:.48s"></i><i style="animation-delay:.56s"></i><i style="animation-delay:.64s"></i>
+    <i style="animation-delay:.72s"></i><i style="animation-delay:.6s"></i><i style="animation-delay:.5s"></i>
+    <i style="animation-delay:.3s"></i><i style="animation-delay:.15s"></i>
+  </div>
+  <p class="lede">Un microservice local qui transforme une vidéo en connaissances : transcription, résumé, chapitres, recherche et sous-titres multilingues. Et qui lit l'audience pour dire où l'attention décroche.</p>
+  <div class="meta">
+    <div class="row"><span class="tag">Sujet A</span> Indexation & analyse sémantique (NLP / GenAI) — principal</div>
+    <div class="row"><span class="tag v">Sujet B</span> Analyse d'audience & prédiction de rétention — bonus</div>
+  </div>
+  <div class="team">Hackathon ESTIAM — Groupe 7   ·   Équipe P3 : Rabah · Duval · Antoine · Izlene · Otman · Amina · Faycal · Hassane</div>
+</section>`,
+
+/* 2 — LE DEFI (complémentarité) */
+`<section class="slide">
+  <div class="kicker"><span class="pip"></span> Le défi</div>
+  <h2>P1 <span class="grad">montre</span>. P2 <span class="grad">protège</span>. P3 <span class="grad">comprend</span>.</h2>
+  <p class="lede">Une vidéo est illisible pour une machine : impossible de retrouver « le passage sur la sécurité » sans tout revisionner, ni de savoir où l'audience abandonne. Le Pôle 3 rend ce contenu <b class="hl">exploitable</b> et <b class="hl">mesurable</b>.</p>
+  <div class="duo" style="margin-top:26px">
+    <div class="card"><h3>Sujet A · Comprendre le contenu</h3><ul>
+      <li><b>Entrée</b> : un fichier vidéo</li>
+      <li><b>Sortie</b> : un JSON riche (langue, transcript horodaté, résumé, chapitres, mots-clés, traductions)</li>
+      <li><b>Valeur</b> : la vidéo devient <b>trouvable</b> — recherche sémantique, sous-titres, saut au bon instant</li>
+    </ul></div>
+    <div class="card v"><h3>Sujet B · Comprendre l'audience</h3><ul>
+      <li><b>Entrée</b> : des logs de visionnage</li>
+      <li><b>Sortie</b> : courbe de rétention, zones d'ennui, prédiction</li>
+      <li><b>Valeur</b> : dire au créateur <b>où</b> sa vidéo perd l'audience et <b>quoi</b> corriger</li>
+    </ul></div>
+  </div>
+  <p class="lede" style="margin-top:22px">Le tout <b class="hl">100 % local, sur CPU, sans clé API payante</b>.</p>
+</section>`,
+
+/* 3 — SUJET A : le pipeline (piste de signal) */
+`<section class="slide">
+  <div class="kicker"><span class="pip"></span> Sujet A · le pipeline</div>
+  <h2>De la vidéo au JSON, en une passe.</h2>
+  <p class="lede">Chaque étage est un modèle local, choisi léger. Le résultat est mis en cache : un re-run ne régénère que ce qui manque.</p>
+  <div class="track">
+    <div class="stop io"><div class="dot">▶</div><div class="nm">Vidéo</div><div class="ss">.mp4 / .m3u8</div></div>
+    <div class="stop"><div class="dot">1</div><div class="nm">ffmpeg</div><div class="ss">extraction audio</div></div>
+    <div class="stop"><div class="dot">2</div><div class="nm">Whisper</div><div class="ss">transcription<br>horodatée</div></div>
+    <div class="stop"><div class="dot">3</div><div class="nm">Qwen 2.5</div><div class="ss">résumé +<br>chapitres</div></div>
+    <div class="stop"><div class="dot">4</div><div class="nm">NLLB-200</div><div class="ss">sous-titres<br>multilingues</div></div>
+    <div class="stop io"><div class="dot">{}</div><div class="nm">JSON P3-A</div><div class="ss">+ index<br>sémantique</div></div>
+  </div>
+  <ul class="feat" style="margin-top:30px">
+    <li><b>Asynchrone</b><span> — l'API accepte la vidéo, renvoie un <span class="mono">job_id</span>, et le front interroge le statut (le Core ne bloque jamais).</span></li>
+    <li><b>Mots-clés</b><span> — KeyBERT (MMR) réutilise l'embedder de la recherche : aucun modèle en plus.</span></li>
+  </ul>
+</section>`,
+
+/* 4 — SUJET A : la sortie (JSON, panneau verre) */
+`<section class="slide">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> Sujet A · la restitution</div>
+      <h2>Un JSON riche, pas juste<br>une transcription.</h2>
+      <p class="lede">Contrat documenté (<span class="mono">docs/P3A-metadata-schema.md</span>). C'est ce que le Core relaie à la View : sous-titres, panneau Insights, recherche.</p>
+      <ul class="feat" style="margin-top:14px">
+        <li><b>Segments horodatés</b><span> — chaque phrase pointe une seconde exacte.</span></li>
+        <li><b>Chapitres</b><span> — titres générés, repli déterministe si le LLM échoue.</span></li>
+        <li><b>translations[]</b><span> — plusieurs langues, incrémental.</span></li>
+      </ul>
+    </div>
+    <div class="media">
+      <div class="panel">
+        <div class="panel-label"><span class="d"></span> metadata.json · contrat P3-A</div>
+        <div class="code">{
+  <span class="f">"language"</span>: <span class="s">"fr"</span>,
+  <span class="f">"duration_sec"</span>: <span class="n">184.2</span>,
+  <span class="f">"segments"</span>: [
+    { <span class="f">"start"</span>:<span class="n">12.4</span>, <span class="f">"end"</span>:<span class="n">15.0</span>,
+      <span class="f">"text"</span>:<span class="s">"parlons sécurité…"</span> }
+  ],
+  <span class="f">"summary"</span>: <span class="s">"Démo produit en 3 temps…"</span>,
+  <span class="f">"chapters"</span>: [
+    { <span class="f">"start"</span>:<span class="n">0</span>, <span class="f">"title"</span>:<span class="s">"Intro"</span> },
+    { <span class="f">"start"</span>:<span class="n">64</span>, <span class="f">"title"</span>:<span class="s">"Sécurité"</span> }
+  ],
+  <span class="f">"keywords"</span>: [<span class="s">"chiffrement"</span>,<span class="s">"clé"</span>,<span class="s">"token"</span>],
+  <span class="f">"translations"</span>: [
+    { <span class="f">"lang"</span>:<span class="s">"en"</span>, <span class="f">"text"</span>:<span class="s">"let's talk security…"</span> }
+  ]
+}</div>
+      </div>
+    </div>
+  </div>
+</section>`,
+
+/* 5 — SUJET A : recherche + multilingue */
+`<section class="slide">
+  <div class="kicker"><span class="pip"></span> Sujet A · ce qui rend la vidéo trouvable</div>
+  <h2>Recherche sémantique et sous-titres multilingues.</h2>
+  <div class="duo" style="margin-top:22px">
+    <div class="card"><h3>Recherche sémantique</h3><ul>
+      <li>Embeddings <b>MiniLM multilingue</b> sur chaque segment</li>
+      <li>Requête naturelle → segments les plus proches (cosinus)</li>
+      <li>« où on parle de sécurité ? » → saut au bon timecode</li>
+      <li>Exposée au Core : <span class="mono" style="color:var(--c1)">POST /contents/:id/search</span></li>
+    </ul></div>
+    <div class="card v"><h3>Sous-titres multilingues</h3><ul>
+      <li><b>NLLB-200</b> traduit le transcript segment par segment</li>
+      <li>fr · en · es · ar par défaut, <b>extensible</b> (jusqu'à 200 langues)</li>
+      <li>Incrémental : seules les langues manquantes sont traduites</li>
+      <li>Incrusté dans le lecteur (bouton CC de la View)</li>
+    </ul></div>
+  </div>
+  <p class="lede" style="margin-top:22px">La transcription est le minimum vital. La <b class="hl">valeur</b>, c'est tout ce qu'on en tire au-dessus : chercher, traduire, résumer, chapitrer.</p>
+</section>`,
+
+/* 6 — LES MODELES */
+`<section class="slide">
+  <div class="kicker"><span class="pip"></span> Choix techniques argumentés · 100 % local, CPU</div>
+  <h2>Des modèles légers, choisis pour tenir sur un laptop.</h2>
+  <table class="mods">
+    <thead><tr><th>Rôle</th><th>Modèle</th><th>Empreinte</th><th>Pourquoi</th></tr></thead>
+    <tbody>
+      <tr><td><b>Transcription</b></td><td class="mono">faster-whisper base (int8)</td><td class="mono">~140 Mo</td><td>rapide sur CPU, segments horodatés</td></tr>
+      <tr><td><b>Résumé / chapitres</b></td><td class="mono">llama.cpp · Qwen2.5-1.5B Q4_K_M</td><td class="mono">~1 Go</td><td>meilleur rapport qualité/poids en FR, in-process</td></tr>
+      <tr><td><b>Mots-clés</b></td><td class="mono">KeyBERT (MMR)</td><td class="mono">réutilise l'embedder</td><td>diversité, aucun modèle en plus</td></tr>
+      <tr><td><b>Recherche</b></td><td class="mono">sentence-transformers · MiniLM</td><td class="mono">~470 Mo</td><td>embeddings rapides, multilingue</td></tr>
+      <tr><td><b>Traduction</b></td><td class="mono">NLLB-200-distilled-600M</td><td class="mono">~2,5 Go</td><td>200 langues, qualité sur CPU</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:20px">API <b class="hl">FastAPI</b>, sécurisée par le JWT du Core (token de service). Aucune clé payante, aucun appel réseau à l'exécution.</p>
+</section>`,
+
+/* 7 — SUJET B : rétention */
+`<section class="slide">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> Sujet B · comprendre l'audience</div>
+      <h2>Où l'attention décroche.</h2>
+      <p class="lede">Un signal de friction par position combine 4 indices, puis on extrait les régions au-dessus du quantile 0.92, en union avec les décrochages progressifs.</p>
+      <div class="chips">
+        <span class="chip">seek_back ×4</span><span class="chip">chute rétention ×3</span>
+        <span class="chip">abandon ×2</span><span class="chip">pause ×0.5</span>
+      </div>
+      <div class="stats" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="metric"><div class="v"><span class="count" data-to="0.77" data-dec="2">0.00</span></div><div class="l">F1 (détection)</div><div class="s">contre corrigé humain</div></div>
+        <div class="metric"><div class="v"><span class="count" data-to="0.69" data-dec="2">0.00</span></div><div class="l">Précision</div></div>
+        <div class="metric"><div class="v"><span class="count" data-to="0.86" data-dec="2">0.00</span></div><div class="l">Rappel</div></div>
+      </div>
+    </div>
+    <div class="media">
+      <div class="curve">
+        <svg viewBox="0 0 420 220" role="img" aria-label="Courbe de rétention avec zone d'ennui">
+          <defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2fd4e6"/><stop offset="1" stop-color="#b07bff"/></linearGradient>
+          <linearGradient id="cf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(47,212,230,.28)"/><stop offset="1" stop-color="rgba(47,212,230,0)"/></linearGradient></defs>
+          <g stroke="rgba(255,255,255,.06)"><line x1="22" y1="18" x2="22" y2="184"/><line x1="22" y1="184" x2="404" y2="184"/></g>
+          <rect x="244" y="18" width="66" height="166" fill="rgba(245,178,58,.12)" stroke="rgba(245,178,58,.42)" stroke-dasharray="3 3"/>
+          <path d="M22,34 L78,56 L134,80 L204,106 L244,122 L288,174 L338,180 L404,184 L404,184 L22,184 Z" fill="url(#cf)"/>
+          <path d="M22,34 L78,56 L134,80 L204,106 L244,122 L288,174 L338,180 L404,184" fill="none" stroke="url(#cg)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+          <text x="248" y="32" class="clabel" fill="var(--warn)">zone d'ennui</text>
+          <text x="22" y="204" class="clabel">0%</text>
+          <text x="352" y="204" class="clabel">100%</text>
+        </svg>
+        <div class="legend"><span><b style="background:linear-gradient(90deg,#2fd4e6,#b07bff)"></b>rétention</span><span><b style="background:var(--warn)"></b>décrochage détecté</span></div>
+      </div>
+    </div>
+  </div>
+</section>`,
+
+/* 8 — SUJET B : prédiction */
+`<section class="slide">
+  <div class="kicker"><span class="pip"></span> Sujet B · anticiper</div>
+  <h2>Prédire la rétention, <span class="grad">sans tricher</span>.</h2>
+  <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+    <div class="metric"><div class="v"><span class="count" data-to="0.069" data-dec="3">0.000</span></div><div class="l">MAE · Ridge</div><div class="s">baseline naïve : 0.106</div></div>
+    <div class="metric"><div class="v"><span class="count" data-to="0.56" data-dec="2">0.00</span></div><div class="l">R² · Ridge</div><div class="s">baseline : −0.09</div></div>
+    <div class="metric"><div class="v">LOO</div><div class="l">Leave-One-Out CV</div><div class="s">25 vidéos, honnête</div></div>
+    <div class="metric"><div class="v">0</div><div class="l">fuite de cible</div><div class="s">vérifiée feature par feature</div></div>
+  </div>
+  <div class="duo" style="margin-top:22px">
+    <div class="card g"><h3>✓ Features autorisées (indépendantes du dénouement)</h3><ul>
+      <li><b>catégorie</b>, <b>durée</b></li>
+      <li>engagement précoce (<span class="mono" style="color:var(--c1)">early_ret_10 / 20</span>)</li>
+      <li>fréquence de <b>pauses</b> et <b>retours en arrière</b> par session</li>
+    </ul></div>
+    <div class="card r"><h3>⚔ Bannies (fuite de cible)</h3><ul>
+      <li>la rétention elle-même</li>
+      <li>position moyenne atteinte, % de sessions qui terminent</li>
+      <li>le corrigé (sert seulement à <b>mesurer</b>)</li>
+    </ul></div>
+  </div>
+  <p class="lede" style="margin-top:20px">Un modèle linéaire régularisé <b class="hl">bat les arbres</b> (qui surapprennent sur 25 vidéos). Signal n°1 : les retours en arrière (<span class="mono" style="color:var(--c1)">seek_per_sess</span>).</p>
+</section>`,
+
+/* 9 — DÉTAIL DES CHIFFRES & ANALYSE PYTHON */
+`<section class="slide">
+  <div class="split">
+    <div class="txt">
+      <div class="kicker"><span class="pip"></span> Sujet B · le détail chiffré</div>
+      <h2>Les chiffres, et le <span class="grad">code</span> derrière.</h2>
+      <p class="lede">Tout est produit par une commande : <span class="mono">python scripts/run_analysis_3b.py</span> → <span class="mono">outputs/data-3b/metrics.json</span>. Déterministe (<span class="mono">random_state=42</span>).</p>
+      <table class="mods" style="margin-top:16px">
+        <thead><tr><th>Modèle · Leave-One-Out CV</th><th>MAE</th><th>R²</th></tr></thead>
+        <tbody>
+          <tr><td>Baseline (moyenne)</td><td class="mono">0.106</td><td class="mono">−0.09</td></tr>
+          <tr class="hi"><td><b>Ridge</b> ✓ retenu</td><td class="mono" style="color:var(--ok)">0.069</td><td class="mono" style="color:var(--ok)">0.56</td></tr>
+          <tr><td>GradientBoosting</td><td class="mono">0.076</td><td class="mono">0.44</td></tr>
+          <tr><td>RandomForest</td><td class="mono">0.086</td><td class="mono">0.27</td></tr>
+        </tbody>
+      </table>
+      <div class="bars">
+        <div class="bar"><span>seek_per_sess</span><div class="fillwrap"><div class="fill" style="width:100%"></div></div></div>
+        <div class="bar"><span>duration_sec</span><div class="fillwrap"><div class="fill" style="width:76%"></div></div></div>
+        <div class="bar"><span>early_ret_20</span><div class="fillwrap"><div class="fill" style="width:60%"></div></div></div>
+        <div class="bar"><span>pause_per_sess</span><div class="fillwrap"><div class="fill" style="width:46%"></div></div></div>
+        <div class="bar"><span>early_ret_10</span><div class="fillwrap"><div class="fill" style="width:34%"></div></div></div>
+        <div class="bar"><span>catégorie</span><div class="fillwrap"><div class="fill" style="width:22%"></div></div></div>
+      </div>
+      <div class="cap">Importance relative des features (RandomForest, pour l'interprétation) · ordre mesuré</div>
+    </div>
+    <div class="media">
+      <div class="panel">
+        <div class="panel-label"><span class="d"></span> run_analysis_3b.py · metrics.json</div>
+        <div class="code"><span class="c"># une commande, 25 vidéos, 100 % local</span>
+<span class="k">$</span> python scripts/run_analysis_3b.py
+<span class="s">✓</span> outputs/data-3b/metrics.json
+
+<span class="c"># détection des zones d'ennui (niveau seconde)</span>
+<span class="f">"detection"</span>: {
+  <span class="f">"precision"</span>: <span class="n">0.69</span>,
+  <span class="f">"recall"</span>:    <span class="n">0.86</span>,
+  <span class="f">"f1"</span>:        <span class="n">0.77</span>
+},
+<span class="c"># prédiction de rétention (LOO-CV)</span>
+<span class="f">"models"</span>: {
+  <span class="f">"ridge"</span>: { <span class="f">"mae"</span>:<span class="n">0.069</span>, <span class="f">"r2"</span>:<span class="n">0.56</span> },
+  <span class="f">"gboost"</span>:{ <span class="f">"mae"</span>:<span class="n">0.076</span>, <span class="f">"r2"</span>:<span class="n">0.44</span> }
+}</div>
+      </div>
+      <div class="cap">Modules Python : <span class="mono" style="color:var(--c1)">app/data/</span> — retention · hotspots · features · model · churn_predict</div>
+    </div>
+  </div>
+</section>`,
+
+/* 10 — BLOC B : intégration */
+`<section class="slide">
+  <div class="kicker"><span class="pip"></span> Bloc B · la couture</div>
+  <h2>L'Engine ne vit jamais seul.</h2>
+  <div class="flow">
+    <div class="fnode"><span class="tag">View · P1</span><div class="t">Affiche</div><div class="s">Sous-titres incrustés, panneau Insights (résumé, chapitres cliquables, recherche).</div></div>
+    <div class="flink">← JSON —</div>
+    <div class="fnode hi"><span class="tag">Core · P2</span><div class="t">Orchestre</div><div class="s">Analyse par <span class="mono">contentId</span>, token de service (role=service) ; le front ne voit jamais de job_id.</div></div>
+    <div class="flink">— service →</div>
+    <div class="fnode"><span class="tag">Engine · P3</span><div class="t">Analyse</div><div class="s">Appelé uniquement par le Core. Surface durcie (anti path-traversal).</div></div>
+  </div>
+  <ul class="feat" style="margin-top:28px">
+    <li><b>Une seule identité</b><span> — le même JWT ouvre la vidéo (P1), la clé (P2) et déclenche l'analyse (P3).</span></li>
+    <li><b>Dégradation propre</b><span> — Engine absent → le panneau Insights affiche « Hors ligne », jamais d'écran cassé.</span></li>
+  </ul>
+</section>`,
+
+/* 10 — RIGUEUR & LIMITES */
+`<section class="slide">
+  <div class="kicker"><span class="pip"></span> Rigueur data & honnêteté technique</div>
+  <h2>Ce qu'on mesure, ce qu'on assume.</h2>
+  <div class="duo">
+    <div class="card g"><h3>✓ Rigueur</h3><ul>
+      <li><b>Métriques mesurées</b>, pas affirmées (F1 vs corrigé, LOO-CV)</li>
+      <li><b>Anti-fuite de cible</b> vérifié feature par feature</li>
+      <li><b>Reproductible</b> — <span class="mono" style="color:var(--c1)">random_state=42</span>, une commande, 100 % local</li>
+      <li>Corrigé = évaluation seule, <b>jamais</b> une feature</li>
+    </ul></div>
+    <div class="card w"><h3>⚠ Limites assumées</h3><ul>
+      <li><b>LLM sur CPU</b> — si llama.cpp indisponible, l'analyse <b>dégrade proprement</b> (résumé vide, chapitres de repli) au lieu d'échouer</li>
+      <li><b>Petit échantillon</b> (25 vidéos) — d'où le LOO-CV et un modèle simple</li>
+      <li>Sujet B = <b>bonus</b> ; le principal reste le NLP (3A)</li>
+    </ul></div>
+  </div>
+  <p class="lede" style="margin-top:20px">Whisper, MiniLM et NLLB tournent sur CPU sans souci ; seul le LLM de résumé est sensible, et il est <b class="hl">isolé et gracieux</b>.</p>
+</section>`,
+
+/* 11 — CLOSING */
+`<section class="slide cover">
+  <div class="kicker"><span class="pip"></span> Bilan</div>
+  <h2>Deux volets livrés.<br>Une vidéo <span class="grad">qui parle</span>.</h2>
+  <div class="chips" style="margin-top:22px">
+    <span class="chip">Transcription horodatée</span>
+    <span class="chip">Résumé + chapitres (LLM local)</span>
+    <span class="chip">Mots-clés</span>
+    <span class="chip">Recherche sémantique</span>
+    <span class="chip">Sous-titres NLLB-200</span>
+    <span class="chip">Rétention · F1 0.77</span>
+    <span class="chip">Prédiction · MAE 0.069</span>
+    <span class="chip">FastAPI · 100 % local</span>
+  </div>
+  <p class="lede" style="margin-top:26px">Le Pôle 3 ferme la boucle : la <b class="hl">View</b> montre, le <b class="hl">Core</b> protège, l'<b class="hl">Engine</b> comprend. Une plateforme vidéo où le contenu devient cherchable, traduisible et mesurable — sans envoyer une seule image à un service tiers.</p>
+  <p class="mono" style="margin-top:20px;color:var(--faint);font-size:13px">Poulpium · Pôle 3 — Rabah · Duval · Antoine · Izlene · Otman · Amina · Faycal · Hassane</p>
+</section>`,
+
+];
+
+/* ============ Moteur ============ */
+const deck=document.getElementById('deck');
+deck.innerHTML=slides.join('');
+const els=[...deck.querySelectorAll('.slide')];
+const dots=document.getElementById('dots'),bar=document.getElementById('bar'),counter=document.getElementById('counter'),ghost=document.getElementById('ghost');
+let i=0;const pad=n=>String(n).padStart(2,'0');
+els.forEach((_,n)=>{const b=document.createElement('button');b.onclick=()=>go(n);dots.appendChild(b);});
+const dotEls=[...dots.children];
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+function countUp(slide){
+  if(reduce)return;
+  slide.querySelectorAll('.count').forEach(el=>{
+    const to=parseFloat(el.dataset.to),dec=parseInt(el.dataset.dec||'0');
+    const t0=performance.now(),dur=900;
+    (function step(t){
+      const p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,3);
+      el.textContent=(to*e).toFixed(dec);
+      if(p<1)requestAnimationFrame(step);else el.textContent=to.toFixed(dec);
+    })(t0);
+  });
+}
+function go(n){
+  i=Math.max(0,Math.min(els.length-1,n));
+  els.forEach((s,k)=>s.classList.toggle('active',k===i));
+  dotEls.forEach((d,k)=>d.classList.toggle('on',k===i));
+  bar.style.width=((i+1)/els.length*100)+'%';
+  counter.innerHTML=`<b>${pad(i+1)}</b> / ${pad(els.length)}`;
+  ghost.textContent=pad(i+1);
+  location.hash=i+1;
+  countUp(els[i]);
+}
+function next(){go(i+1);}function prev(){go(i-1);}
+addEventListener('keydown',e=>{
+  if(['ArrowRight','ArrowDown',' ','PageDown','Enter'].includes(e.key)){e.preventDefault();next();}
+  else if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(e.key)){e.preventDefault();prev();}
+  else if(e.key==='Home'){go(0);}else if(e.key==='End'){go(els.length-1);}
+  else if(e.key==='f'||e.key==='F'){if(!document.fullscreenElement)document.documentElement.requestFullscreen();else document.exitFullscreen();}
+  else if(/^[1-9]$/.test(e.key)){go(parseInt(e.key)-1);}
+});
+addEventListener('click',e=>{
+  if(e.target.closest('#dots,.hint,#brand-hud,.panel,.curve,table'))return;
+  const x=e.clientX/innerWidth;if(x>0.66)next();else if(x<0.18)prev();
+});
+const start=parseInt(location.hash.slice(1));go(Number.isFinite(start)&&start?start-1:0);
+</script>
+</body>
+</html>

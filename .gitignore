@@ -71,3 +71,7 @@ docs/SUJETS-CHOIX.md
 # Fichier de travail (body de PR) — non versionné
 PR_BODY.md
 .env
+NOTES-REPRISE.local.md
+.gitignore
+docs/feature-plans/engine-nas-90-recap.md
+docs/feature-plans/engine-groq-migration.md

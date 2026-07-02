@@ -5,12 +5,14 @@ import {
   FilmSlate,
   ArrowClockwise,
   ShieldWarning,
+  ChartLineUp,
 } from '@phosphor-icons/react'
 import { isSuperAdmin } from '../../auth'
 import { listCompanies, listUsers, listContents } from '../../admin'
 import CompaniesPanel from './CompaniesPanel'
 import UsersPanel from './UsersPanel'
 import ContentsPanel from './ContentsPanel'
+import RetentionSynthesisPanel from './RetentionSynthesisPanel'
 
 // Récupère les données du back-office (fonction PURE : aucun setState). Un
 // superadmin voit aussi les entreprises ; un admin n'appelle pas cette route.
@@ -38,6 +40,7 @@ export default function AdminPanel() {
     ? [
         { key: 'companies', label: 'Entreprises', icon: Buildings },
         { key: 'users', label: 'Utilisateurs', icon: UsersThree },
+        { key: 'retention', label: 'Analyse P3-B', icon: ChartLineUp },
       ]
     : [
         { key: 'users', label: 'Utilisateurs', icon: UsersThree },
@@ -165,6 +168,7 @@ export default function AdminPanel() {
                 reload={reload}
               />
             )}
+            {tab === 'retention' && <RetentionSynthesisPanel />}
           </div>
         )}
       </div>
