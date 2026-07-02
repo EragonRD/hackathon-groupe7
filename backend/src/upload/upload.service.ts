@@ -122,29 +122,47 @@ export class UploadService implements OnModuleInit {
     await rm(join(this.secretsDir, `${contentId}.key`), { force: true }).catch(() => {})
   }
 
+  // Vérifie qu'un binaire s'exécute VRAIMENT (`-version`, status 0). Toute autre
+  // issue (introuvable, code d'échec, incompatibilité musl/glibc) -> false.
+  private probeBin(bin: string): boolean {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { spawnSync } = require('child_process')
+      const res = spawnSync(bin, ['-version'])
+      return !res.error && res.status === 0
+    } catch {
+      return false
+    }
+  }
+
   private getBin(staticPkg: string, systemCmd: string): string {
     const cached = this.binCache.get(staticPkg)
     if (cached) return cached
 
     let resolved = systemCmd
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const staticPath = staticPkg === 'ffmpeg-static' ? require(staticPkg) : require(staticPkg).path
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { spawnSync } = require('child_process')
-      const res = spawnSync(staticPath, ['-version'])
-      // Le binaire pré-compilé n'est retenu QUE s'il s'exécute réellement
-      // (status 0). Sur Alpine/musl, un binaire glibc peut planter avec un code
-      // d'échec (127) sans peupler res.error -> on doit basculer sur le natif.
-      if (!res.error && res.status === 0) {
-        resolved = staticPath
-      } else {
+    // 1) PRIORITÉ au binaire SYSTÈME : garanti présent et compatible en prod
+    //    (Dockerfile `apk add ffmpeg`). On évite ainsi tout binaire pré-compilé
+    //    glibc incompatible avec Alpine/musl (cause du HLS non généré -> 404).
+    if (this.probeBin(systemCmd)) {
+      resolved = systemCmd
+    } else {
+      // 2) Repli sur le paquet npm pré-compilé (utile en dev sans ffmpeg système).
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const staticPath =
+          staticPkg === 'ffmpeg-static' ? require(staticPkg) : require(staticPkg).path
+        if (staticPath && this.probeBin(staticPath)) {
+          resolved = staticPath
+        } else {
+          this.logger.warn(
+            `Ni ${systemCmd} système ni ${staticPkg} exécutable -> tentative avec ${systemCmd}`,
+          )
+        }
+      } catch (e) {
         this.logger.warn(
-          `${staticPkg} inutilisable (code ${res.status ?? res.error?.code ?? '?'}) -> repli sur ${systemCmd} du système`,
+          `${systemCmd} système absent et ${staticPkg} introuvable (${(e as Error).message})`,
         )
       }
-    } catch (e) {
-      this.logger.warn(`${staticPkg} introuvable (${(e as Error).message}) -> repli sur ${systemCmd}`)
     }
     this.binCache.set(staticPkg, resolved)
     return resolved
