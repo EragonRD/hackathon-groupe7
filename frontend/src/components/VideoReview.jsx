@@ -14,7 +14,6 @@ import {
   Broadcast,
   Eye,
   EyeSlash,
-  TrashSimple,
   ArrowsOutSimple,
   ArrowsInSimple,
   ClosedCaptioning,
@@ -954,23 +953,6 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
                 >
                   {showShapes ? <Eye size={16} /> : <EyeSlash size={16} weight="fill" />}
                 </button>
-                {showShapes && (
-                  <button
-                    className="tool-btn"
-                    onClick={() => {
-                      if (activeId) {
-                        const note = notes.find((n) => n.id === activeId)
-                        if (note && note.shapes?.length) updateNoteShapes(note.id, [])
-                      } else {
-                        clearDraft()
-                      }
-                    }}
-                    title="Effacer tout"
-                    aria-label="Effacer tout"
-                  >
-                    <TrashSimple size={16} />
-                  </button>
-                )}
                 <button
                   className="tool-btn"
                   onClick={toggleFullscreen}
@@ -1259,23 +1241,6 @@ export default function VideoReview({ source, session, user, contentId, onPeersU
             >
               {showShapes ? <Eye size={18} /> : <EyeSlash size={18} weight="fill" />}
             </button>
-            {showShapes && (
-              <button
-                className="btn-icon"
-                onClick={() => {
-                  if (activeId) {
-                    const note = notes.find((n) => n.id === activeId)
-                    if (note && note.shapes?.length) updateNoteShapes(note.id, [])
-                  } else {
-                    clearDraft()
-                  }
-                }}
-                title="Effacer tous les dessins"
-                aria-label="Effacer les dessins"
-              >
-                <TrashSimple size={18} />
-              </button>
-            )}
             <button
               className="btn-icon"
               onClick={toggleFullscreen}
