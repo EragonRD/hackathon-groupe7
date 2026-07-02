@@ -1,5 +1,14 @@
-import { useState } from 'react'
-import { X, LinkSimple, Copy, Check, Warning, Clock } from '@phosphor-icons/react'
+import { useRef, useState } from 'react'
+import {
+  X,
+  LinkSimple,
+  Copy,
+  Check,
+  Warning,
+  Clock,
+  DownloadSimple,
+} from '@phosphor-icons/react'
+import { QRCodeCanvas } from 'qrcode.react'
 import { inviteGuest } from '../contents'
 
 const TTLS = [
@@ -17,6 +26,17 @@ export default function InviteGuestModal({ content, onClose }) {
   const [error, setError] = useState(null)
   const [link, setLink] = useState(null)
   const [copied, setCopied] = useState(false)
+  const qrRef = useRef(null)
+
+  // Télécharge le QR affiché en PNG (le <canvas> se sérialise sans réseau).
+  function downloadQr() {
+    const canvas = qrRef.current?.querySelector('canvas')
+    if (!canvas) return
+    const a = document.createElement('a')
+    a.href = canvas.toDataURL('image/png')
+    a.download = `invitation-${content.id}.png`
+    a.click()
+  }
 
   async function generate() {
     setBusy(true)
@@ -110,6 +130,27 @@ export default function InviteGuestModal({ content, onClose }) {
                   {copied ? <Check size={15} weight="bold" /> : <Copy size={15} />}
                 </button>
               </div>
+
+              <div className="invite-qr">
+                <div className="invite-qr-tile" ref={qrRef}>
+                  <QRCodeCanvas
+                    value={link}
+                    size={168}
+                    marginSize={2}
+                    level="M"
+                    bgColor="#ffffff"
+                    fgColor="#0a0c0f"
+                  />
+                </div>
+                <button className="btn btn-ghost invite-qr-dl" onClick={downloadQr}>
+                  <DownloadSimple size={15} weight="bold" />
+                  Télécharger le QR
+                </button>
+                <p className="invite-qr-hint">
+                  Scannez pour rejoindre depuis un téléphone.
+                </p>
+              </div>
+
               <p className="invite-box-note">
                 Toute personne disposant de ce lien peut rejoindre jusqu'à l'expiration.
               </p>
