@@ -75,3 +75,4 @@ NOTES-REPRISE.local.md
 .gitignore
 docs/feature-plans/engine-nas-90-recap.md
 docs/feature-plans/engine-groq-migration.md
+docker-compose.nas.yml
