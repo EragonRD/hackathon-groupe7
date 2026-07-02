@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import { openAsBlob } from 'fs'
+import { rm } from 'fs/promises'
+import { audioTempDir, extractAudioMp3 } from './ffmpeg-audio'
 
 const ENGINE_URL = process.env.ENGINE_URL ?? 'http://localhost:8000'
 
@@ -47,22 +49,30 @@ export class EngineService {
   // `contentId` = clé de cache UNIQUE côté Engine (deux uploads distincts ne se
   // partagent jamais le même cache, même si les noms de fichier sont identiques).
   async analyzeFile(filePath: string, filename = 'video.mp4', contentId = ''): Promise<string> {
-    // openAsBlob : le fichier est lu en flux (streaming) au moment de l'envoi, sans
-    // le charger entièrement en RAM puis le recopier dans un Blob (évite le 2× mémoire
-    // qui, sur une vidéo ~1 Go, doublait l'empreinte du process).
-    const blob = await openAsBlob(filePath)
-    const form = new FormData()
-    form.append('file', blob, filename)
-    if (contentId) form.append('content_id', contentId)
-    const res = await this.call('/analyze', {
-      method: 'POST',
-      headers: { Authorization: await this.auth() },
-      body: form,
-    })
-    if (!res.ok)
-      throw new Error(`service d'analyse IA en erreur (HTTP ${res.status} sur /analyze)`)
-    const data = (await res.json()) as { job_id: string }
-    return data.job_id
+    // L'Engine n'analyse QUE l'audio (transcription -> NLP ; aucune image n'est
+    // utilisée). On extrait donc une piste audio compressée et on envoie CELLE-CI
+    // (~100x plus légère qu'une vidéo pouvant atteindre 1 Go) : cela élimine le
+    // HTTP 413 derrière un proxy à limite de taille, et accélère le transfert.
+    // Le vrai nom de fichier est conservé pour l'affichage (l'Engine sonde le
+    // CONTENU, pas l'extension, donc l'audio est lu correctement).
+    const audioPath = await extractAudioMp3(filePath)
+    try {
+      const blob = await openAsBlob(audioPath)
+      const form = new FormData()
+      form.append('file', blob, filename)
+      if (contentId) form.append('content_id', contentId)
+      const res = await this.call('/analyze', {
+        method: 'POST',
+        headers: { Authorization: await this.auth() },
+        body: form,
+      })
+      if (!res.ok)
+        throw new Error(`service d'analyse IA en erreur (HTTP ${res.status} sur /analyze)`)
+      const data = (await res.json()) as { job_id: string }
+      return data.job_id
+    } finally {
+      await rm(audioTempDir(audioPath), { recursive: true, force: true }).catch(() => {})
+    }
   }
 
   async getJob(jobId: string): Promise<EngineJob> {

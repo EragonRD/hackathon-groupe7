@@ -2,11 +2,22 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common'
 import { spawn } from 'child_process'
 import { randomBytes } from 'crypto'
 import { existsSync, createReadStream, createWriteStream } from 'fs'
-import { mkdir, rm, writeFile, readdir, rename, stat } from 'fs/promises'
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+  readdir,
+  rename,
+  stat,
+} from 'fs/promises'
 import { extname, join } from 'path'
 import { tmpdir } from 'os'
 import { backendPath } from '../common/runtime-paths'
 import { ContentsService } from '../contents/contents.service'
+import { extractAudioMp3 } from '../engine/ffmpeg-audio'
 
 // Même résolution que StreamService : le Core lit et écrit le HLS au même endroit.
 function resolveHlsDir(): string {
@@ -120,6 +131,56 @@ export class UploadService implements OnModuleInit {
       () => {},
     )
     await rm(join(this.secretsDir, `${contentId}.key`), { force: true }).catch(() => {})
+  }
+
+  // Re-analyse d'un contenu DÉJÀ chiffré (source claire disparue) : on reconstruit
+  // l'audio directement depuis le HLS AES-128. La playlist référence la clé par une
+  // URI web (`/keys/:id`) et les segments en relatif -> on écrit une playlist
+  // TEMPORAIRE (hors zone servie) pointant la clé LOCALE et des segments ABSOLUS,
+  // puis ffmpeg déchiffre et extrait l'audio (léger). La copie de clé est détruite
+  // aussitôt. Retourne le chemin d'un MP3 temporaire (à supprimer après usage).
+  async extractAudioFromHls(contentId: string): Promise<string> {
+    const dir = join(this.hlsDir, contentId)
+    const playlistPath = join(dir, 'index.m3u8')
+    const keyPath = join(this.secretsDir, `${contentId}.key`)
+    if (!existsSync(playlistPath)) {
+      throw new Error('rendu HLS introuvable pour ce contenu (jamais chiffré ?)')
+    }
+    if (!existsSync(keyPath)) {
+      throw new Error('clé AES introuvable pour ce contenu')
+    }
+
+    const work = await mkdtemp(join(tmpdir(), 'poulpium-hls-'))
+    const localKey = join(work, 'video.key')
+    await copyFile(keyPath, localKey)
+
+    const raw = await readFile(playlistPath, 'utf8')
+    const rewritten = raw
+      .split('\n')
+      .map((line) => {
+        const t = line.trim()
+        if (t.startsWith('#EXT-X-KEY')) {
+          return line.replace(/URI="[^"]*"/, `URI="file://${localKey}"`)
+        }
+        // Ligne de segment (non-commentaire, non-vide) -> chemin absolu.
+        if (t && !t.startsWith('#')) return join(dir, t)
+        return line
+      })
+      .join('\n')
+    const tmpPlaylist = join(work, 'index.m3u8')
+    await writeFile(tmpPlaylist, rewritten)
+
+    try {
+      return await extractAudioMp3(tmpPlaylist, [
+        '-allowed_extensions',
+        'ALL',
+        '-protocol_whitelist',
+        'file,crypto,data',
+      ])
+    } finally {
+      // Détruit la copie de clé + la playlist temporaire (l'audio est ailleurs).
+      await rm(work, { recursive: true, force: true }).catch(() => {})
+    }
   }
 
   // Vérifie qu'un binaire s'exécute VRAIMENT (`-version`, status 0). Toute autre

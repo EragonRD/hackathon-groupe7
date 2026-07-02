@@ -3,6 +3,8 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  NotFoundException,
+  Param,
   Post,
   Req,
   UploadedFile,
@@ -15,7 +17,7 @@ import { existsSync, mkdirSync } from 'fs'
 import { rm } from 'fs/promises'
 import { diskStorage } from 'multer'
 import { tmpdir } from 'os'
-import { extname, join } from 'path'
+import { dirname, extname, join } from 'path'
 import { AuthGuard } from '../auth/auth.guard'
 import { PasswordChangedGuard } from '../auth/password-changed.guard'
 import { CompaniesService } from '../companies/companies.service'
@@ -48,6 +50,37 @@ export class UploadController {
     private readonly upload: UploadService,
     private readonly analysis: AnalysisService,
   ) {}
+
+  // 🔁 (Re)lance l'analyse IA d'un contenu DÉJÀ uploadé/chiffré, dont la source
+  // claire n'existe plus. On reconstruit l'audio depuis le HLS chiffré (le Core a
+  // la clé + ffmpeg) puis on démarre l'analyse. Idempotent : refuse si déjà en
+  // cours ou terminée. Accès : membre de l'entreprise autorisé sur ce contenu.
+  @Post(':id/analyze')
+  async analyzeExisting(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const me = req.user!
+    const content = this.contents.find(id)
+    // Cross-tenant / inexistant : 404 (on ne révèle rien), même règle que /keys.
+    if (!content || content.companyId !== me.companyId) {
+      throw new NotFoundException('Contenu introuvable')
+    }
+    if (!this.contents.isAllowed(id, me)) {
+      throw new ForbiddenException('Accès refusé pour ce contenu')
+    }
+
+    const rec = this.analysis.get(id)
+    if (rec && (rec.status === 'processing' || rec.status === 'done')) {
+      return { status: rec.status, message: 'analyse déjà en cours ou terminée' }
+    }
+
+    // Reconstruit l'audio depuis le HLS chiffré, lance l'analyse, puis nettoie.
+    const audioPath = await this.upload.extractAudioFromHls(id)
+    try {
+      await this.analysis.startFromFile(id, audioPath, `${content.title}.mp4`)
+    } finally {
+      await rm(dirname(audioPath), { recursive: true, force: true }).catch(() => {})
+    }
+    return { status: 'processing' }
+  }
 
   @Post('upload')
   @UseInterceptors(

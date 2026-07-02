@@ -34,6 +34,24 @@ export async function getMetadata(contentId) {
   return { status: 'error', error: `Réponse inattendue (${res.status})` }
 }
 
+// (Re)lance l'analyse IA d'un contenu DÉJÀ uploadé (jamais analysé, ou en erreur).
+// Le Core reconstruit l'audio depuis le HLS chiffré puis démarre l'analyse.
+// Renvoie { status } ('processing' si lancée, 'done'/'processing' si déjà faite).
+export async function requestAnalysis(contentId) {
+  const res = await authFetch(
+    `/admin/contents/${encodeURIComponent(contentId)}/analyze`,
+    {
+      method: 'POST',
+    },
+  )
+  if (res.ok) return res.json()
+  if (res.status === 401) throw new Error('Session expirée. Reconnectez-vous.')
+  if (res.status === 403) throw new Error("Vous n'avez pas accès à ce contenu.")
+  if (res.status === 404) throw new Error('Contenu introuvable.')
+  const body = await res.json().catch(() => ({}))
+  throw new Error(body?.message ?? `Analyse impossible (${res.status}).`)
+}
+
 // Traduction À LA DEMANDE d'une langue (test temps réel). Réutilise le pipeline
 // Engine (segments déjà analysés). Renvoie { lang, text, segments:[{start,end,text}] }.
 export async function translateContent(contentId, lang) {

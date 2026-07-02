@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CaretDown,
   CaretRight,
@@ -9,7 +9,7 @@ import {
   Sparkle,
 } from '@phosphor-icons/react'
 import { useMetadata } from '../lib/useMetadata'
-import { translateContent } from '../contents'
+import { getMetadata, requestAnalysis, translateContent } from '../contents'
 import { formatTime } from '../lib/format'
 
 // Langues proposées pour la traduction à la demande (test temps réel).
@@ -38,8 +38,56 @@ export default function InsightsPanel({
   // Si le parent fournit déjà `meta` (VideoReview, pour partager avec les
   // sous-titres), on l'utilise et on n'ouvre PAS un second polling.
   const ownMeta = useMetadata(metaProp ? null : contentId)
-  const meta = metaProp ?? ownMeta
+  // Après un lancement manuel d'analyse, un polling LOCAL prend le relais (le hook
+  // useMetadata ne re-poll pas depuis un état 'not_analyzed'/'error'). localMeta,
+  // s'il existe, prime sur la source normale.
+  const [localMeta, setLocalMeta] = useState(null)
+  const [launching, setLaunching] = useState(false)
+  const [launchErr, setLaunchErr] = useState(null)
+  const [trackedId, setTrackedId] = useState(contentId)
+  const pollRef = useRef(null)
+  const meta = localMeta ?? metaProp ?? ownMeta
   const [open, setOpen] = useState(false)
+
+  // Reset du suivi local au changement de contenu — PENDANT le rendu (pattern
+  // React sanctionné), pas dans un effet (setState synchrone en effet = interdit).
+  if (trackedId !== contentId) {
+    setTrackedId(contentId)
+    setLocalMeta(null)
+    setLaunchErr(null)
+  }
+
+  // Nettoyage du timer de polling local (démontage / changement de contenu).
+  useEffect(() => () => clearTimeout(pollRef.current), [contentId])
+
+  const startLocalPoll = () => {
+    clearTimeout(pollRef.current)
+    const tick = async () => {
+      try {
+        const r = await getMetadata(contentId)
+        setLocalMeta(r)
+        if (r.status === 'processing') pollRef.current = setTimeout(tick, 4000)
+      } catch (e) {
+        setLocalMeta({ status: 'error', error: e.message })
+      }
+    }
+    pollRef.current = setTimeout(tick, 4000)
+  }
+
+  const runAnalyze = async () => {
+    if (!contentId || launching) return
+    setLaunching(true)
+    setLaunchErr(null)
+    try {
+      const r = await requestAnalysis(contentId)
+      setLocalMeta({ status: r.status === 'done' ? 'done' : 'processing' })
+      if (r.status !== 'done') startLocalPoll()
+    } catch (e) {
+      setLaunchErr(e.message)
+    } finally {
+      setLaunching(false)
+    }
+  }
   const [query, setQuery] = useState('')
   // Traduction à la demande (test temps réel).
   const [transLang, setTransLang] = useState('en')
@@ -127,6 +175,29 @@ export default function InsightsPanel({
                 <strong>Analyse IA indisponible</strong>
               </p>
               <p className="insights-muted">{meta.error}</p>
+            </div>
+          )}
+
+          {/* Lancer / relancer l'analyse pour une vidéo déjà uploadée (jamais
+              analysée, ou en erreur). Le Core reconstruit l'audio depuis le HLS. */}
+          {(meta.status === 'not_analyzed' || meta.status === 'error') && (
+            <div className="insights-block">
+              <button
+                type="button"
+                className="btn btn-primary insights-analyze"
+                onClick={runAnalyze}
+                disabled={launching}
+              >
+                {launching ? (
+                  <span className="spinner" aria-hidden="true" />
+                ) : (
+                  <Sparkle size={15} weight="fill" />
+                )}
+                {meta.status === 'error'
+                  ? "Relancer l'analyse IA"
+                  : "Lancer l'analyse IA"}
+              </button>
+              {launchErr && <p className="insights-error">{launchErr}</p>}
             </div>
           )}
 

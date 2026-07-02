@@ -1455,6 +1455,9 @@
 .insights-block {
   margin-bottom: var(--s-4);
 }
+.insights-analyze {
+  margin-top: var(--s-1);
+}
 .insights-h {
   display: flex;
   align-items: center;
