@@ -1144,16 +1144,39 @@
   position: relative;
 }
 @media (max-width: 900px) {
+  /* Sur mobile/tablette on abandonne le modèle "tout tient dans l'écran figé" :
+     la revue devient un FLUX VERTICAL SCROLLABLE (vidéo -> contrôles -> insights
+     -> commentaires). Sans ça, les insights sous le player étaient COUPÉS car
+     review-main empilait tout sans scroll dans une hauteur bornée. */
   .review {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
+    display: block;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
-  /* La sidebar commentaires passe SOUS la vidéo, plafonnée pour garder l'image
-     visible ; elle scrolle en interne. */
+  .review-main {
+    display: block;
+  }
+  /* La scène s'adapte à la vidéo (plus de hauteur figée qui la rognait). */
+  .stage {
+    padding: var(--s-3);
+  }
+  .stage-inner {
+    max-height: none;
+  }
+  /* La vidéo ne monopolise plus la hauteur : bornée pour laisser voir la suite.
+     Dimensionnement intrinsèque (max-width/max-height) -> affichée ENTIÈRE. */
+  .video-el {
+    max-height: 56vh;
+  }
+  /* Plus aucune coupe : insights et commentaires s'affichent en entier, la page
+     scrolle pour y accéder. */
+  .insights {
+    max-height: none;
+  }
   .sidebar {
     border-left: 0;
     border-top: 1px solid var(--line);
-    max-height: 46vh;
+    max-height: none;
   }
 }
 
@@ -4076,6 +4099,28 @@
   }
   .admin-row {
     flex-wrap: wrap;
+  }
+  /* La méta (badges/actions) revient à la ligne au lieu d'être poussée à droite. */
+  .admin-row-meta {
+    margin-left: 0;
+  }
+  /* Entête catalogue/dashboard : titre + actions empilés. */
+  .cat-head,
+  .dash-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .cat-head h1 {
+    font-size: 1.45rem;
+  }
+  /* Doc : tableau 3 colonnes fixes -> pile lisible. */
+  .doc-tr {
+    grid-template-columns: 1fr;
+    gap: var(--s-1);
+  }
+  /* En-têtes de colonnes de la doc masqués une fois empilé (redondants). */
+  .doc-tr.doc-th {
+    display: none;
   }
   /* Login mobile : panneau gauche déjà masqué (<860px), on resserre la carte
      pour que le formulaire respire sur petit écran. */
