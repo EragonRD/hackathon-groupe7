@@ -49,6 +49,10 @@ export class UploadService implements OnModuleInit {
   private readonly hlsDir = resolveHlsDir()
   private readonly secretsDir = backendPath('secrets')
 
+  // Cache des binaires résolus (ffmpeg/ffprobe) : la sonde `-version` est
+  // synchrone et coûteuse, on ne la fait qu'une fois par paquet.
+  private readonly binCache = new Map<string, string>()
+
   // Sémaphore de concurrence ffmpeg : jetons disponibles + file de réveils en attente.
   private encodeSlots = MAX_CONCURRENT_ENCODES
   private readonly encodeQueue: Array<() => void> = []
@@ -119,17 +123,31 @@ export class UploadService implements OnModuleInit {
   }
 
   private getBin(staticPkg: string, systemCmd: string): string {
+    const cached = this.binCache.get(staticPkg)
+    if (cached) return cached
+
+    let resolved = systemCmd
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const staticPath = staticPkg === 'ffmpeg-static' ? require(staticPkg) : require(staticPkg).path;
+      const staticPath = staticPkg === 'ffmpeg-static' ? require(staticPkg) : require(staticPkg).path
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { spawnSync } = require('child_process');
-      const res = spawnSync(staticPath, ['-version']);
-      if (!res.error) return staticPath;
+      const { spawnSync } = require('child_process')
+      const res = spawnSync(staticPath, ['-version'])
+      // Le binaire pré-compilé n'est retenu QUE s'il s'exécute réellement
+      // (status 0). Sur Alpine/musl, un binaire glibc peut planter avec un code
+      // d'échec (127) sans peupler res.error -> on doit basculer sur le natif.
+      if (!res.error && res.status === 0) {
+        resolved = staticPath
+      } else {
+        this.logger.warn(
+          `${staticPkg} inutilisable (code ${res.status ?? res.error?.code ?? '?'}) -> repli sur ${systemCmd} du système`,
+        )
+      }
     } catch (e) {
-      // Ignored
+      this.logger.warn(`${staticPkg} introuvable (${(e as Error).message}) -> repli sur ${systemCmd}`)
     }
-    return systemCmd;
+    this.binCache.set(staticPkg, resolved)
+    return resolved
   }
 
   private getVideoMiddleTime(filePath: string): number {
@@ -160,8 +178,22 @@ export class UploadService implements OnModuleInit {
         join(outDir, 'thumbnail.jpg')
       ]
       const proc = spawn(ffmpegPath, args)
-      proc.on('close', () => resolve())
-      proc.on('error', () => resolve())
+      let stderr = ''
+      proc.stderr?.on('data', (d: Buffer) => {
+        stderr += d.toString()
+      })
+      proc.on('close', (code) => {
+        if (code !== 0) {
+          this.logger.warn(
+            `Miniature non générée (ffmpeg=${ffmpegPath}, code ${code}) : ${stderr.slice(-300)}`,
+          )
+        }
+        resolve()
+      })
+      proc.on('error', (err) => {
+        this.logger.warn(`Miniature échouée (ffmpeg=${ffmpegPath}) : ${err.message}`)
+        resolve()
+      })
     })
   }
 
