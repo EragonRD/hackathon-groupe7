@@ -41,3 +41,13 @@ jobs:
           context: ./frontend
           push: true
           tags: ghcr.io/${{ env.OWNER }}/hackathon-frontend:latest
+
+      # Engine IA (Pôle 3). Publié pour que le NAS le TIRE (comme core/frontend)
+      # au lieu de le construire sur place -> plus aucun build côté NAS, et
+      # Watchtower peut l'auto-mettre à jour. Build lourd (torch CPU + modèle GGUF).
+      - name: Build & Push Engine
+        uses: docker/build-push-action@v5
+        with:
+          context: ./engine
+          push: true
+          tags: ghcr.io/${{ env.OWNER }}/hackathon-engine:latest
