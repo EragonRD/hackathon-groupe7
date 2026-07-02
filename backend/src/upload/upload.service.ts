@@ -118,6 +118,41 @@ export class UploadService implements OnModuleInit {
     await rm(join(this.secretsDir, `${contentId}.key`), { force: true }).catch(() => {})
   }
 
+  private getVideoMiddleTime(filePath: string): number {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const ffprobePath = require('ffprobe-static').path;
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { spawnSync } = require('child_process');
+      const proc = spawnSync(ffprobePath, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath]);
+      const duration = parseFloat(proc.stdout.toString().trim());
+      return isNaN(duration) ? 1 : duration / 2;
+    } catch (e) {
+      return 1;
+    }
+  }
+
+  private async extractThumbnail(filePath: string, outDir: string): Promise<void> {
+    const midTime = this.getVideoMiddleTime(filePath)
+    const offset = midTime + (Math.random() - 0.5) * (midTime * 0.2)
+    const target = Math.max(0, offset)
+
+    return new Promise((resolve) => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const ffmpegPath = require('ffmpeg-static') || 'ffmpeg';
+      const args = [
+        '-ss', target.toString(),
+        '-i', filePath,
+        '-vframes', '1',
+        '-q:v', '2',
+        join(outDir, 'thumbnail.jpg')
+      ]
+      const proc = spawn(ffmpegPath, args)
+      proc.on('close', () => resolve())
+      proc.on('error', () => resolve())
+    })
+  }
+
   // Chiffre la vidéo en HLS AES-128 (clé + IV par contenu). Ré-encode en H.264/AAC
   // pour garantir un flux lisible par hls.js quel que soit le fichier source.
   private async encrypt(contentId: string, inputPath: string): Promise<void> {
@@ -137,6 +172,8 @@ export class UploadService implements OnModuleInit {
     // Attend un slot libre avant de lancer le ré-encodage (borne la charge CPU).
     await this.acquireEncodeSlot()
     try {
+      await this.extractThumbnail(inputPath, outDir)
+
       await this.runFfmpeg([
         '-hide_banner',
         '-loglevel',
@@ -162,23 +199,6 @@ export class UploadService implements OnModuleInit {
         'vod',
         join(outDir, 'index.m3u8'),
       ])
-      
-      // Générer la miniature
-      await this.runFfmpeg([
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-y',
-        '-ss',
-        '00:00:01',
-        '-i',
-        inputPath,
-        '-vframes',
-        '1',
-        '-q:v',
-        '2',
-        join(outDir, 'thumbnail.jpg'),
-      ]).catch(e => this.logger.warn(`Miniature échouée pour ${contentId}: ${e.message}`))
     } finally {
       this.releaseEncodeSlot()
       await rm(keyInfoPath, { force: true }).catch(() => {})
