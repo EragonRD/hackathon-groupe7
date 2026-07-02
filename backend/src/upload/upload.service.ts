@@ -121,7 +121,7 @@ export class UploadService implements OnModuleInit {
   private getVideoMiddleTime(filePath: string): number {
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const ffprobePath = require('ffprobe-static').path;
+      const ffprobePath = process.platform === 'win32' ? require('ffprobe-static').path : 'ffprobe';
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { spawnSync } = require('child_process');
       const proc = spawnSync(ffprobePath, ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', filePath]);
@@ -139,7 +139,7 @@ export class UploadService implements OnModuleInit {
 
     return new Promise((resolve) => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const ffmpegPath = require('ffmpeg-static') || 'ffmpeg';
+      const ffmpegPath = process.platform === 'win32' ? require('ffmpeg-static') : 'ffmpeg';
       const args = [
         '-ss', target.toString(),
         '-i', filePath,
@@ -327,7 +327,7 @@ export class UploadService implements OnModuleInit {
   private runFfmpeg(args: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const ffmpegPath = require('ffmpeg-static') || 'ffmpeg';
+      const ffmpegPath = process.platform === 'win32' ? require('ffmpeg-static') : 'ffmpeg';
       const proc = spawn(ffmpegPath, args)
       let stderr = ''
       proc.stderr.on('data', (d: Buffer) => {
