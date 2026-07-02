@@ -134,6 +134,20 @@ mkdir -p /volume1/docker/Hackathon/{data,media,secrets,logs}
 > régénérez-la (`openssl rand -hex 32`) et **redémarrez** (invalide les tokens
 > existants). Si vous activez l'Engine, il doit porter **le même** secret.
 
+### Réglage vidéo (optionnel)
+
+Le chiffrement HLS ré-encode en H.264 (ffmpeg, très CPU). `MAX_CONCURRENT_ENCODES`
+(service `core`) borne le nombre d'encodages **simultanés** (file FIFO) :
+
+| Valeur | Quand |
+|---|---|
+| `1` (défaut code) | NAS peu puissant / mono-cœur : uploads traités un par un. |
+| `2` (valeur du compose) | NAS multi-cœurs : deux uploads chiffrés en parallèle. |
+| `3+` | Seulement si CPU confortable (risque de saturation / OOM sinon). |
+
+> Le binaire ffmpeg est **celui du système** (image Alpine, `apk add ffmpeg`) :
+> aucune installation à faire côté NAS.
+
 ---
 
 ## 6. Démarrer

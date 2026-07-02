@@ -63,6 +63,14 @@ Plateforme vidéo unique. Architecture **View / Core / Engine**. 3 pôles imbriq
 | Frontend | `cd frontend && npm install && npm run dev` |
 | Backend | `cd backend && npm install && npm run start:dev` |
 
+## Déploiement (prod locale)
+| Cible | Fichier | Note |
+|---|---|---|
+| NAS UGREEN | `docker-compose.nas.yml` (**gitignoré**, vit sur le NAS) | Images GHCR + Cloudflare Tunnel + Watchtower |
+| Procédure | `DEPLOY-NAS.md` | Guide complet + dépannage |
+| Plan de feature | `docs/feature-plans/deploiement-nas-ugreen.md` | Traçabilité |
+| CI images | `.github/workflows/docker.yml` | Build+push `hackathon-backend`/`-frontend` sur GHCR (push `master`) |
+
 ## Sujets retenus (source : `REPARTITION.md`)
 | Pôle | Sujet | Lead (WMD) | Statut |
 |---|---|---|---|
