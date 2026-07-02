@@ -30,6 +30,16 @@ export class StreamController {
   }
 
   @SkipThrottle()
+  @Get(':contentId/thumbnail.jpg')
+  thumbnail(
+    @Param('contentId') contentId: string,
+    @Res() res: Response,
+  ): void {
+    const path = this.stream.resolveSegment(contentId, 'thumbnail.jpg')
+    res.status(200).setHeader('Content-Type', 'image/jpeg').sendFile(path)
+  }
+
+  @SkipThrottle()
   @Get(':contentId/:segment')
   segment(
     @Param('contentId') contentId: string,

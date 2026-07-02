@@ -188,6 +188,8 @@ export default function Catalogue({ onOpenSecure, onOpenAdmin }) {
 // Carte d'un contenu de l'organisation. Cliquable si `playable` (clé provisionnée
 // et non révoquée) ; sinon désactivée avec un badge d'état.
 function ContentCard({ content, onOpenSecure }) {
+  const API = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:3000')
+
   const unavailable = content.revoked
     ? { label: 'Accès suspendu', icon: LockKey }
     : !content.playable
@@ -199,7 +201,11 @@ function ContentCard({ content, onOpenSecure }) {
     return (
       <button className="vid-card" disabled title={unavailable.label}>
         <div className="vid-thumb">
-          <FilmSlate size={34} weight="light" color="var(--text-faint)" />
+          {content.status === 'processing' ? (
+            <FilmSlate size={34} weight="light" color="var(--text-faint)" />
+          ) : (
+            <img src={`${API}/videos/${content.id}/thumbnail.jpg?t=${Date.now()}`} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => e.target.style.display='none'} />
+          )}
         </div>
         <div className="vid-meta">
           <div className="vid-title">{content.title}</div>
@@ -222,7 +228,8 @@ function ContentCard({ content, onOpenSecure }) {
     <button className="vid-card" onClick={() => onOpenSecure(content)}>
       <div className="vid-thumb">
         <ShieldCheck size={34} weight="light" color="var(--accent-strong)" />
-        <div className="play-badge">
+        <img key={content.id} src={`${API}/videos/${content.id}/thumbnail.jpg?t=${Date.now()}`} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 1 }} onError={(e) => e.target.style.display='none'} />
+        <div className="play-badge" style={{ zIndex: 2 }}>
           <Play size={40} weight="fill" />
         </div>
       </div>

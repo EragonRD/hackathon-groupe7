@@ -162,6 +162,23 @@ export class UploadService implements OnModuleInit {
         'vod',
         join(outDir, 'index.m3u8'),
       ])
+      
+      // Générer la miniature
+      await this.runFfmpeg([
+        '-hide_banner',
+        '-loglevel',
+        'error',
+        '-y',
+        '-ss',
+        '00:00:01',
+        '-i',
+        inputPath,
+        '-vframes',
+        '1',
+        '-q:v',
+        '2',
+        join(outDir, 'thumbnail.jpg'),
+      ]).catch(e => this.logger.warn(`Miniature échouée pour ${contentId}: ${e.message}`))
     } finally {
       this.releaseEncodeSlot()
       await rm(keyInfoPath, { force: true }).catch(() => {})
@@ -289,7 +306,9 @@ export class UploadService implements OnModuleInit {
 
   private runFfmpeg(args: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
-      const proc = spawn('ffmpeg', args)
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const ffmpegPath = require('ffmpeg-static') || 'ffmpeg';
+      const proc = spawn(ffmpegPath, args)
       let stderr = ''
       proc.stderr.on('data', (d: Buffer) => {
         stderr += d.toString()

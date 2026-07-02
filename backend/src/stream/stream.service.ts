@@ -5,7 +5,7 @@ import { join } from 'path'
 
 // Identifiants sûrs (anti path-traversal).
 const CONTENT_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/
-const SEGMENT_PATTERN = /^[a-zA-Z0-9._-]{1,80}\.ts$/
+const SEGMENT_PATTERN = /^[a-zA-Z0-9._-]{1,80}\.(ts|jpg)$/
 
 // Dossier des rendus HLS. Configurable pour le déploiement (volume monté).
 function resolveHlsDir(): string {
