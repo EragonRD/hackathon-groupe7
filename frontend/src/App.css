@@ -1118,6 +1118,22 @@
   font-size: 12px;
   color: var(--text-faint);
 }
+/* Carte en échec de chiffrement : non cliquable, avec action « Relancer ». */
+.vid-card-failed {
+  display: flex;
+  flex-direction: column;
+  cursor: default;
+}
+.vid-retry {
+  margin-top: var(--s-3);
+  width: 100%;
+  justify-content: center;
+}
+.vid-error {
+  margin-top: var(--s-2);
+  font-size: 12px;
+  color: var(--danger);
+}
 
 /* Zone "charger une vidéo locale" */
 .dropzone {

@@ -52,6 +52,21 @@ export async function requestAnalysis(contentId) {
   throw new Error(body?.message ?? `Analyse impossible (${res.status}).`)
 }
 
+// Relance le CHIFFREMENT d'un contenu dont le chiffrement a échoué ('failed'),
+// depuis la source claire conservée par le Core. Renvoie { status }.
+export async function requestReencrypt(contentId) {
+  const res = await authFetch(
+    `/admin/contents/${encodeURIComponent(contentId)}/reencrypt`,
+    { method: 'POST' },
+  )
+  if (res.ok) return res.json()
+  if (res.status === 401) throw new Error('Session expirée. Reconnectez-vous.')
+  if (res.status === 403) throw new Error("Vous n'avez pas accès à ce contenu.")
+  if (res.status === 404) throw new Error('Contenu introuvable.')
+  const body = await res.json().catch(() => ({}))
+  throw new Error(body?.message ?? `Relance impossible (${res.status}).`)
+}
+
 // Traduction À LA DEMANDE d'une langue (test temps réel). Réutilise le pipeline
 // Engine (segments déjà analysés). Renvoie { lang, text, segments:[{start,end,text}] }.
 export async function translateContent(contentId, lang) {

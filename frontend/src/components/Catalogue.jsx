@@ -10,9 +10,10 @@ import {
   Warning,
   UsersThree,
   CircleNotch,
+  ArrowClockwise,
 } from '@phosphor-icons/react'
 import { isSuperAdmin } from '../auth'
-import { listMyContents } from '../contents'
+import { listMyContents, requestReencrypt } from '../contents'
 import { useUploads } from '../lib/uploads'
 import VideoUploadModal from './VideoUploadModal'
 
@@ -147,7 +148,12 @@ export default function Catalogue({ onOpenSecure, onOpenAdmin }) {
             ) : (
               <div className="cat-grid">
                 {contents.map((c) => (
-                  <ContentCard key={c.id} content={c} onOpenSecure={onOpenSecure} />
+                  <ContentCard
+                    key={c.id}
+                    content={c}
+                    onOpenSecure={onOpenSecure}
+                    onReload={reloadContents}
+                  />
                 ))}
               </div>
             )}
@@ -203,13 +209,70 @@ export default function Catalogue({ onOpenSecure, onOpenAdmin }) {
 
 // Carte d'un contenu de l'organisation. Cliquable si `playable` (clé provisionnée
 // et non révoquée) ; sinon désactivée avec un badge d'état.
-function ContentCard({ content, onOpenSecure }) {
+function ContentCard({ content, onOpenSecure, onReload }) {
   const API =
     import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:3000')
+
+  const [retrying, setRetrying] = useState(false)
+  const [retryErr, setRetryErr] = useState(null)
 
   const processing = content.status === 'processing'
   const failed = content.status === 'failed'
   const pct = Math.max(0, Math.min(100, Math.round(content.progress ?? 0)))
+
+  async function retryEncryption() {
+    if (retrying) return
+    setRetrying(true)
+    setRetryErr(null)
+    try {
+      await requestReencrypt(content.id)
+      // Le Core repasse le contenu en 'processing' : on resynchronise le
+      // catalogue, qui se met alors à poller jusqu'à 'ready'/'failed'.
+      onReload?.()
+    } catch (e) {
+      setRetryErr(e.message)
+    } finally {
+      setRetrying(false)
+    }
+  }
+
+  // Échec du chiffrement : carte NON cliquable (pas un <button>) portant un vrai
+  // bouton « Relancer » (imbriquer un bouton dans un bouton est invalide).
+  if (failed) {
+    return (
+      <div className="vid-card vid-card-failed">
+        <div className="vid-thumb">
+          <FilmSlate size={34} weight="light" color="var(--text-faint)" />
+        </div>
+        <div className="vid-meta">
+          <div className="vid-title">{content.title}</div>
+          <div className="vid-sub">
+            <Warning size={13} weight="bold" color="var(--danger)" />
+            Échec du chiffrement
+            {content.guestUpload && (
+              <span className="badge" title="Vidéo déposée par un invité">
+                <UsersThree size={12} weight="bold" />
+                Upload invité
+              </span>
+            )}
+          </div>
+          <button
+            className="btn btn-primary vid-retry"
+            onClick={retryEncryption}
+            disabled={retrying}
+          >
+            {retrying ? (
+              <CircleNotch size={14} weight="bold" className="spin" />
+            ) : (
+              <ArrowClockwise size={14} weight="bold" />
+            )}
+            {retrying ? 'Relance…' : 'Relancer le chiffrement'}
+          </button>
+          {retryErr && <p className="vid-error">{retryErr}</p>}
+        </div>
+      </div>
+    )
+  }
 
   const unavailable = content.revoked
     ? { label: 'Accès suspendu', icon: LockKey }

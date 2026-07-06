@@ -17,6 +17,7 @@ import { extname, join } from 'path'
 import { tmpdir } from 'os'
 import { backendPath } from '../common/runtime-paths'
 import { ContentsService } from '../contents/contents.service'
+import { AnalysisService } from '../engine/analysis.service'
 import { extractAudioMp3 } from '../engine/ffmpeg-audio'
 
 // Même résolution que StreamService : le Core lit et écrit le HLS au même endroit.
@@ -59,6 +60,11 @@ export class UploadService implements OnModuleInit {
   private readonly logger = new Logger(UploadService.name)
   private readonly hlsDir = resolveHlsDir()
   private readonly secretsDir = backendPath('secrets')
+  // Sources CLAIRES conservées UNIQUEMENT après un échec de chiffrement, pour
+  // permettre une relance manuelle. Dossier NON servi par nginx (hors /hls). En
+  // Docker (hors volume), le contenu est éphémère : la relance fonctionne dans la
+  // session ; après un redémarrage du conteneur, il faut ré-uploader.
+  private readonly pendingDir = backendPath('media', 'pending')
 
   // Cache des binaires résolus (ffmpeg/ffprobe) : la sonde `-version` est
   // synchrone et coûteuse, on ne la fait qu'une fois par paquet.
@@ -69,7 +75,102 @@ export class UploadService implements OnModuleInit {
   private readonly encodeQueue: Array<() => void> = []
   private readonly activeMerges = new Set<string>()
 
-  constructor(private readonly contents: ContentsService) {}
+  constructor(
+    private readonly contents: ContentsService,
+    private readonly analysis: AnalysisService,
+  ) {}
+
+  // Pipeline post-upload UNIFIÉ (upload direct, chunké, invité) : chiffre puis,
+  //  • succès -> statut 'ready', analyse IA (best-effort), suppression de la source ;
+  //  • échec  -> statut 'failed' + CONSERVATION de la source (relance possible).
+  // Tâche de fond : ne bloque pas la requête d'upload.
+  async finalizeUpload(
+    contentId: string,
+    sourcePath: string,
+    filename: string,
+  ): Promise<void> {
+    try {
+      await this.encrypt(contentId, sourcePath)
+      this.contents.setStatus(contentId, 'ready')
+      this.logger.log(`Contenu ${contentId} chiffré → prêt`)
+    } catch (e) {
+      this.contents.setStatus(contentId, 'failed')
+      this.logger.error(`Échec chiffrement ${contentId} : ${(e as Error).message}`)
+      await this.retainSource(contentId, sourcePath, filename)
+      return
+    }
+    // Chiffrement OK : analyse IA (best-effort) puis suppression de la source claire.
+    try {
+      await this.analysis.startFromFile(contentId, sourcePath, filename)
+    } finally {
+      await rm(sourcePath, { force: true }).catch(() => {})
+    }
+  }
+
+  // Relance le chiffrement d'un contenu 'failed' à partir de la source conservée.
+  // Retourne false si aucune source n'est disponible (échec ancien / redémarrage).
+  async reencrypt(contentId: string): Promise<boolean> {
+    const src = await this.pendingSourcePath(contentId)
+    if (!src) return false
+    this.contents.setStatus(contentId, 'processing')
+    const content = this.contents.find(contentId)
+    const filename = `${content?.title ?? 'video'}${extname(src) || '.mp4'}`
+    void (async () => {
+      try {
+        await this.encrypt(contentId, src)
+        this.contents.setStatus(contentId, 'ready')
+        this.logger.log(`Contenu ${contentId} re-chiffré → prêt`)
+        try {
+          await this.analysis.startFromFile(contentId, src, filename)
+        } finally {
+          // Succès : la source conservée n'est plus nécessaire.
+          await rm(src, { force: true }).catch(() => {})
+        }
+      } catch (e) {
+        // Nouvel échec : on garde la source pour une relance ultérieure.
+        this.contents.setStatus(contentId, 'failed')
+        this.logger.error(`Échec re-chiffrement ${contentId} : ${(e as Error).message}`)
+      }
+    })()
+    return true
+  }
+
+  // Déplace la source claire vers le dossier de conservation (clé = contentId).
+  private async retainSource(
+    contentId: string,
+    sourcePath: string,
+    filename: string,
+  ): Promise<void> {
+    try {
+      await mkdir(this.pendingDir, { recursive: true })
+      const dest = join(this.pendingDir, `${contentId}${extname(filename) || '.mp4'}`)
+      try {
+        await rename(sourcePath, dest)
+      } catch {
+        // rename échoue entre systèmes de fichiers différents (tmp -> media) :
+        // repli copie + suppression.
+        await copyFile(sourcePath, dest)
+        await rm(sourcePath, { force: true }).catch(() => {})
+      }
+      this.logger.warn(`Source conservée pour relance: ${contentId}`)
+    } catch (e) {
+      this.logger.error(`Conservation source impossible ${contentId}: ${(e as Error).message}`)
+      await rm(sourcePath, { force: true }).catch(() => {})
+    }
+  }
+
+  // Chemin de la source conservée pour un contenu, ou null si absente.
+  private async pendingSourcePath(contentId: string): Promise<string | null> {
+    try {
+      const files = await readdir(this.pendingDir)
+      const match = files.find(
+        (f) => f === contentId || f.startsWith(`${contentId}.`),
+      )
+      return match ? join(this.pendingDir, match) : null
+    } catch {
+      return null
+    }
+  }
 
   // Réconciliation au démarrage : un chiffrement interrompu par un arrêt du Core
   // (jobs en mémoire, non repris) laisse le contenu bloqué en 'processing' pour
@@ -106,22 +207,6 @@ export class UploadService implements OnModuleInit {
     const next = this.encodeQueue.shift()
     if (next) next()
     else this.encodeSlots += 1
-  }
-
-  // Lance le chiffrement en TÂCHE DE FOND (ne bloque pas la requête d'upload) :
-  // met le contenu en `ready` / `failed`. La suppression du fichier temporaire
-  // clair est coordonnée par l'appelant (contrôleur), APRÈS que l'Engine l'a aussi
-  // lu — d'où la promesse renvoyée. On n'efface donc PAS le fichier ici.
-  encryptInBackground(contentId: string, inputPath: string): Promise<void> {
-    return this.encrypt(contentId, inputPath)
-      .then(() => {
-        this.contents.setStatus(contentId, 'ready')
-        this.logger.log(`Contenu ${contentId} chiffré → prêt`)
-      })
-      .catch((e: unknown) => {
-        this.contents.setStatus(contentId, 'failed')
-        this.logger.error(`Échec chiffrement ${contentId} : ${(e as Error).message}`)
-      })
   }
 
   // Supprime les artefacts d'un contenu : rendu HLS chiffré + clé AES.

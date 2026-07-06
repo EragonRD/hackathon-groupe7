@@ -82,6 +82,30 @@ export class UploadController {
     return { status: 'processing' }
   }
 
+  // 🔁 Relance le CHIFFREMENT d'un contenu dont le chiffrement a échoué ('failed'),
+  // à partir de la source claire conservée. 400 si la source n'existe plus.
+  @Post(':id/reencrypt')
+  async reencryptExisting(@Req() req: RequestWithUser, @Param('id') id: string) {
+    const me = req.user!
+    const content = this.contents.find(id)
+    if (!content || content.companyId !== me.companyId) {
+      throw new NotFoundException('Contenu introuvable')
+    }
+    if (!this.contents.isAllowed(id, me)) {
+      throw new ForbiddenException('Accès refusé pour ce contenu')
+    }
+    if (content.status !== 'failed') {
+      return { status: content.status, message: "le contenu n'est pas en échec" }
+    }
+    const ok = await this.upload.reencrypt(id)
+    if (!ok) {
+      throw new BadRequestException(
+        'Source indisponible pour la relance — ré-uploadez la vidéo.',
+      )
+    }
+    return { status: 'processing' }
+  }
+
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -133,14 +157,8 @@ export class UploadController {
     // sur un NAS modeste) : 1) chiffrement HLS, PUIS 2) analyse IA (transcription
     // -> traduction). Le fichier clair est supprimé une fois les deux passés
     // (l'Engine ayant reçu sa propre copie au moment de startFromFile).
-    void (async () => {
-      try {
-        await this.upload.encryptInBackground(content.id, file.path)
-        await this.analysis.startFromFile(content.id, file.path, file.originalname)
-      } finally {
-        await rm(file.path, { force: true }).catch(() => {})
-      }
-    })()
+    // Pipeline unifié : chiffrement + (analyse / conservation de la source si échec).
+    void this.upload.finalizeUpload(content.id, file.path, file.originalname)
 
     return {
       ...content,
@@ -232,16 +250,8 @@ export class UploadController {
           ownerUsername: me.username,
         })
 
-        // Séquentiel (chiffrement PUIS analyse) + vrai nom de fichier transmis.
-        const clearPath = merge.path
-        void (async () => {
-          try {
-            await this.upload.encryptInBackground(content.id, clearPath)
-            await this.analysis.startFromFile(content.id, clearPath, file.originalname)
-          } finally {
-            await rm(clearPath, { force: true }).catch(() => {})
-          }
-        })()
+        // Pipeline unifié : chiffrement + (analyse / conservation si échec).
+        void this.upload.finalizeUpload(content.id, merge.path, file.originalname)
 
         return {
           ...content,

@@ -20,7 +20,6 @@ import { AuthGuard } from '../auth/auth.guard'
 import { PasswordChangedGuard } from '../auth/password-changed.guard'
 import { UsersService } from '../auth/users.service'
 import { ContentsService } from '../contents/contents.service'
-import { AnalysisService } from '../engine/analysis.service'
 import type { RequestWithUser } from '../common/request-context'
 import { UploadService } from './upload.service'
 
@@ -46,7 +45,6 @@ export class GuestUploadController {
     private readonly contents: ContentsService,
     private readonly users: UsersService,
     private readonly upload: UploadService,
-    private readonly analysis: AnalysisService,
   ) {}
 
   @Post('guest-upload')
@@ -94,17 +92,8 @@ export class GuestUploadController {
     for (const u of this.users.listByCompany(me.companyId)) {
       if (u.role === 'admin') this.contents.grantAccess(content.id, u.username)
     }
-    // Traitement SÉQUENTIEL (respecte la pipeline, évite la contention CPU/RAM sur
-    // le NAS) : 1) chiffrement HLS, PUIS 2) analyse IA (transcription -> traduction).
-    // Le fichier clair est supprimé une fois les deux passés (l'Engine a sa copie).
-    void (async () => {
-      try {
-        await this.upload.encryptInBackground(content.id, file.path)
-        await this.analysis.startFromFile(content.id, file.path, file.originalname)
-      } finally {
-        await rm(file.path, { force: true }).catch(() => {})
-      }
-    })()
+    // Pipeline unifié : chiffrement + (analyse / conservation de la source si échec).
+    void this.upload.finalizeUpload(content.id, file.path, file.originalname)
 
     return {
       id: content.id,
@@ -192,16 +181,8 @@ export class GuestUploadController {
           if (u.role === 'admin') this.contents.grantAccess(content.id, u.username)
         }
 
-        // Séquentiel (chiffrement PUIS analyse) + vrai nom de fichier transmis.
-        const clearPath = merge.path
-        void (async () => {
-          try {
-            await this.upload.encryptInBackground(content.id, clearPath)
-            await this.analysis.startFromFile(content.id, clearPath, file.originalname)
-          } finally {
-            await rm(clearPath, { force: true }).catch(() => {})
-          }
-        })()
+        // Pipeline unifié : chiffrement + (analyse / conservation si échec).
+        void this.upload.finalizeUpload(content.id, merge.path, file.originalname)
 
         return {
           id: content.id,
